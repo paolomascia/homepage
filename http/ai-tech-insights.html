@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tech Insights — Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+            <button class="nav-toggle" aria-label="Toggle menu">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </div>
+    </nav>
+
+    <section class="writing" style="padding-top: 140px;">
+        <div class="container">
+            <a href="index.html" class="back-link" style="display: inline-block; font-size: 14px; color: var(--text-muted); margin-bottom: 32px; transition: color 0.2s;">&larr; Back to Home</a>
+            <h2 class="section-title">Tech Insights</h2>
+            <p class="section-subtitle">Thoughts on AI, engineering, and everything in between.</p>
+            <div class="posts-grid">
+
+                <a href="post-vector-databases.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">May 2025</span>
+                        <span class="post-reading">14 min read</span>
+                    </div>
+                    <h3>Vector Databases: Storage and Retrieval for Embedding-Based AI Systems</h3>
+                    <p>Vector databases are a foundational component in modern AI systems — from semantic search and recommendation engines to RAG pipelines. A deep dive into FAISS, hybrid retrieval, and re-ranking.</p>
+                    <div class="post-tags">
+                        <span>Vector Databases</span>
+                        <span>Embeddings</span>
+                        <span>FAISS</span>
+                    </div>
+                </a>
+
+                <a href="post-rag.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Feb 2025</span>
+                        <span class="post-reading">12 min read</span>
+                    </div>
+                    <h3>Retrieval-Augmented Generation (RAG): Enhancing LLMs with External Knowledge</h3>
+                    <p>RAG solves LLM hallucination by grounding generation in retrieved evidence. A comprehensive guide to building RAG pipelines with encoders, FAISS, and production-ready patterns.</p>
+                    <div class="post-tags">
+                        <span>RAG</span>
+                        <span>LLM</span>
+                        <span>FAISS</span>
+                    </div>
+                </a>
+
+                <a href="post-dpo.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Aug 2025</span>
+                        <span class="post-reading">3 min read</span>
+                    </div>
+                    <h3>Direct Preference Optimization (DPO): A Simpler Alternative to RLHF</h3>
+                    <p>DPO aligns language models directly using preference data, without training a reward model or using reinforcement learning. A mathematically motivated and computationally efficient approach.</p>
+                    <div class="post-tags">
+                        <span>DPO</span>
+                        <span>RLHF</span>
+                        <span>AI Alignment</span>
+                    </div>
+                </a>
+
+                <a href="post-ppo.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Oct 2025</span>
+                        <span class="post-reading">10 min read</span>
+                    </div>
+                    <h3>Proximal Policy Optimization (PPO): A Practical, Stable Workhorse for RL</h3>
+                    <p>PPO constrains policy changes to stay close to the old policy, ensuring stable learning. The go-to algorithm for both game environments and RLHF in language models.</p>
+                    <div class="post-tags">
+                        <span>Reinforcement Learning</span>
+                        <span>PPO</span>
+                        <span>RLHF</span>
+                    </div>
+                </a>
+
+                <a href="post-rlhf.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Jun 2025</span>
+                        <span class="post-reading">2 min read</span>
+                    </div>
+                    <h3>Reinforcement Learning from Human Feedback (RLHF)</h3>
+                    <p>RLHF refines large language models by incorporating human feedback as a guiding signal, teaching models to prefer helpful, truthful, and safe responses.</p>
+                    <div class="post-tags">
+                        <span>RLHF</span>
+                        <span>LLM</span>
+                        <span>AI Alignment</span>
+                    </div>
+                </a>
+
+                <a href="post-transformers.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Mar 2025</span>
+                        <span class="post-reading">5 min read</span>
+                    </div>
+                    <h3>Transformers: The Architecture That Revolutionized Deep Learning</h3>
+                    <p>From the landmark "Attention is All You Need" paper to GPT and BERT — how self-attention and multi-head mechanisms became the universal deep learning backbone.</p>
+                    <div class="post-tags">
+                        <span>Transformers</span>
+                        <span>Self-Attention</span>
+                        <span>Deep Learning</span>
+                    </div>
+                </a>
+
+                <a href="post-autoencoders.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Dec 2024</span>
+                        <span class="post-reading">5 min read</span>
+                    </div>
+                    <h3>Autoencoders: Learning Efficient Data Representations</h3>
+                    <p>Unsupervised neural networks that learn compressed representations of data. From denoising to anomaly detection, autoencoders are powerful tools for feature extraction.</p>
+                    <div class="post-tags">
+                        <span>Autoencoders</span>
+                        <span>Unsupervised Learning</span>
+                        <span>Deep Learning</span>
+                    </div>
+                </a>
+
+                <a href="post-rnn.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Apr 2025</span>
+                        <span class="post-reading">5 min read</span>
+                    </div>
+                    <h3>Recurrent Neural Networks (RNNs): Learning from Sequences</h3>
+                    <p>RNNs introduce memory into neural networks, enabling them to process sequential data like text, speech, and time series. From SimpleRNN to LSTM and GRU.</p>
+                    <div class="post-tags">
+                        <span>RNN</span>
+                        <span>LSTM</span>
+                        <span>Sequence Modeling</span>
+                    </div>
+                </a>
+
+                <a href="post-cnn.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Jan 2025</span>
+                        <span class="post-reading">8 min read</span>
+                    </div>
+                    <h3>Convolutional Neural Networks (CNNs): The Brains Behind Computer Vision</h3>
+                    <p>CNNs automatically learn spatial hierarchies of features — from edges and textures to complex objects — making them the backbone of modern computer vision.</p>
+                    <div class="post-tags">
+                        <span>Deep Learning</span>
+                        <span>Computer Vision</span>
+                        <span>CNN</span>
+                    </div>
+                </a>
+
+                <a href="post-shallow-vs-deep.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Aug 2024</span>
+                        <span class="post-reading">10 min read</span>
+                    </div>
+                    <h3>Shallow vs Deep Neural Networks: Understanding the Depth of Learning</h3>
+                    <p>From a single hidden layer to hundreds of layers — understanding when and why depth matters is fundamental to designing effective AI systems.</p>
+                    <div class="post-tags">
+                        <span>Neural Networks</span>
+                        <span>Deep Learning</span>
+                        <span>ML Fundamentals</span>
+                    </div>
+                </a>
+
+                <a href="post-simple-linear-regression.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Feb 2023</span>
+                        <span class="post-reading">18 min read</span>
+                    </div>
+                    <h3>Simple Linear Regression in Python</h3>
+                    <p>The most fundamental and interpretable technique in machine learning. A comprehensive guide from OLS theory to scikit-learn implementation, diagnostics, and deployment.</p>
+                    <div class="post-tags">
+                        <span>Linear Regression</span>
+                        <span>Python</span>
+                        <span>Machine Learning</span>
+                    </div>
+                </a>
+
+                <a href="post-multiple-linear-regression.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">May 2023</span>
+                        <span class="post-reading">20 min read</span>
+                    </div>
+                    <h3>Multiple Linear Regression in Python</h3>
+                    <p>Extending the straight-line idea to many predictors. Handling categorical variables, multicollinearity, interactions, and building end-to-end scikit-learn pipelines.</p>
+                    <div class="post-tags">
+                        <span>Linear Regression</span>
+                        <span>Python</span>
+                        <span>Scikit-Learn</span>
+                    </div>
+                </a>
+
+                <a href="post-regularization.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Jul 2023</span>
+                        <span class="post-reading">12 min read</span>
+                    </div>
+                    <h3>Regularization in Linear Regression: Ridge, Lasso, and Elastic Net</h3>
+                    <p>Regularization discourages overly large coefficients by adding a penalty to the cost function. Ridge smoothly shrinks, Lasso forces sparsity, and Elastic Net combines both.</p>
+                    <div class="post-tags">
+                        <span>Linear Regression</span>
+                        <span>Regularization</span>
+                        <span>Python</span>
+                    </div>
+                </a>
+
+                <a href="post-ml-pipelines.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Nov 2025</span>
+                        <span class="post-reading">10 min read</span>
+                    </div>
+                    <h3>Building Machine Learning Pipelines in Python</h3>
+                    <p>Chain preprocessing and modeling into one reusable workflow. Prevent data leakage, integrate with cross-validation, and deploy entire pipelines to production.</p>
+                    <div class="post-tags">
+                        <span>Pipelines</span>
+                        <span>Scikit-Learn</span>
+                        <span>Python</span>
+                    </div>
+                </a>
+
+                <a href="post-random-forest.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Dec 2023</span>
+                        <span class="post-reading">14 min read</span>
+                    </div>
+                    <h3>Random Forest Model Evaluation in Python</h3>
+                    <p>Rigorous evaluation of Random Forest models using classification metrics, feature importance, cross-validation, hyperparameter tuning, and learning curves.</p>
+                    <div class="post-tags">
+                        <span>Random Forest</span>
+                        <span>Model Evaluation</span>
+                        <span>Scikit-Learn</span>
+                    </div>
+                </a>
+
+                <a href="post-kmeans.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Feb 2024</span>
+                        <span class="post-reading">12 min read</span>
+                    </div>
+                    <h3>K-Means Clustering Model Evaluation in Python</h3>
+                    <p>Internal and external validation metrics for K-Means clustering: silhouette score, elbow method, Davies-Bouldin index, and cluster stability analysis.</p>
+                    <div class="post-tags">
+                        <span>K-Means</span>
+                        <span>Clustering</span>
+                        <span>Model Evaluation</span>
+                    </div>
+                </a>
+
+                <a href="post-pca.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">May 2024</span>
+                        <span class="post-reading">14 min read</span>
+                    </div>
+                    <h3>Principal Component Analysis (PCA) in Python</h3>
+                    <p>A cornerstone technique for dimensionality reduction and visualization. From explained variance to Kernel PCA, with pipeline integration and clustering applications.</p>
+                    <div class="post-tags">
+                        <span>PCA</span>
+                        <span>Dimension Reduction</span>
+                        <span>Scikit-Learn</span>
+                    </div>
+                </a>
+
+                <a href="post-tsne-umap.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Jul 2024</span>
+                        <span class="post-reading">12 min read</span>
+                    </div>
+                    <h3>t-SNE and UMAP in Python</h3>
+                    <p>Nonlinear dimension reduction for visualizing high-dimensional data. Comparing t-SNE and UMAP on manifolds, embeddings, and clustering workflows.</p>
+                    <div class="post-tags">
+                        <span>t-SNE</span>
+                        <span>UMAP</span>
+                        <span>Dimension Reduction</span>
+                    </div>
+                </a>
+
+                <a href="post-numpy.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Mar 2023</span>
+                        <span class="post-reading">15 min read</span>
+                    </div>
+                    <h3>Mastering NumPy: The Foundation of Scientific Computing in Python</h3>
+                    <p>Fast, memory-efficient multidimensional arrays and mathematical functions — the backbone of pandas, scikit-learn, TensorFlow, and the entire Python data science stack.</p>
+                    <div class="post-tags">
+                        <span>NumPy</span>
+                        <span>Python</span>
+                        <span>Scientific Computing</span>
+                    </div>
+                </a>
+
+                <a href="post-pandas.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Jun 2023</span>
+                        <span class="post-reading">12 min read</span>
+                    </div>
+                    <h3>Getting Started with Pandas</h3>
+                    <p>The cornerstone of data analysis in Python. Series, DataFrames, filtering, grouping, merging, pivoting, and visualization — everything to get productive fast.</p>
+                    <div class="post-tags">
+                        <span>Pandas</span>
+                        <span>Python</span>
+                        <span>Data Analysis</span>
+                    </div>
+                </a>
+
+                <a href="post-advanced-pandas.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Nov 2023</span>
+                        <span class="post-reading">14 min read</span>
+                    </div>
+                    <h3>Advanced Pandas: Method Chaining, MultiIndex, Time Series, and Performance</h3>
+                    <p>Advanced techniques for professional data workflows — method chaining, hierarchical indexing, time series operations, chunked processing, and performance optimization.</p>
+                    <div class="post-tags">
+                        <span>Pandas</span>
+                        <span>Python</span>
+                        <span>Data Engineering</span>
+                    </div>
+                </a>
+
+                <a href="post-polynomial-regression.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Sep 2023</span>
+                        <span class="post-reading">12 min read</span>
+                    </div>
+                    <h3>Polynomial Regression in Python</h3>
+                    <p>Extend linear regression with polynomial features to capture curvature and interactions. From degree selection with cross-validation to Ridge regularization for stability.</p>
+                    <div class="post-tags">
+                        <span>Polynomial</span>
+                        <span>Regression</span>
+                        <span>Scikit-Learn</span>
+                    </div>
+                </a>
+
+                <a href="post-logistic-regression.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Jan 2024</span>
+                        <span class="post-reading">14 min read</span>
+                    </div>
+                    <h3>Logistic Regression in Python</h3>
+                    <p>A linear model for classification that predicts probabilities via the sigmoid function. Interpretable coefficients, odds ratios, regularization, and multiclass extensions.</p>
+                    <div class="post-tags">
+                        <span>Logistic Regression</span>
+                        <span>Classification</span>
+                        <span>Scikit-Learn</span>
+                    </div>
+                </a>
+
+                <a href="post-knn.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Jun 2024</span>
+                        <span class="post-reading">12 min read</span>
+                    </div>
+                    <h3>K-Nearest Neighbors Regression in Python</h3>
+                    <p>A lazy learner that predicts by averaging the targets of the K closest training points. Distance metrics, weighting schemes, scaling, and practical pipeline patterns.</p>
+                    <div class="post-tags">
+                        <span>KNN</span>
+                        <span>Regression</span>
+                        <span>Scikit-Learn</span>
+                    </div>
+                </a>
+
+                <a href="post-decision-tree.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Apr 2024</span>
+                        <span class="post-reading">14 min read</span>
+                    </div>
+                    <h3>Decision Tree Regression in Python</h3>
+                    <p>Recursive partitioning for nonlinear regression with minimal preprocessing. From cost-complexity pruning to feature importance interpretation and pipeline integration.</p>
+                    <div class="post-tags">
+                        <span>Decision Tree</span>
+                        <span>Regression</span>
+                        <span>Scikit-Learn</span>
+                    </div>
+                </a>
+
+                <a href="post-regression-trees.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Aug 2023</span>
+                        <span class="post-reading">12 min read</span>
+                    </div>
+                    <h3>Regression Trees in Python</h3>
+                    <p>Piecewise-constant models via recursive splits. Controlling complexity with depth, leaf size, and pruning &mdash; plus pipeline integration with categorical features.</p>
+                    <div class="post-tags">
+                        <span>Decision Tree</span>
+                        <span>Regression</span>
+                        <span>Scikit-Learn</span>
+                    </div>
+                </a>
+
+                <a href="post-random-forest-regression.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Mar 2024</span>
+                        <span class="post-reading">14 min read</span>
+                    </div>
+                    <h3>Random Forest Regression in Python</h3>
+                    <p>Ensemble of bootstrapped decision trees that averages predictions for strong, stable accuracy. OOB scoring, feature importance, partial dependence, and prediction intervals.</p>
+                    <div class="post-tags">
+                        <span>Random Forest</span>
+                        <span>Regression</span>
+                        <span>Ensemble</span>
+                    </div>
+                </a>
+
+                <a href="post-svm.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Oct 2024</span>
+                        <span class="post-reading">16 min read</span>
+                    </div>
+                    <h3>Support Vector Machines in Python</h3>
+                    <p>Maximum-margin classifiers with kernel functions for nonlinear boundaries. SVC, SVR, hyperparameter tuning, probability calibration, and production-ready pipelines.</p>
+                    <div class="post-tags">
+                        <span>SVM</span>
+                        <span>Classification</span>
+                        <span>Regression</span>
+                    </div>
+                </a>
+
+                <a href="post-kmeans-clustering.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Sep 2024</span>
+                        <span class="post-reading">14 min read</span>
+                    </div>
+                    <h3>K-Means Clustering in Python</h3>
+                    <p>Partition data into K clusters by minimizing within-cluster distances. Elbow method, silhouette analysis, Mini-Batch K-Means, cluster profiling, and anomaly detection.</p>
+                    <div class="post-tags">
+                        <span>K-Means</span>
+                        <span>Clustering</span>
+                        <span>Unsupervised Learning</span>
+                    </div>
+                </a>
+
+                <a href="post-dbscan.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Nov 2024</span>
+                        <span class="post-reading">14 min read</span>
+                    </div>
+                    <h3>DBSCAN and HDBSCAN in Python</h3>
+                    <p>Density-based clustering that discovers arbitrarily shaped clusters and labels noise. From eps selection to HDBSCAN&rsquo;s adaptive approach with membership probabilities.</p>
+                    <div class="post-tags">
+                        <span>DBSCAN</span>
+                        <span>Clustering</span>
+                        <span>Unsupervised Learning</span>
+                    </div>
+                </a>
+
+                <a href="post-agentic-ai.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Sep 2025</span>
+                        <span class="post-reading">8 min read</span>
+                    </div>
+                    <h3>The Rise of Agentic AI: Why 2025 Changed Everything</h3>
+                    <p>We've moved past chatbots. The new wave of AI systems can plan, reason, use tools, and execute multi-step tasks autonomously. Here's what that means for developers — and for the rest of us.</p>
+                    <div class="post-tags">
+                        <span>Agentic AI</span>
+                        <span>LLM</span>
+                        <span>Future</span>
+                    </div>
+                </a>
+
+                <a href="post-responsible-ai.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Jul 2025</span>
+                        <span class="post-reading">6 min read</span>
+                    </div>
+                    <h3>Building Responsible AI: Lessons from the Trenches</h3>
+                    <p>After shipping three AI products to production, I've learned that the hardest part isn't the model — it's the guardrails. A practical guide to building AI systems that don't embarrass you at 3 AM.</p>
+                    <div class="post-tags">
+                        <span>Ethics</span>
+                        <span>Safety</span>
+                        <span>Engineering</span>
+                    </div>
+                </a>
+
+            </div>
+        </div>
+    </section>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script>
+        // Mobile nav toggle
+        const toggle = document.querySelector('.nav-toggle');
+        const navLinks = document.querySelector('.nav-links');
+        toggle.addEventListener('click', () => {
+            navLinks.classList.toggle('active');
+            toggle.classList.toggle('active');
+        });
+    </script>
+
+</body>
+</html>

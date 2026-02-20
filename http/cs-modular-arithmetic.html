@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modular Arithmetic &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="cybersecurity-tech-insights.html" class="back-link">&larr; Back to Cybersecurity</a>
+                        <div class="post-meta">
+                            <span class="post-date">Dec 2023</span>
+                            <span class="post-reading">9 min read</span>
+                        </div>
+                        <h1>Modular Arithmetic</h1>
+                        <div class="post-tags">
+                            <span>Cryptography</span>
+                            <span>Mathematics</span>
+                            <span>Number Theory</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Modern cryptographic algorithms rely on arithmetic performed over finite element sets. Unlike familiar infinite number systems, cryptography requires bounded arithmetic where results stay within defined limits through modular arithmetic.</p>
+
+                        <h2>Basic Example</h2>
+                        <p>Consider the finite set {0, 1, 2, 3, 4, 5, 6, 7, 8}. Standard operations work within bounds:</p>
+                        <ul>
+                            <li>2 &times; 3 = 6</li>
+                            <li>4 + 4 = 8</li>
+                        </ul>
+                        <p>For results exceeding maximum values: perform the usual arithmetic operation and then divide the result by the size of the set (its cardinality). The remainder of this division is the modular result.</p>
+                        <p>Example: 6 + 6 &equiv; 3 (mod 9)</p>
+
+                        <h2>Mathematical Definition</h2>
+                        <p>For integers <em>a</em>, <em>r</em>, <em>m</em> (with <em>m</em> &gt; 0):</p>
+                        <blockquote>
+                            <p>a &equiv; r (mod m) if and only if (a &minus; r) is divisible by m</p>
+                        </blockquote>
+                        <p>Here <em>m</em> is the <strong>modulus</strong> and <em>r</em> is the <strong>remainder</strong>. Multiple valid remainders exist for any modulus and integer.</p>
+
+                        <h2>Equivalence Classes</h2>
+                        <p>Numbers satisfying modular conditions form <strong>equivalence classes</strong>. For modulus 9, examples include:</p>
+                        <ul>
+                            <li>{&hellip;, &minus;24, &minus;15, &minus;6, 3, 12, 21, 30, &hellip;}</li>
+                            <li>{&hellip;, &minus;27, &minus;18, &minus;9, 0, 9, 18, 27, &hellip;}</li>
+                        </ul>
+                        <p>Simplification allows replacing large numbers with smaller equivalents &mdash; essential for cryptographic computation.</p>
+
+                        <h2>Modular Exponentiation</h2>
+                        <p>Computing x<sup>e</sup> mod m with very large integers (thousands of bits) is a fundamental operation in cryptography.</p>
+
+                        <h3>Traditional Approach for 3<sup>8</sup> mod 7</h3>
+                        <ul>
+                            <li>3<sup>8</sup> = 6561</li>
+                            <li>6561 &divide; 7 = 937 remainder 2</li>
+                            <li>Result: 3<sup>8</sup> &equiv; 2 (mod 7)</li>
+                        </ul>
+
+                        <h3>Using Equivalence Classes</h3>
+                        <ul>
+                            <li>3<sup>8</sup> = (3<sup>4</sup>) &times; (3<sup>4</sup>)</li>
+                            <li>3<sup>4</sup> = 81 &equiv; 4 (mod 7)</li>
+                            <li>Therefore: 3<sup>8</sup> &equiv; 4 &times; 4 &equiv; 16 &equiv; 2 (mod 7)</li>
+                        </ul>
+                        <p>This decomposition technique is crucial when working with numbers that have thousands of bits, as it avoids computing impossibly large intermediate values.</p>
+
+                        <h2>Ring of Integers</h2>
+                        <p>A ring Z<sub>m</sub> consists of:</p>
+                        <blockquote>
+                            <p>Z<sub>m</sub> = {0, 1, 2, &hellip;, m&minus;1}</p>
+                        </blockquote>
+                        <p>with addition and multiplication operations where results remain modular equivalents.</p>
+
+                        <h3>Key Properties</h3>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Property</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>Closure</strong></td>
+                                    <td>Operations keep results within the ring</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Associativity</strong></td>
+                                    <td>(a + b) + c = a + (b + c)</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Additive Identity</strong></td>
+                                    <td>Element 0 exists where a + 0 &equiv; a (mod m)</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Additive Inverse</strong></td>
+                                    <td>&minus;a exists where a + (&minus;a) &equiv; 0 (mod m)</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Multiplicative Identity</strong></td>
+                                    <td>Element 1 exists where a &times; 1 &equiv; a (mod m)</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Multiplicative Inverse</strong></td>
+                                    <td>For some elements a, inverse a<sup>&minus;1</sup> satisfies a &times; a<sup>&minus;1</sup> &equiv; 1 (mod m)</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <p><strong>Modular division:</strong> b / a &equiv; b &times; a<sup>&minus;1</sup> (mod m)</p>
+
+                        <h2>Caesar Cipher Application</h2>
+                        <p>The Caesar cipher shifts plaintext letters by fixed positions, wrapping around &mdash; precisely modeled by modular arithmetic.</p>
+
+                        <p>Encoding letters as integers (A=0, B=1, &hellip;, Z=25), both plaintext and ciphertext are elements of Z<sub>26</sub>.</p>
+
+                        <blockquote>
+                            <p><strong>Encryption:</strong> e<sub>k</sub>(x) &equiv; (x + k) mod 26</p>
+                            <p><strong>Decryption:</strong> d<sub>k</sub>(y) &equiv; (y &minus; k) mod 26</p>
+                        </blockquote>
+
+                        <p>With only 26 possible keys, the Caesar cipher is trivially breakable by brute-force &mdash; one can try all shifts and recover the plaintext without any computational aid. However, this simple example illustrates how modular arithmetic underpins even the most basic cryptographic operations, and the same principles scale to the complex algorithms used in modern secure systems.</p>
+                    </div>
+                </div>
+
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing large-scale distributed systems. Specialized in Generative AI, AI Agents, and cloud-native architectures.</p>
+                        <div class="sidebar-author-links">
+                            <a href="https://www.linkedin.com/in/paolo-mascia-italy" target="_blank" aria-label="LinkedIn"><svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg></a>
+                            <a href="https://github.com/paolomascia" target="_blank" aria-label="GitHub"><svg viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg></a>
+                            <a href="https://www.kaggle.com/paolomascia" target="_blank" aria-label="Kaggle"><svg viewBox="0 0 24 24"><path d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.233-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.075.378z"/></svg></a>
+                        </div>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="cs-intro-cryptography.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cryptography</span>
+                            <div class="sidebar-link-title">Introduction to Cryptography</div>
+                            <span class="sidebar-link-meta">May 2023</span>
+                        </a>
+                        <a href="cs-modern-cryptography.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cryptography</span>
+                            <div class="sidebar-link-title">Modern Cryptography</div>
+                            <span class="sidebar-link-meta">Sep 2024</span>
+                        </a>
+                        <a href="cs-symmetric-key.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cryptography</span>
+                            <div class="sidebar-link-title">Symmetric Key Cryptography</div>
+                            <span class="sidebar-link-meta">Mar 2025</span>
+                        </a>
+                        <a href="cs-des.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cryptography</span>
+                            <div class="sidebar-link-title">DES &mdash; Data Encryption Standard</div>
+                            <span class="sidebar-link-meta">Jun 2025</span>
+                        </a>
+                        <a href="cs-hash-functions.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cryptography</span>
+                            <div class="sidebar-link-title">Hash Functions</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-nasm.min.js"></script>
+</body>
+</html>

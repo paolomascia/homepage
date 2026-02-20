@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Go Scheduler Internals &mdash; How Goroutines Are Managed Under the Hood &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="golang-tech-insights.html" class="back-link">&larr; Back to Go Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Oct 2025</span>
+                            <span class="post-reading">14 min read</span>
+                        </div>
+                        <h1>Go Scheduler Internals &mdash; How Goroutines Are Managed Under the Hood</h1>
+                        <div class="post-tags">
+                            <span>Go</span>
+                            <span>Concurrency</span>
+                            <span>Runtime</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Goroutines are one of Go&rsquo;s superpowers &mdash; lightweight, efficient, and concurrent by design. But have you ever wondered how Go actually schedules hundreds of thousands of goroutines across your CPU cores? Under the hood, Go uses a highly optimized M:N scheduler, which multiplexes millions of goroutines (G) onto a smaller number of OS threads (M), coordinated by logical processors (P).</p>
+
+                        <h2>The G&ndash;M&ndash;P Model</h2>
+
+                        <p>The Go scheduler revolves around three core entities:</p>
+
+                        <ul>
+                            <li><strong>G (Goroutine):</strong> a lightweight coroutine, with its own stack and metadata.</li>
+                            <li><strong>M (Machine):</strong> an operating system thread executing Go code.</li>
+                            <li><strong>P (Processor):</strong> a logical resource that schedules Gs onto Ms.</li>
+                        </ul>
+
+                        <p>Each P maintains a local run queue of goroutines ready to execute. When a goroutine blocks (I/O, syscall, lock), the scheduler parks it and assigns another runnable goroutine to the same thread.</p>
+
+                        <h2>Visualizing the M:N Scheduler</h2>
+
+                        <p>In the M:N model, M goroutines are multiplexed onto N OS threads. The number of Ps determines how many goroutines can run truly in parallel. By default, Go sets the number of Ps equal to the number of available CPU cores.</p>
+
+                        <h2>Controlling Scheduler Concurrency</h2>
+
+                        <p>You can adjust the number of logical processors using <code>runtime.GOMAXPROCS()</code>:</p>
+
+<pre><code class="language-go">package main
+
+import (
+	"fmt"
+	"runtime"
+)
+
+func main() {
+	old := runtime.GOMAXPROCS(0)
+	fmt.Println("Default GOMAXPROCS:", old)
+
+	runtime.GOMAXPROCS(4) // Use 4 logical processors
+	fmt.Println("Updated GOMAXPROCS:", runtime.GOMAXPROCS(0))
+}</code></pre>
+
+                        <h2>Work-Stealing: Load Balancing Between Ps</h2>
+
+                        <p>Each P maintains a local queue of goroutines. If one processor runs out of runnable goroutines, it &ldquo;steals&rdquo; half the workload from another P&rsquo;s queue &mdash; a mechanism called work stealing.</p>
+
+                        <p>This ensures load balancing across CPU cores with minimal locking overhead.</p>
+
+                        <h2>Preemption and Cooperative Scheduling</h2>
+
+                        <p>Originally, Go&rsquo;s scheduler was cooperative &mdash; goroutines yielded voluntarily (e.g., during channel operations or syscalls). Modern versions of Go (&ge;1.14) added asynchronous preemption, allowing long-running goroutines to be preempted safely.</p>
+
+                        <p>This means the scheduler can interrupt a goroutine at safe points (e.g., function calls, loops) to prevent starvation or long GC delays.</p>
+
+                        <h2>Inspecting Scheduler Activity</h2>
+
+                        <p>You can use the <code>GODEBUG</code> environment variable to observe scheduler behavior:</p>
+
+<pre><code class="language-bash">GODEBUG=schedtrace=1000,scheddetail=1 go run main.go</code></pre>
+
+                        <p>This outputs scheduler statistics every second, including goroutine counts, thread usage, and processor idle states &mdash; invaluable for performance analysis.</p>
+
+                        <h2>Blocking and Syscalls</h2>
+
+                        <p>When a goroutine makes a blocking system call (e.g., file I/O, network request), its M is parked, but its P is detached and assigned to another idle thread to keep the CPU busy.</p>
+
+                        <p>This decoupling allows Go to maintain concurrency without wasting OS threads.</p>
+
+                        <h2>Scheduler in Action</h2>
+
+                        <p>Here&rsquo;s a simple demonstration of goroutines being scheduled across multiple logical processors:</p>
+
+<pre><code class="language-go">package main
+
+import (
+	"fmt"
+	"runtime"
+	"time"
+)
+
+func work(id int) {
+	for i := 0; i &lt; 5; i++ {
+		fmt.Printf("Goroutine %d running on thread %d\n", id, runtime.LockOSThread)
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+func main() {
+	runtime.GOMAXPROCS(2) // Use 2 logical processors
+	for i := 0; i &lt; 4; i++ {
+		go work(i)
+	}
+	time.Sleep(1 * time.Second)
+}</code></pre>
+
+                        <h2>System Monitor (sysmon)</h2>
+
+                        <p>Go&rsquo;s runtime includes a dedicated thread called <strong>sysmon</strong>. It periodically:</p>
+
+                        <ul>
+                            <li>Preempts long-running goroutines</li>
+                            <li>Triggers GC cycles</li>
+                            <li>Releases timers and network pollers</li>
+                        </ul>
+
+                        <p>Sysmon runs even when your application is idle, ensuring that GC and timeouts are processed correctly.</p>
+
+                        <h2>Profiling Goroutines and Scheduler State</h2>
+
+                        <p>You can monitor goroutine activity at runtime using <code>runtime.NumGoroutine()</code>:</p>
+
+<pre><code class="language-go">package main
+
+import (
+	"fmt"
+	"runtime"
+	"time"
+)
+
+func main() {
+	for i := 0; i &lt; 5; i++ {
+		go func() {
+			time.Sleep(2 * time.Second)
+		}()
+	}
+
+	fmt.Println("Active goroutines:", runtime.NumGoroutine())
+	time.Sleep(3 * time.Second)
+	fmt.Println("Active goroutines after:", runtime.NumGoroutine())
+}</code></pre>
+
+                        <h2>Best Practices for Scheduler Efficiency</h2>
+
+                        <ul>
+                            <li>Keep goroutines short-lived and non-blocking.</li>
+                            <li>Use buffered channels to avoid excessive context switching.</li>
+                            <li>Release resources properly to let the scheduler recycle threads.</li>
+                            <li>Use GOMAXPROCS wisely &mdash; don&rsquo;t exceed the number of CPU cores.</li>
+                            <li>Profile scheduler activity in high-throughput systems.</li>
+                        </ul>
+
+                        <h2>Conclusion</h2>
+
+                        <p>The Go scheduler is one of the most advanced parts of the runtime, balancing millions of lightweight goroutines on limited OS threads through cooperative and preemptive scheduling. Understanding how the G&ndash;M&ndash;P model, work stealing, and sysmon operate helps you reason about performance, scalability, and responsiveness in complex concurrent systems.</p>
+                    </div>
+                </div>
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="go-goroutines.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Goroutines</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-advanced-concurrency.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Advanced Concurrency Patterns in Go</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-performance-tuning.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Go Performance Tuning</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-memory-gc-internals.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Go Memory Model, GC &amp; Internals</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-rest-apis.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Calling REST APIs in Go</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+
+</body>
+</html>

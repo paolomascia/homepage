@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IA-32 and Intel 64 ISA Assembly Language (Part 6) &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="cybersecurity-tech-insights.html" class="back-link">&larr; Back to Cybersecurity</a>
+                        <div class="post-meta">
+                            <span class="post-date">Oct 2025</span>
+                            <span class="post-reading">11 min read</span>
+                        </div>
+                        <h1>IA-32 and Intel 64 ISA Assembly Language (Part 6)</h1>
+                        <div class="post-tags">
+                            <span>Assembly</span>
+                            <span>IA-32</span>
+                            <span>Addressing Modes</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Part 6 provides a practical deep dive into x86 addressing modes and data storage allocation &mdash; covering register, immediate, and memory addressing in detail, along with NASM directives for defining and reserving data, the TIMES repetition directive, and the EQU constant mechanism.</p>
+
+                        <!-- Addressing Modes in x86 Assembly -->
+                        <h2>Addressing Modes in x86 Assembly</h2>
+
+                        <p>Instructions process operands that specify where data originates or where it should be stored. Instructions may have no operands (like <code>RET</code>), one operand (like <code>INC EAX</code>), or typically two operands (like <code>MOV EAX, EBX</code>). The first operand serves as the destination while the second acts as the source, which typically remains unmodified.</p>
+
+                        <h3>Basic Addressing Modes</h3>
+
+                        <p>x86 supports three fundamental addressing mode categories:</p>
+                        <ol>
+                            <li>Register Addressing</li>
+                            <li>Immediate Addressing</li>
+                            <li>Memory Addressing</li>
+                        </ol>
+
+                        <!-- Register Addressing -->
+                        <h3>Register Addressing</h3>
+
+                        <p>In register addressing, operands are stored directly in CPU registers. The instruction can use a register as the source, the destination, or both. Register addressing provides the fastest performance since operands reside within the processor.</p>
+
+<pre><code class="language-nasm">MOV EAX, COUNTER     ; Memory -> Register
+MOV COUNTER, EAX     ; Register -> Memory
+MOV EAX, EBX         ; Register -> Register</code></pre>
+
+                        <!-- Immediate Addressing -->
+                        <h3>Immediate Addressing</h3>
+
+                        <p>This mode embeds constant literal values directly within instructions. The first operand can be a register or memory location, while the second must be a constant.</p>
+
+<pre><code class="language-nasm">MOV EAX, 100         ; 100 -> EAX
+ADD COUNTER, 1       ; COUNTER = COUNTER + 1</code></pre>
+
+                        <h3>Numeric Constants</h3>
+
+                        <p>NASM permits expressing constants across multiple number systems:</p>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Example</th>
+                                    <th>Base</th>
+                                    <th>Notes</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr><td><code>200</code></td><td>Decimal</td><td>Default format</td></tr>
+                                <tr><td><code>0200</code></td><td>Decimal</td><td>Leading zero has no meaning</td></tr>
+                                <tr><td><code>0d200</code> or <code>200d</code></td><td>Decimal</td><td>Explicit base</td></tr>
+                                <tr><td><code>0xc8</code> or <code>0c8h</code></td><td>Hexadecimal</td><td>Prefix <code>0x</code> or suffix <code>h</code></td></tr>
+                                <tr><td><code>310q</code> or <code>0q310</code></td><td>Octal</td><td>Suffix or prefix <code>q</code></td></tr>
+                                <tr><td><code>11001000b</code> or <code>0b1100_1000</code></td><td>Binary</td><td>Suffix <code>b</code> or prefix <code>0b</code>; underscores allowed</td></tr>
+                            </tbody>
+                        </table>
+
+                        <!-- Memory Addressing -->
+                        <h3>Memory Addressing</h3>
+
+                        <p>In memory addressing, one operand references a memory location. The address can be specified directly or calculated using registers.</p>
+
+                        <p>Basic forms:</p>
+
+<pre><code class="language-nasm">[number]                  ; Displacement only
+[reg]                     ; Base only
+[reg + reg*scale]         ; Base + (Index x Scale)
+[reg + number]            ; Base + Displacement
+[reg + reg*scale + number]; Base + Index x Scale + Displacement</code></pre>
+
+                        <p>Examples:</p>
+
+<pre><code class="language-nasm">[750]                    ; Absolute displacement (address 0x2EE)
+[rbp]                    ; Base register only
+[rcx + rsi*4]            ; Base + index * 4
+[rbp + rdx]              ; Implicit scale 1
+[rbx - 8]                ; Negative displacement
+[rax + rdi*8 + 500]      ; Full addressing form
+[rbx + counter]          ; Using variable address as displacement</code></pre>
+
+                        <h3>64-bit Mode Notes</h3>
+
+                        <ul>
+                            <li>All memory references are effectively 64-bit (using 64-bit registers)</li>
+                            <li>Scale factors are limited to 1, 2, 4, or 8</li>
+                            <li>Address calculation can use a base, an index, an optional scale, and an optional 32-bit displacement</li>
+                            <li>RIP-relative addressing is available in 64-bit mode: <code>[RIP + disp32]</code></li>
+                        </ul>
+
+                        <!-- Data Storage Allocation -->
+                        <h2>Data Storage Allocation</h2>
+
+                        <p>Variables are declared in <code>.data</code> or <code>.bss</code> sections using define or reserve directives.</p>
+
+                        <p>Syntax: <code>[variable-name] define-directive initial-value [, initial-value, ...]</code></p>
+
+                        <p>Each variable receives an offset within the data segment.</p>
+
+                        <h3>Define Directives</h3>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Directive</th>
+                                    <th>Meaning</th>
+                                    <th>Bytes Allocated</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr><td><code>DB</code></td><td>Define Byte</td><td>1</td></tr>
+                                <tr><td><code>DW</code></td><td>Define Word</td><td>2</td></tr>
+                                <tr><td><code>DD</code></td><td>Define Doubleword</td><td>4</td></tr>
+                                <tr><td><code>DQ</code></td><td>Define Quadword</td><td>8</td></tr>
+                                <tr><td><code>DT</code></td><td>Define Ten Bytes</td><td>10</td></tr>
+                            </tbody>
+                        </table>
+
+                        <p>Examples:</p>
+
+<pre><code class="language-nasm">choice      DB  'y'
+number      DW  12345
+neg_number  DW  -12345
+big_number  DD  123456789
+real_number1 DD 1.234
+real_number2 DQ 123.456</code></pre>
+
+                        <h3>Reserve Directives</h3>
+
+                        <p>Reserve directives allocate uninitialized memory, typically in <code>.bss</code>:</p>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Directive</th>
+                                    <th>Meaning</th>
+                                    <th>Bytes Reserved</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr><td><code>RESB</code></td><td>Reserve Bytes</td><td>1 &times; count</td></tr>
+                                <tr><td><code>RESW</code></td><td>Reserve Words</td><td>2 &times; count</td></tr>
+                                <tr><td><code>RESD</code></td><td>Reserve Doublewords</td><td>4 &times; count</td></tr>
+                                <tr><td><code>RESQ</code></td><td>Reserve Quadwords</td><td>8 &times; count</td></tr>
+                                <tr><td><code>REST</code></td><td>Reserve Ten Bytes</td><td>10 &times; count</td></tr>
+                            </tbody>
+                        </table>
+
+                        <p>Examples:</p>
+
+<pre><code class="language-nasm">section .bss
+buffer      RESB 64         ; 64 bytes
+array       RESD 100        ; 100 doublewords (400 bytes)
+matrix      RESQ 16         ; 16 quadwords (128 bytes)</code></pre>
+
+                        <h3>Multiple Initialization with TIMES</h3>
+
+                        <p>The <code>TIMES</code> directive repeats definitions a specified number of times:</p>
+
+<pre><code class="language-nasm">spaces TIMES 10 DB ' '      ; Defines 10 space characters
+zeros  TIMES 8  DD 0        ; Defines 8 doublewords of value 0</code></pre>
+
+                        <h3>Constant Definitions (EQU Directive)</h3>
+
+                        <p>The <code>EQU</code> directive assigns names to constants or expressions at assembly time:</p>
+
+<pre><code class="language-nasm">MAX_ATTEMPTS EQU 10
+MOV ECX, MAX_ATTEMPTS
+
+WIDTH  EQU 10
+HEIGHT EQU 25
+AREA   EQU WIDTH * HEIGHT</code></pre>
+
+                        <p>Constants defined with <code>EQU</code> occupy no memory; they are replaced by their values during assembly.</p>
+
+                        <!-- Summary -->
+                        <h2>Summary</h2>
+
+                        <ul>
+                            <li>Addressing modes define how operands are accessed: via registers, constants, or memory.</li>
+                            <li>Register and immediate modes are faster; memory addressing supports complex expressions with base, index, scale, and displacement.</li>
+                            <li>NASM provides clear directives for defining and reserving data.</li>
+                            <li>The <code>TIMES</code> directive simplifies repetitive initialization.</li>
+                            <li><code>EQU</code> defines constants, improving readability and maintainability.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing large-scale distributed systems. Specialized in Generative AI, AI Agents, and cloud-native architectures.</p>
+                        <div class="sidebar-author-links">
+                            <a href="https://www.linkedin.com/in/paolo-mascia-italy" target="_blank" aria-label="LinkedIn"><svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg></a>
+                            <a href="https://github.com/paolomascia" target="_blank" aria-label="GitHub"><svg viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg></a>
+                            <a href="https://www.kaggle.com/paolomascia" target="_blank" aria-label="Kaggle"><svg viewBox="0 0 24 24"><path d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.233-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.075.378z"/></svg></a>
+                        </div>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="cs-assembly-part5.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Assembly</span>
+                            <div class="sidebar-link-title">IA-32 and Intel 64 ISA Assembly Language (Part 5)</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="cs-assembly-part7.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Assembly</span>
+                            <div class="sidebar-link-title">IA-32 and Intel 64 ISA Assembly Language (Part 7)</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="cs-assembly-part8.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Assembly</span>
+                            <div class="sidebar-link-title">IA-32 and Intel 64 ISA Assembly Language (Part 8)</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="cs-reverse-engineering.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cybersecurity</span>
+                            <div class="sidebar-link-title">Reverse Engineering</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="cs-buffer-overflow.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cybersecurity</span>
+                            <div class="sidebar-link-title">Buffer Overflow</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-nasm.min.js"></script>
+</body>
+</html>

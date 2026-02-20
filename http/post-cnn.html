@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Convolutional Neural Networks (CNNs): The Brains Behind Computer Vision &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="ai-tech-insights.html" class="back-link">&larr; Back to Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Jan 2025</span>
+                            <span class="post-reading">8 min read</span>
+                        </div>
+                        <h1>Convolutional Neural Networks (CNNs): The Brains Behind Computer Vision</h1>
+                        <div class="post-tags">
+                            <span>Deep Learning</span>
+                            <span>Computer Vision</span>
+                            <span>CNN</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+
+                        <p>Convolutional Neural Networks (CNNs) are a class of deep learning models specifically designed for processing structured grid data, especially images. They automatically learn spatial hierarchies of features &mdash; from edges and textures to complex objects &mdash; making them the backbone of modern computer vision.</p>
+
+                        <h2>Why CNNs? The Problem with Fully Connected Networks</h2>
+
+                        <p>A standard fully connected (dense) network treats every pixel as an independent input feature. For a modest 224&times;224 RGB image, that means <strong>150,528</strong> input neurons. Connecting every one of them to, say, 1,000 hidden neurons produces over 150 million weights &mdash; in the <em>first</em> layer alone.</p>
+
+                        <p>This approach suffers from three critical limitations:</p>
+
+                        <ul>
+                            <li><strong>Parameter explosion</strong> &mdash; far too many weights to train efficiently, leading to overfitting.</li>
+                            <li><strong>No spatial awareness</strong> &mdash; the model has no concept of &ldquo;nearby&rdquo; pixels; every pixel is treated equally regardless of position.</li>
+                            <li><strong>No translation invariance</strong> &mdash; a cat in the top-left corner looks completely different from a cat in the bottom-right corner to a dense network.</li>
+                        </ul>
+
+                        <p>CNNs solve all three problems through <strong>local connectivity</strong>, <strong>weight sharing</strong>, and <strong>hierarchical feature extraction</strong>.</p>
+
+                        <h2>Key Building Blocks</h2>
+
+                        <p>A CNN is built from three fundamental layer types, stacked in sequence:</p>
+
+                        <h3>1. Convolutional Layer</h3>
+
+                        <p>The convolutional layer is the core component. It applies a set of learnable <strong>filters</strong> (also called kernels) that slide across the input, computing dot products at each position. Each filter produces a <strong>feature map</strong> that highlights a specific pattern &mdash; an edge, a corner, a texture, or even a high-level concept like an eye or a wheel.</p>
+
+                        <p>Key parameters:</p>
+
+                        <ul>
+                            <li><strong>Filter size</strong> &mdash; typically 3&times;3 or 5&times;5.</li>
+                            <li><strong>Number of filters</strong> &mdash; determines how many features the layer can detect (e.g., 32, 64, 128).</li>
+                            <li><strong>Stride</strong> &mdash; how many pixels the filter moves at each step.</li>
+                            <li><strong>Padding</strong> &mdash; whether to pad the input borders to control the output size (&ldquo;same&rdquo; or &ldquo;valid&rdquo;).</li>
+                        </ul>
+
+                        <h3>2. Pooling Layer</h3>
+
+                        <p>Pooling reduces the spatial dimensions of the feature maps, cutting computation and providing a degree of translational invariance. <strong>Max pooling</strong> (taking the maximum value in each window) is the most common variant. A 2&times;2 max pool with stride 2 halves both the height and width.</p>
+
+                        <h3>3. Fully Connected (Dense) Layer</h3>
+
+                        <p>After several rounds of convolution and pooling, the resulting feature maps are flattened into a 1-D vector and fed into one or more dense layers for classification or regression.</p>
+
+                        <h2>How Convolution Works</h2>
+
+                        <p>Imagine a 3&times;3 filter sliding over a 5&times;5 input image. At each position, the filter&rsquo;s weights are element-wise multiplied with the overlapping patch, and the results are summed to produce one value in the output feature map.</p>
+
+<pre><code class="language-python"># Conceptual 2D convolution (no libraries)
+import numpy as np
+
+def convolve2d(image, kernel):
+    """Apply a 2D convolution (no padding, stride=1)."""
+    h, w = image.shape
+    kh, kw = kernel.shape
+    out_h = h - kh + 1
+    out_w = w - kw + 1
+    output = np.zeros((out_h, out_w))
+
+    for i in range(out_h):
+        for j in range(out_w):
+            patch = image[i:i+kh, j:j+kw]
+            output[i, j] = np.sum(patch * kernel)
+    return output
+
+# Example: horizontal edge detector
+edge_kernel = np.array([
+    [-1, -1, -1],
+    [ 0,  0,  0],
+    [ 1,  1,  1]
+])
+
+sample = np.random.rand(5, 5)
+feature_map = convolve2d(sample, edge_kernel)
+print("Feature map shape:", feature_map.shape)  # (3, 3)</code></pre>
+
+                        <p>In practice, CNNs learn the optimal kernel values through backpropagation &mdash; the network discovers the best features on its own.</p>
+
+                        <h2>Building a CNN in Keras</h2>
+
+                        <p>Let&rsquo;s build a CNN for the <strong>CIFAR-10</strong> image classification task (10 classes, 32&times;32 RGB images).</p>
+
+<pre><code class="language-python">import tensorflow as tf
+from tensorflow.keras import layers, models
+
+# Load and preprocess data
+(X_train, y_train), (X_test, y_test) = tf.keras.datasets.cifar10.load_data()
+X_train, X_test = X_train / 255.0, X_test / 255.0
+
+# Build the CNN
+model = models.Sequential([
+    # Block 1
+    layers.Conv2D(32, (3, 3), activation='relu', padding='same',
+                  input_shape=(32, 32, 3)),
+    layers.Conv2D(32, (3, 3), activation='relu', padding='same'),
+    layers.MaxPooling2D((2, 2)),
+    layers.Dropout(0.25),
+
+    # Block 2
+    layers.Conv2D(64, (3, 3), activation='relu', padding='same'),
+    layers.Conv2D(64, (3, 3), activation='relu', padding='same'),
+    layers.MaxPooling2D((2, 2)),
+    layers.Dropout(0.25),
+
+    # Block 3
+    layers.Conv2D(128, (3, 3), activation='relu', padding='same'),
+    layers.Conv2D(128, (3, 3), activation='relu', padding='same'),
+    layers.MaxPooling2D((2, 2)),
+    layers.Dropout(0.25),
+
+    # Classification head
+    layers.Flatten(),
+    layers.Dense(256, activation='relu'),
+    layers.Dropout(0.5),
+    layers.Dense(10, activation='softmax')
+])
+
+model.summary()</code></pre>
+
+                        <h2>Training and Evaluation</h2>
+
+<pre><code class="language-python"># Compile the model
+model.compile(
+    optimizer='adam',
+    loss='sparse_categorical_crossentropy',
+    metrics=['accuracy']
+)
+
+# Train
+history = model.fit(
+    X_train, y_train,
+    epochs=30,
+    batch_size=64,
+    validation_split=0.1
+)
+
+# Evaluate on test set
+test_loss, test_acc = model.evaluate(X_test, y_test, verbose=0)
+print(f"Test accuracy: {test_acc:.4f}")  # ~85-88%</code></pre>
+
+                        <p>Plotting the training curves helps diagnose overfitting:</p>
+
+<pre><code class="language-python">import matplotlib.pyplot as plt
+
+fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+
+axes[0].plot(history.history['accuracy'], label='Train')
+axes[0].plot(history.history['val_accuracy'], label='Validation')
+axes[0].set_title('Accuracy')
+axes[0].legend()
+
+axes[1].plot(history.history['loss'], label='Train')
+axes[1].plot(history.history['val_loss'], label='Validation')
+axes[1].set_title('Loss')
+axes[1].legend()
+
+plt.tight_layout()
+plt.show()</code></pre>
+
+                        <h2>Landmark CNN Architectures</h2>
+
+                        <p>The evolution of CNN architectures reflects a steady march toward deeper, more efficient designs:</p>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Architecture</th>
+                                    <th>Year</th>
+                                    <th>Key Innovation</th>
+                                    <th>Depth</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>LeNet-5</strong></td>
+                                    <td>1998</td>
+                                    <td>Pioneered conv + pool stacking</td>
+                                    <td>5 layers</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>AlexNet</strong></td>
+                                    <td>2012</td>
+                                    <td>ReLU, dropout, GPU training</td>
+                                    <td>8 layers</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>VGG-16/19</strong></td>
+                                    <td>2014</td>
+                                    <td>Uniform 3&times;3 filters throughout</td>
+                                    <td>16&ndash;19 layers</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>GoogLeNet</strong></td>
+                                    <td>2014</td>
+                                    <td>Inception modules (multi-scale)</td>
+                                    <td>22 layers</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>ResNet</strong></td>
+                                    <td>2015</td>
+                                    <td>Skip/residual connections</td>
+                                    <td>50&ndash;152 layers</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>EfficientNet</strong></td>
+                                    <td>2019</td>
+                                    <td>Compound scaling (width, depth, resolution)</td>
+                                    <td>variable</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <h2>Transfer Learning with Pretrained Models</h2>
+
+                        <p>Training a deep CNN from scratch requires massive datasets and compute. <strong>Transfer learning</strong> lets you reuse a model trained on millions of images (like ImageNet) and fine-tune it for your specific task.</p>
+
+<pre><code class="language-python">from tensorflow.keras.applications import ResNet50
+from tensorflow.keras import layers, models
+
+# Load pretrained ResNet50 (without the top classification head)
+base_model = ResNet50(weights='imagenet', include_top=False,
+                      input_shape=(224, 224, 3))
+
+# Freeze the base model weights
+base_model.trainable = False
+
+# Add a custom classification head
+model = models.Sequential([
+    base_model,
+    layers.GlobalAveragePooling2D(),
+    layers.Dense(256, activation='relu'),
+    layers.Dropout(0.5),
+    layers.Dense(10, activation='softmax')
+])
+
+model.compile(optimizer='adam',
+              loss='sparse_categorical_crossentropy',
+              metrics=['accuracy'])
+
+model.summary()</code></pre>
+
+                        <p>For fine-tuning, you can later unfreeze some of the top layers of the base model and continue training at a very low learning rate:</p>
+
+<pre><code class="language-python"># Unfreeze the last 20 layers for fine-tuning
+base_model.trainable = True
+for layer in base_model.layers[:-20]:
+    layer.trainable = False
+
+model.compile(
+    optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5),
+    loss='sparse_categorical_crossentropy',
+    metrics=['accuracy']
+)
+
+model.fit(train_ds, epochs=10, validation_data=val_ds)</code></pre>
+
+                        <h2>Applications</h2>
+
+                        <p>CNNs have revolutionized an astonishing range of fields:</p>
+
+                        <ul>
+                            <li><strong>Image classification</strong> &mdash; labeling an image with one or more categories (e.g., cat vs. dog).</li>
+                            <li><strong>Object detection</strong> &mdash; locating and classifying multiple objects within an image (YOLO, Faster R-CNN).</li>
+                            <li><strong>Semantic segmentation</strong> &mdash; classifying every pixel in an image (U-Net, DeepLab).</li>
+                            <li><strong>Medical imaging</strong> &mdash; detecting tumors, classifying X-rays, analyzing histopathology slides.</li>
+                            <li><strong>Autonomous driving</strong> &mdash; lane detection, pedestrian recognition, sign classification.</li>
+                            <li><strong>Style transfer &amp; generation</strong> &mdash; neural style transfer, super-resolution, deepfakes.</li>
+                            <li><strong>Natural language processing</strong> &mdash; text classification with 1-D convolutions (TextCNN).</li>
+                        </ul>
+
+                        <h2>Advantages and Limitations</h2>
+
+                        <h3>Advantages</h3>
+
+                        <ul>
+                            <li><strong>Automatic feature extraction</strong> &mdash; no need for hand-crafted features.</li>
+                            <li><strong>Parameter sharing</strong> &mdash; dramatically reduces the number of parameters vs. dense networks.</li>
+                            <li><strong>Translation invariance</strong> &mdash; recognizes patterns regardless of position.</li>
+                            <li><strong>Scalable</strong> &mdash; architectures can be deepened and widened for harder tasks.</li>
+                            <li><strong>Transfer learning</strong> &mdash; pretrained models make small-dataset problems tractable.</li>
+                        </ul>
+
+                        <h3>Limitations</h3>
+
+                        <ul>
+                            <li><strong>Computationally expensive</strong> &mdash; deep CNNs require GPU/TPU training.</li>
+                            <li><strong>Data hungry</strong> &mdash; performance degrades without large, labeled datasets (mitigated by transfer learning and data augmentation).</li>
+                            <li><strong>Limited global context</strong> &mdash; convolutions focus on local patches; capturing long-range dependencies requires very deep stacks or attention mechanisms.</li>
+                            <li><strong>Not rotation/scale invariant by default</strong> &mdash; augmentations or specialized architectures are needed.</li>
+                            <li><strong>Interpretability</strong> &mdash; understanding <em>why</em> a CNN made a particular decision is still an active research area (Grad-CAM, SHAP).</li>
+                        </ul>
+
+                        <h2>Key Takeaways</h2>
+
+                        <ol>
+                            <li>CNNs use <strong>convolutional filters</strong> to automatically learn spatial features from images, replacing manual feature engineering.</li>
+                            <li>The canonical architecture stacks <strong>Conv &rarr; ReLU &rarr; Pool</strong> blocks followed by dense layers.</li>
+                            <li><strong>Weight sharing</strong> and <strong>local connectivity</strong> make CNNs far more parameter-efficient than fully connected networks for image tasks.</li>
+                            <li>Landmark architectures &mdash; LeNet, AlexNet, VGG, ResNet, EfficientNet &mdash; progressively unlocked deeper and more powerful models.</li>
+                            <li><strong>Transfer learning</strong> lets you leverage models pretrained on millions of images, dramatically reducing training time and data requirements.</li>
+                            <li>CNNs power real-world systems from medical diagnostics to autonomous vehicles.</li>
+                            <li>Modern trends blend CNNs with <strong>attention mechanisms</strong> (Vision Transformers) for even better performance.</li>
+                        </ol>
+
+                    </div>
+                </div>
+
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing large-scale distributed systems. Specialized in Generative AI, AI Agents, and cloud-native architectures.</p>
+                        <div class="sidebar-author-links">
+                            <a href="https://www.linkedin.com/in/paolo-mascia-italy" target="_blank" aria-label="LinkedIn">
+                                <svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                            </a>
+                            <a href="https://github.com/paolomascia" target="_blank" aria-label="GitHub">
+                                <svg viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+                            </a>
+                            <a href="https://www.kaggle.com/paolomascia" target="_blank" aria-label="Kaggle">
+                                <svg viewBox="0 0 24 24"><path d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.233-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.075.378z"/></svg>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="post-transformers.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Transformers</span>
+                            <div class="sidebar-link-title">Transformers: The Architecture That Revolutionized Deep Learning</div>
+                            <span class="sidebar-link-meta">Mar 2025</span>
+                        </a>
+                        <a href="post-rnn.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">RNN</span>
+                            <div class="sidebar-link-title">Recurrent Neural Networks (RNNs): Learning from Sequences</div>
+                            <span class="sidebar-link-meta">Apr 2025</span>
+                        </a>
+                        <a href="post-autoencoders.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Autoencoders</span>
+                            <div class="sidebar-link-title">Autoencoders: Learning Efficient Data Representations</div>
+                            <span class="sidebar-link-meta">Dec 2024</span>
+                        </a>
+                        <a href="post-shallow-vs-deep.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Neural Networks</span>
+                            <div class="sidebar-link-title">Shallow vs Deep Neural Networks</div>
+                            <span class="sidebar-link-meta">Aug 2024</span>
+                        </a>
+                        <a href="post-pca.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">PCA</span>
+                            <div class="sidebar-link-title">Principal Component Analysis (PCA) in Python</div>
+                            <span class="sidebar-link-meta">May 2024</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+</body>
+</html>

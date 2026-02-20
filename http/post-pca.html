@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Principal Component Analysis (PCA) in Python &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="ai-tech-insights.html" class="back-link">&larr; Back to Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">May 2024</span>
+                            <span class="post-reading">14 min read</span>
+                        </div>
+                        <h1>Principal Component Analysis (PCA) in Python</h1>
+                        <div class="post-tags">
+                            <span>PCA</span>
+                            <span>Dimension Reduction</span>
+                            <span>Scikit-Learn</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Principal Component Analysis (PCA) is a cornerstone technique for dimensionality reduction, data visualization, and feature decorrelation. It transforms correlated features into a smaller set of uncorrelated principal components that explain the maximum variance in the data.</p>
+
+                        <h2>What PCA Does</h2>
+                        <p>PCA finds a new coordinate system for your data where:</p>
+                        <ul>
+                            <li>The <strong>first principal component</strong> (PC1) captures the direction of maximum variance.</li>
+                            <li>Each subsequent component captures the maximum remaining variance while being orthogonal to all previous components.</li>
+                            <li>The components are <strong>uncorrelated</strong> by construction, eliminating multicollinearity.</li>
+                        </ul>
+                        <p>Mathematically, PCA performs an eigendecomposition of the covariance matrix (or equivalently, an SVD of the centered data matrix). The eigenvectors define the principal directions; the eigenvalues quantify how much variance each direction explains.</p>
+
+                        <h2>When and Why to Use PCA</h2>
+                        <ul>
+                            <li><strong>Dimensionality reduction</strong> &mdash; Reduce hundreds of features to a manageable number while retaining most of the information.</li>
+                            <li><strong>Visualization</strong> &mdash; Project high-dimensional data to 2D or 3D for exploratory analysis.</li>
+                            <li><strong>Noise reduction</strong> &mdash; Discard low-variance components that often correspond to noise.</li>
+                            <li><strong>Removing multicollinearity</strong> &mdash; Decorrelated features improve the stability of linear models.</li>
+                            <li><strong>Speeding up downstream models</strong> &mdash; Fewer features mean faster training and less memory usage.</li>
+                            <li><strong>Pre-processing for t-SNE / UMAP</strong> &mdash; Reducing to 50&ndash;100 components before nonlinear methods speeds them up and removes noise.</li>
+                        </ul>
+
+                        <h2>Minimal Example</h2>
+                        <p>We generate a simple 3D dataset and reduce it to 2 components to illustrate the basic PCA workflow.</p>
+                        <pre><code class="language-python">import numpy as np
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
+
+# Synthetic correlated data
+rng = np.random.RandomState(0)
+X = rng.randn(200, 3) @ np.array([[2, 1, 0.5], [0, 1.5, 0.8], [0, 0, 0.3]])
+
+# Always scale before PCA
+X_scaled = StandardScaler().fit_transform(X)
+
+pca = PCA(n_components=2)
+X_pca = pca.fit_transform(X_scaled)
+
+print("Original shape:", X.shape)
+print("Reduced shape: ", X_pca.shape)
+print("Explained variance ratio:", pca.explained_variance_ratio_)
+print("Total variance retained:", round(pca.explained_variance_ratio_.sum(), 3))</code></pre>
+                        <p>The <code>explained_variance_ratio_</code> tells you how much information each component preserves. In this example, 2 components likely capture &gt;95% of the total variance because the original features are highly correlated.</p>
+
+                        <h2>Choosing the Number of Components</h2>
+                        <p>The cumulative explained variance plot is the standard tool for deciding how many components to keep. A common threshold is 90&ndash;95% of total variance.</p>
+                        <pre><code class="language-python">import numpy as np
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
+from sklearn.datasets import load_wine
+import matplotlib.pyplot as plt
+
+X, y = load_wine(return_X_y=True)
+X_scaled = StandardScaler().fit_transform(X)
+
+pca_full = PCA().fit(X_scaled)
+cumulative = np.cumsum(pca_full.explained_variance_ratio_)
+
+plt.figure(figsize=(8, 5))
+plt.plot(range(1, len(cumulative) + 1), cumulative, marker="o")
+plt.axhline(y=0.95, color="r", linestyle="--", label="95% threshold")
+plt.xlabel("Number of Components")
+plt.ylabel("Cumulative Explained Variance")
+plt.title("PCA &mdash; Cumulative Explained Variance")
+plt.legend()
+plt.grid(True, alpha=0.3)
+plt.tight_layout()
+plt.show()
+
+n_95 = np.argmax(cumulative &gt;= 0.95) + 1
+print(f"Components needed for 95% variance: {n_95}")</code></pre>
+                        <p>For the Wine dataset (13 features), you typically need only 8&ndash;9 components to retain 95% of the variance. This means nearly half the features are redundant.</p>
+
+                        <h2>PCA for Visualization</h2>
+                        <p>Projecting to 2D is one of the most common uses of PCA. It provides a quick sanity check for cluster separability.</p>
+                        <pre><code class="language-python">from sklearn.datasets import make_blobs
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
+import matplotlib.pyplot as plt
+
+X, y = make_blobs(n_samples=500, n_features=10, centers=4, random_state=0)
+X_scaled = StandardScaler().fit_transform(X)
+
+pca = PCA(n_components=2)
+X_2d = pca.fit_transform(X_scaled)
+
+plt.figure(figsize=(8, 6))
+scatter = plt.scatter(X_2d[:, 0], X_2d[:, 1], c=y, cmap="tab10", s=15, alpha=0.8)
+plt.colorbar(scatter, label="Cluster")
+plt.xlabel(f"PC1 ({pca.explained_variance_ratio_[0]:.1%})")
+plt.ylabel(f"PC2 ({pca.explained_variance_ratio_[1]:.1%})")
+plt.title("PCA &mdash; 2D Projection")
+plt.grid(True, alpha=0.3)
+plt.tight_layout()
+plt.show()</code></pre>
+                        <p>If clusters are already well-separated in the PCA plot, a simple linear classifier may suffice. If they overlap heavily, consider nonlinear methods like t-SNE or UMAP for visualization and more powerful models for classification.</p>
+
+                        <h2>Interpreting Components and Loadings</h2>
+                        <p>The <strong>loadings</strong> matrix tells you how much each original feature contributes to each principal component. This is critical for interpretability.</p>
+                        <pre><code class="language-python">import pandas as pd
+from sklearn.datasets import load_wine
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
+
+X, y = load_wine(return_X_y=True)
+feature_names = load_wine().feature_names
+X_scaled = StandardScaler().fit_transform(X)
+
+pca = PCA(n_components=3).fit(X_scaled)
+
+loadings = pd.DataFrame(
+    pca.components_.T,
+    index=feature_names,
+    columns=["PC1", "PC2", "PC3"]
+)
+
+print("Loadings (absolute contribution to each PC):")
+print(loadings.round(3))
+print("\nTop contributors to PC1:")
+print(loadings["PC1"].abs().sort_values(ascending=False).head())</code></pre>
+                        <p>Features with high absolute loadings on PC1 are the most important drivers of the primary axis of variation. This can guide feature selection and domain understanding.</p>
+
+                        <h2>Pipeline Integration</h2>
+                        <p>PCA integrates cleanly into scikit-learn pipelines, ensuring that scaling and dimensionality reduction are applied consistently during both training and prediction.</p>
+                        <pre><code class="language-python">from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import cross_val_score
+from sklearn.datasets import load_wine
+
+X, y = load_wine(return_X_y=True)
+
+pipe = Pipeline([
+    ("scaler", StandardScaler()),
+    ("pca", PCA(n_components=5)),
+    ("clf", LogisticRegression(max_iter=1000, random_state=0))
+])
+
+scores = cross_val_score(pipe, X, y, cv=5, scoring="accuracy")
+print(f"CV Accuracy: {scores.mean():.3f} &plusmn; {scores.std():.3f}")</code></pre>
+                        <p>The pipeline prevents data leakage by fitting the scaler and PCA only on training folds, never on validation data. This is essential for reliable cross-validation results.</p>
+
+                        <h2>Whitening</h2>
+                        <p>PCA with <code>whiten=True</code> scales each component to unit variance. This produces features that are both uncorrelated and equally scaled &mdash; a property required by some algorithms.</p>
+                        <pre><code class="language-python">from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
+from sklearn.datasets import load_wine
+import numpy as np
+
+X, y = load_wine(return_X_y=True)
+X_scaled = StandardScaler().fit_transform(X)
+
+pca_white = PCA(n_components=5, whiten=True)
+X_white = pca_white.fit_transform(X_scaled)
+
+print("Component variances (should be ~1.0):")
+print(np.round(X_white.var(axis=0), 3))</code></pre>
+                        <p>Whitening is useful as a pre-processing step for algorithms that assume isotropic data, such as k-means clustering, SVMs with RBF kernels, and some neural network architectures.</p>
+
+                        <h2>Incremental PCA for Large Datasets</h2>
+                        <p>Standard PCA requires the entire dataset in memory. <code>IncrementalPCA</code> processes data in mini-batches, making it feasible for datasets that do not fit in RAM.</p>
+                        <pre><code class="language-python">from sklearn.decomposition import IncrementalPCA
+from sklearn.preprocessing import StandardScaler
+import numpy as np
+
+# Simulate a large dataset
+rng = np.random.RandomState(0)
+X_large = rng.randn(50000, 100)
+X_large = StandardScaler().fit_transform(X_large)
+
+ipca = IncrementalPCA(n_components=20)
+
+batch_size = 5000
+for start in range(0, X_large.shape[0], batch_size):
+    batch = X_large[start:start + batch_size]
+    ipca.partial_fit(batch)
+
+X_reduced = ipca.transform(X_large)
+print("Reduced shape:", X_reduced.shape)
+print("Variance retained:", round(ipca.explained_variance_ratio_.sum(), 3))</code></pre>
+                        <p><code>IncrementalPCA</code> produces results very similar to standard PCA. The batch size controls the memory/accuracy trade-off &mdash; larger batches give more accurate estimates but use more memory.</p>
+
+                        <h2>Kernel PCA: Capturing Nonlinear Structure</h2>
+                        <p>Standard PCA only captures linear relationships. <strong>Kernel PCA</strong> applies the kernel trick to project data into a higher-dimensional space where nonlinear patterns become linear.</p>
+                        <pre><code class="language-python">from sklearn.decomposition import KernelPCA
+from sklearn.datasets import make_moons
+import matplotlib.pyplot as plt
+
+X, y = make_moons(n_samples=500, noise=0.1, random_state=0)
+
+# Standard PCA
+from sklearn.decomposition import PCA
+X_pca = PCA(n_components=2).fit_transform(X)
+
+# Kernel PCA with RBF kernel
+kpca = KernelPCA(n_components=2, kernel="rbf", gamma=15)
+X_kpca = kpca.fit_transform(X)
+
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+axes[0].scatter(X_pca[:, 0], X_pca[:, 1], c=y, cmap="coolwarm", s=15)
+axes[0].set_title("Standard PCA")
+axes[0].set_xlabel("PC1")
+axes[0].set_ylabel("PC2")
+axes[1].scatter(X_kpca[:, 0], X_kpca[:, 1], c=y, cmap="coolwarm", s=15)
+axes[1].set_title("Kernel PCA (RBF)")
+axes[1].set_xlabel("KPC1")
+axes[1].set_ylabel("KPC2")
+plt.tight_layout()
+plt.show()</code></pre>
+                        <p>On the moons dataset, standard PCA cannot separate the two classes in 1D, but Kernel PCA with an RBF kernel can. The <code>gamma</code> parameter controls the kernel width &mdash; tune it based on your data scale.</p>
+
+                        <h2>Combining PCA with Clustering</h2>
+                        <p>PCA-reduced features often lead to better clustering results because noise and redundant dimensions are removed.</p>
+                        <pre><code class="language-python">from sklearn.datasets import load_iris
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
+from sklearn.cluster import KMeans
+from sklearn.metrics import adjusted_rand_score
+import matplotlib.pyplot as plt
+
+X, y = load_iris(return_X_y=True)
+X_scaled = StandardScaler().fit_transform(X)
+
+pca = PCA(n_components=2)
+X_pca = pca.fit_transform(X_scaled)
+
+kmeans = KMeans(n_clusters=3, random_state=0, n_init=10)
+labels = kmeans.fit_predict(X_pca)
+
+ari = adjusted_rand_score(y, labels)
+print(f"Adjusted Rand Index: {ari:.3f}")
+
+plt.figure(figsize=(8, 6))
+scatter = plt.scatter(X_pca[:, 0], X_pca[:, 1], c=labels, cmap="tab10", s=30, alpha=0.8)
+plt.scatter(kmeans.cluster_centers_[:, 0], kmeans.cluster_centers_[:, 1],
+            c="red", marker="X", s=200, edgecolors="black", label="Centroids")
+plt.xlabel(f"PC1 ({pca.explained_variance_ratio_[0]:.1%})")
+plt.ylabel(f"PC2 ({pca.explained_variance_ratio_[1]:.1%})")
+plt.title(f"KMeans on PCA-reduced Iris (ARI={ari:.3f})")
+plt.legend()
+plt.grid(True, alpha=0.3)
+plt.tight_layout()
+plt.show()</code></pre>
+                        <p>The Adjusted Rand Index (ARI) measures how well the clustering matches the true labels, with 1.0 being a perfect match. On the Iris dataset, PCA + KMeans typically achieves an ARI above 0.7.</p>
+
+                        <h2>Common Pitfalls</h2>
+                        <ul>
+                            <li><strong>Forgetting to scale.</strong> PCA maximizes variance, so features on larger scales will dominate the components. Always use <code>StandardScaler</code> unless features are already on the same scale.</li>
+                            <li><strong>Keeping too few components.</strong> Aggressive reduction can discard important signal. Use the cumulative variance plot to make an informed choice.</li>
+                            <li><strong>Keeping too many components.</strong> If you retain all components, PCA is just an expensive rotation. The benefit comes from dropping low-variance directions.</li>
+                            <li><strong>Interpreting components as features.</strong> Each principal component is a linear combination of all original features. Individual component values are not directly interpretable without examining the loadings.</li>
+                            <li><strong>Applying PCA to categorical data.</strong> PCA assumes continuous, roughly Gaussian data. For categorical features, consider MCA (Multiple Correspondence Analysis) instead.</li>
+                            <li><strong>Data leakage in cross-validation.</strong> Always fit PCA inside the CV loop (e.g., using a Pipeline) to prevent information from test folds leaking into the transformation.</li>
+                        </ul>
+
+                        <h2>Key Takeaways</h2>
+                        <ul>
+                            <li><strong>Always scale first.</strong> PCA is variance-driven, so unscaled features will produce misleading components.</li>
+                            <li><strong>Use the cumulative variance plot</strong> to choose the number of components. Target 90&ndash;95% of total variance as a starting point.</li>
+                            <li><strong>Examine the loadings</strong> to understand what each component represents in terms of the original features.</li>
+                            <li><strong>Integrate PCA into pipelines</strong> with <code>sklearn.pipeline.Pipeline</code> to prevent data leakage and ensure reproducibility.</li>
+                            <li><strong>Use IncrementalPCA</strong> for datasets that do not fit in memory.</li>
+                            <li><strong>Consider Kernel PCA</strong> when the data has nonlinear structure that standard PCA cannot capture.</li>
+                            <li><strong>PCA + clustering</strong> is a powerful combination: dimensionality reduction removes noise and speeds up algorithms like KMeans.</li>
+                            <li><strong>PCA is a pre-processing step, not a model.</strong> Its value comes from improving downstream tasks &mdash; classification, clustering, visualization, and nonlinear embedding.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing large-scale distributed systems. Specialized in Generative AI, AI Agents, and cloud-native architectures.</p>
+                        <div class="sidebar-author-links">
+                            <a href="https://www.linkedin.com/in/paolo-mascia-italy" target="_blank" aria-label="LinkedIn">
+                                <svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                            </a>
+                            <a href="https://github.com/paolomascia" target="_blank" aria-label="GitHub">
+                                <svg viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+                            </a>
+                            <a href="https://www.kaggle.com/paolomascia" target="_blank" aria-label="Kaggle">
+                                <svg viewBox="0 0 24 24"><path d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.233-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.075.378z"/></svg>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="post-tsne-umap.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Dimension Reduction</span>
+                            <div class="sidebar-link-title">t-SNE and UMAP in Python</div>
+                            <span class="sidebar-link-meta">Jul 2024</span>
+                        </a>
+                        <a href="post-kmeans.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">K-Means</span>
+                            <div class="sidebar-link-title">K-Means Clustering Evaluation</div>
+                            <span class="sidebar-link-meta">Feb 2024</span>
+                        </a>
+                        <a href="post-random-forest.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Model Evaluation</span>
+                            <div class="sidebar-link-title">Random Forest Model Evaluation</div>
+                            <span class="sidebar-link-meta">Dec 2023</span>
+                        </a>
+                        <a href="post-dbscan.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Clustering</span>
+                            <div class="sidebar-link-title">DBSCAN and HDBSCAN in Python</div>
+                            <span class="sidebar-link-meta">Nov 2024</span>
+                        </a>
+                        <a href="post-ml-pipelines.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Pipelines</span>
+                            <div class="sidebar-link-title">Building Machine Learning Pipelines in Python</div>
+                            <span class="sidebar-link-meta">Nov 2025</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+</body>
+</html>

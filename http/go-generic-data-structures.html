@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Building Generic Data Structures in Go &mdash; Trees, Graphs, and Caches &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="golang-tech-insights.html" class="back-link">&larr; Back to Go Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Oct 2025</span>
+                            <span class="post-reading">16 min read</span>
+                        </div>
+                        <h1>Building Generic Data Structures in Go &mdash; Trees, Graphs, and Caches</h1>
+                        <div class="post-tags">
+                            <span>Go</span>
+                            <span>Generics</span>
+                            <span>Data Structures</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Go&rsquo;s generics feature, introduced in version 1.18, enables developers to create reusable, type-safe data structures without code duplication or unsafe type casting. This article explores implementing advanced generic structures including trees, graphs, and LRU caches using modern Go patterns with concurrency safety and performance optimization.</p>
+
+                        <h2>Why Generics Matter</h2>
+
+                        <p>Prior to Go 1.18, developers relied on <code>interface{}</code> and type assertions to simulate generic behavior, sacrificing both type safety and performance. Generics allow developers to define reusable containers that are both <strong>safe</strong> and <strong>efficient</strong> while expressing algorithms once and applying them across any ordered or comparable type.</p>
+
+                        <h2>Generic Tree Structure</h2>
+
+                        <p>A simple binary tree implementation supporting insertion and in-order traversal:</p>
+
+<pre><code class="language-go">package main
+
+import (
+	"fmt"
+	"golang.org/x/exp/constraints"
+)
+
+type Node[T constraints.Ordered] struct {
+	Value T
+	Left  *Node[T]
+	Right *Node[T]
+}
+
+func (n *Node[T]) Insert(v T) *Node[T] {
+	if n == nil {
+		return &amp;Node[T]{Value: v}
+	}
+	if v &lt; n.Value {
+		n.Left = n.Left.Insert(v)
+	} else {
+		n.Right = n.Right.Insert(v)
+	}
+	return n
+}
+
+func (n *Node[T]) InOrder() {
+	if n == nil {
+		return
+	}
+	n.Left.InOrder()
+	fmt.Print(n.Value, " ")
+	n.Right.InOrder()
+}
+
+func main() {
+	var root *Node[int]
+	values := []int{8, 3, 10, 1, 6, 14, 4}
+
+	for _, v := range values {
+		root = root.Insert(v)
+	}
+
+	fmt.Println("In-order traversal:")
+	root.InOrder()
+}</code></pre>
+
+                        <p>Output:</p>
+
+<pre><code class="language-bash">In-order traversal:
+1 3 4 6 8 10 14</code></pre>
+
+                        <p>The same tree structure works seamlessly for <code>float64</code> or <code>string</code> types without any code duplication.</p>
+
+                        <h2>Generic Graph Implementation</h2>
+
+                        <p>A type-safe graph structure with depth-first search traversal:</p>
+
+<pre><code class="language-go">package main
+
+import "fmt"
+
+type Graph[T comparable] struct {
+	edges map[T][]T
+}
+
+func NewGraph[T comparable]() *Graph[T] {
+	return &amp;Graph[T]{edges: make(map[T][]T)}
+}
+
+func (g *Graph[T]) AddEdge(from, to T) {
+	g.edges[from] = append(g.edges[from], to)
+}
+
+func (g *Graph[T]) DFS(start T, visited map[T]bool) {
+	if visited[start] {
+		return
+	}
+	visited[start] = true
+	fmt.Println("Visit:", start)
+	for _, neighbor := range g.edges[start] {
+		g.DFS(neighbor, visited)
+	}
+}
+
+func main() {
+	g := NewGraph[string]()
+	g.AddEdge("A", "B")
+	g.AddEdge("A", "C")
+	g.AddEdge("B", "D")
+
+	fmt.Println("DFS Traversal:")
+	g.DFS("A", make(map[string]bool))
+}</code></pre>
+
+                        <p>Generics ensure only comparable node types can serve as keys, preventing runtime panics and providing complete static safety.</p>
+
+                        <h2>Concurrent LRU Cache with Generics</h2>
+
+                        <p>A thread-safe LRU (Least Recently Used) cache implementation:</p>
+
+<pre><code class="language-go">package main
+
+import (
+	"container/list"
+	"fmt"
+	"sync"
+)
+
+type LRU[K comparable, V any] struct {
+	mu    sync.Mutex
+	cache map[K]*list.Element
+	list  *list.List
+	cap   int
+}
+
+type entry[K comparable, V any] struct {
+	key   K
+	value V
+}
+
+func NewLRU[K comparable, V any](capacity int) *LRU[K, V] {
+	return &amp;LRU[K, V]{
+		cache: make(map[K]*list.Element),
+		list:  list.New(),
+		cap:   capacity,
+	}
+}
+
+func (l *LRU[K, V]) Get(key K) (V, bool) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if el, ok := l.cache[key]; ok {
+		l.list.MoveToFront(el)
+		return el.Value.(entry[K, V]).value, true
+	}
+
+	var zero V
+	return zero, false
+}
+
+func (l *LRU[K, V]) Put(key K, value V) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if el, ok := l.cache[key]; ok {
+		l.list.MoveToFront(el)
+		el.Value = entry[K, V]{key, value}
+		return
+	}
+
+	if l.list.Len() == l.cap {
+		oldest := l.list.Back()
+		if oldest != nil {
+			l.list.Remove(oldest)
+			ev := oldest.Value.(entry[K, V])
+			delete(l.cache, ev.key)
+		}
+	}
+
+	el := l.list.PushFront(entry[K, V]{key, value})
+	l.cache[key] = el
+}
+
+func main() {
+	lru := NewLRU[string, int](3)
+	lru.Put("A", 1)
+	lru.Put("B", 2)
+	lru.Put("C", 3)
+	lru.Get("A")
+	lru.Put("D", 4)
+
+	fmt.Println("Cache entries:")
+	for k := range lru.cache {
+		fmt.Println(k)
+	}
+}</code></pre>
+
+                        <p>This implementation is fully type-safe and concurrency-protected using <code>sync.Mutex</code>, making it suitable for web caching, configuration storage, or temporary in-memory databases.</p>
+
+                        <h2>Performance Considerations</h2>
+
+                        <p>Key optimization guidelines:</p>
+
+                        <ul>
+                            <li>Use <code>constraints.Ordered</code> for sortable types and <code>comparable</code> for maps and keys.</li>
+                            <li>Lock-free patterns (e.g., <code>sync.Map</code>) are faster for read-heavy workloads.</li>
+                            <li>Generics have negligible runtime cost after inlining &mdash; the compiler generates specialized versions per type.</li>
+                            <li>Profile allocations and GC impact using <code>go test -benchmem</code>.</li>
+                        </ul>
+
+                        <h2>Extending These Structures</h2>
+
+                        <p>These examples can be extended to build:</p>
+
+                        <ul>
+                            <li>Thread-safe priority queues for job scheduling</li>
+                            <li>Graph traversal algorithms (BFS, Dijkstra, A*)</li>
+                            <li>Tree-based indexes (B-tree or AVL)</li>
+                            <li>Cache layers with TTL and adaptive eviction policies</li>
+                        </ul>
+
+                        <h2>Conclusion</h2>
+
+                        <p>Generics fundamentally transformed Go&rsquo;s capacity to express reusable algorithms and data structures while preserving type safety and performance. Developers can now build custom trees, graphs, and caches that are concise, efficient, and fully composable across different domains &mdash; from databases to high-frequency systems.</p>
+                    </div>
+                </div>
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="go-goroutines.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Goroutines</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-advanced-concurrency.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Advanced Concurrency Patterns in Go</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-performance-tuning.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Go Performance Tuning</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-memory-gc-internals.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Go Memory Model, GC &amp; Internals</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-rest-apis.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Calling REST APIs in Go</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+
+</body>
+</html>

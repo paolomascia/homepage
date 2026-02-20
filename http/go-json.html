@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Working with JSON in Go &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="golang-tech-insights.html" class="back-link">&larr; Back to Go Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Aug 2023</span>
+                            <span class="post-reading">12 min read</span>
+                        </div>
+                        <h1>Working with JSON in Go</h1>
+                        <div class="post-tags">
+                            <span>Go</span>
+                            <span>JSON</span>
+                            <span>encoding/json</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">JSON (JavaScript Object Notation) is the most popular data format for APIs and web applications. It&rsquo;s lightweight, human-readable, and language-agnostic. Go has built-in support for JSON through the <code>encoding/json</code> package, which provides simple functions for serializing (marshalling) and deserializing (unmarshalling) data.</p>
+
+                        <p>This article covers everything from basic examples to nested objects, struct tags, maps, and streaming large datasets.</p>
+
+                        <h2>What is JSON?</h2>
+
+                        <p>JSON represents data as key-value pairs and supports types such as strings, numbers, booleans, arrays, and nested objects. It&rsquo;s widely used for exchanging data between servers and clients, especially in REST APIs.</p>
+
+                        <p>Example JSON:</p>
+
+<pre><code class="language-bash">{
+  "name": "Alice",
+  "age": 30,
+  "skills": ["Go", "Docker", "Kubernetes"]
+}</code></pre>
+
+                        <h2>Go&rsquo;s <code>encoding/json</code> Package</h2>
+
+                        <p>Go makes working with JSON straightforward via the standard library:</p>
+
+                        <ul>
+                            <li><code>json.Marshal()</code> &mdash; converts Go structs to JSON (encoding).</li>
+                            <li><code>json.Unmarshal()</code> &mdash; converts JSON to Go structs (decoding).</li>
+                        </ul>
+
+                        <h2>Basic Marshalling (Struct to JSON)</h2>
+
+<pre><code class="language-go">package main
+
+import (
+    "encoding/json"
+    "fmt"
+)
+
+type User struct {
+    Name  string
+    Age   int
+    Email string
+}
+
+func main() {
+    u := User{Name: "Alice", Age: 30, Email: "alice@example.com"}
+
+    jsonData, err := json.Marshal(u)
+    if err != nil {
+        fmt.Println("Error marshalling:", err)
+        return
+    }
+
+    fmt.Println(string(jsonData))
+}</code></pre>
+
+                        <p>Output:</p>
+
+<pre><code class="language-bash">{"Name":"Alice","Age":30,"Email":"alice@example.com"}</code></pre>
+
+                        <h2>Pretty Printing with <code>MarshalIndent</code></h2>
+
+                        <p>For readability, you can use <code>json.MarshalIndent()</code> to produce formatted JSON:</p>
+
+<pre><code class="language-go">jsonData, _ := json.MarshalIndent(u, "", "  ")
+fmt.Println(string(jsonData))</code></pre>
+
+                        <p>Output:</p>
+
+<pre><code class="language-bash">{
+  "Name": "Alice",
+  "Age": 30,
+  "Email": "alice@example.com"
+}</code></pre>
+
+                        <h2>Customizing Output with JSON Tags</h2>
+
+                        <p>JSON tags let you control field names, omit empty values, or skip fields entirely.</p>
+
+<pre><code class="language-go">type User struct {
+    Name  string `json:"full_name"`
+    Age   int    `json:"age"`
+    Email string `json:"email,omitempty"`
+}</code></pre>
+
+                        <ul>
+                            <li><code>json:"full_name"</code> &mdash; changes the key name in JSON.</li>
+                            <li><code>omitempty</code> &mdash; excludes the field if it&rsquo;s empty or zero.</li>
+                        </ul>
+
+                        <h2>Unmarshalling (JSON to Struct)</h2>
+
+                        <p>Now let&rsquo;s decode JSON data into a Go struct using <code>json.Unmarshal()</code>.</p>
+
+<pre><code class="language-go">package main
+
+import (
+    "encoding/json"
+    "fmt"
+)
+
+type User struct {
+    Name  string `json:"full_name"`
+    Age   int    `json:"age"`
+    Email string `json:"email"`
+}
+
+func main() {
+    jsonStr := `{"full_name":"Bob","age":25,"email":"bob@example.com"}`
+    var u User
+
+    err := json.Unmarshal([]byte(jsonStr), &amp;u)
+    if err != nil {
+        fmt.Println("Error unmarshalling:", err)
+        return
+    }
+
+    fmt.Printf("User: %+v\n", u)
+}</code></pre>
+
+                        <p>Output:</p>
+
+<pre><code class="language-bash">User: {Name:Bob Age:25 Email:bob@example.com}</code></pre>
+
+                        <h2>Working with Maps and Dynamic JSON</h2>
+
+                        <p>If you don&rsquo;t know the structure in advance, unmarshal into a <code>map[string]interface{}</code> for dynamic parsing:</p>
+
+<pre><code class="language-go">jsonStr := `{"name":"Eve","age":22,"skills":["Go","Docker","Kubernetes"]}`
+var data map[string]interface{}
+_ = json.Unmarshal([]byte(jsonStr), &amp;data)
+fmt.Println("Name:", data["name"])
+fmt.Println("Skills:", data["skills"])</code></pre>
+
+                        <h2>Nested Structures and Arrays</h2>
+
+                        <p>Go structs can easily represent complex JSON hierarchies:</p>
+
+<pre><code class="language-go">type Skill struct {
+    Name  string `json:"name"`
+    Level int    `json:"level"`
+}
+
+type Employee struct {
+    ID     int     `json:"id"`
+    Name   string  `json:"name"`
+    Skills []Skill `json:"skills"`
+}
+
+func main() {
+    e := Employee{
+        ID:   1,
+        Name: "John Doe",
+        Skills: []Skill{
+            {"Go", 5},
+            {"Python", 4},
+        },
+    }
+
+    jsonData, _ := json.MarshalIndent(e, "", "  ")
+    fmt.Println(string(jsonData))
+}</code></pre>
+
+                        <h2>Streaming Large JSON Files</h2>
+
+                        <p>For very large JSON files, use <code>json.Decoder</code> to process data incrementally without loading everything into memory.</p>
+
+<pre><code class="language-go">decoder := json.NewDecoder(file)
+for decoder.More() {
+    var record MyStruct
+    _ = decoder.Decode(&amp;record)
+    fmt.Println(record)
+}</code></pre>
+
+                        <h2>Best Practices for JSON in Go</h2>
+
+                        <ul>
+                            <li><strong>Always check errors</strong> after <code>Marshal</code> or <code>Unmarshal</code>.</li>
+                            <li><strong>Use <code>omitempty</code></strong> to remove empty fields.</li>
+                            <li><strong>Export struct fields</strong> (capitalize) to make them visible to the JSON package.</li>
+                            <li><strong>Use struct tags</strong> to align with API field names.</li>
+                            <li><strong>Prefer structs to <code>map[string]interface{}</code></strong> for strong typing.</li>
+                        </ul>
+
+                        <h2>Summary</h2>
+
+                        <p>The <code>encoding/json</code> package in Go makes working with JSON straightforward &mdash; from simple encoding and decoding to advanced use cases like nested objects, tags, and streaming. Understanding JSON marshalling and unmarshalling is essential for Go developers building REST APIs, reading configuration files, or serializing data.</p>
+                    </div>
+                </div>
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="go-goroutines.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Goroutines</div>
+                            <span class="sidebar-link-meta">Jan 2024</span>
+                        </a>
+                        <a href="go-error-handling.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Error Handling in Go</div>
+                            <span class="sidebar-link-meta">May 2024</span>
+                        </a>
+                        <a href="go-scheduler-internals.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Go Scheduler Internals</div>
+                            <span class="sidebar-link-meta">Jul 2025</span>
+                        </a>
+                        <a href="go-zero-copy-io.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Zero-Copy I/O and Memory Efficiency in Go</div>
+                            <span class="sidebar-link-meta">Aug 2024</span>
+                        </a>
+                        <a href="go-goroutine-leaks.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Detecting and Preventing Goroutine Leaks</div>
+                            <span class="sidebar-link-meta">Sep 2025</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+
+</body>
+</html>

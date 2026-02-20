@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IA-32 and Intel 64 ISA Assembly Language (Part 3) &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="cybersecurity-tech-insights.html" class="back-link">&larr; Back to Cybersecurity</a>
+                        <div class="post-meta">
+                            <span class="post-date">Jun 2023</span>
+                            <span class="post-reading">12 min read</span>
+                        </div>
+                        <h1>IA-32 and Intel 64 ISA Assembly Language (Part 3)</h1>
+                        <div class="post-tags">
+                            <span>Assembly</span>
+                            <span>IA-32</span>
+                            <span>Addressing</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Part 3 of this series dives deep into operand and addressing modes on x86 processors, covering operand size attributes, immediate and register operands, memory addressing with base/index/scale/displacement components, and the critical differences between legacy and 64-bit addressing.</p>
+
+                        <!-- Operand and Address Size Attributes -->
+                        <h2>Operand and Address Size Attributes</h2>
+
+                        <p>In protected mode, each code segment carries a default operand size and address size determined by the segment&rsquo;s <strong>D flag</strong>:</p>
+                        <ul>
+                            <li><strong>D = 1:</strong> default 32-bit operands and 32-bit addresses</li>
+                            <li><strong>D = 0:</strong> default 16-bit operands and 16-bit addresses</li>
+                        </ul>
+
+                        <p>In real mode, virtual-8086 mode, and SMM, the default operand and address sizes are 16-bit. Prefixes can override the defaults on a per-instruction basis.</p>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Mode</th>
+                                    <th>D Flag</th>
+                                    <th>Operand Size Prefix</th>
+                                    <th>Address Size Prefix</th>
+                                    <th>Effective Operand Size</th>
+                                    <th>Effective Address Size</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>16-bit</td><td>0</td><td>No</td><td>No</td><td>16</td><td>16</td></tr>
+                                <tr><td>16-bit</td><td>0</td><td>Yes</td><td>No</td><td>32</td><td>16</td></tr>
+                                <tr><td>32-bit</td><td>1</td><td>No</td><td>No</td><td>32</td><td>32</td></tr>
+                                <tr><td>32-bit</td><td>1</td><td>Yes</td><td>No</td><td>16</td><td>32</td></tr>
+                            </tbody>
+                        </table>
+
+                        <h3>Override Prefix Bytes (Encodings)</h3>
+
+                        <ul>
+                            <li><strong>Operand-size override:</strong> <code>66h</code> (toggles between 16&harr;32 in legacy modes)</li>
+                            <li><strong>Address-size override:</strong> <code>67h</code> (toggles between 16&harr;32 addressing in legacy modes)</li>
+                            <li><strong>Segment override:</strong> <code>2Eh</code> <code>36h</code> <code>3Eh</code> <code>26h</code> <code>64h</code> <code>65h</code> for <code>CS</code>, <code>SS</code>, <code>DS</code>, <code>ES</code>, <code>FS</code>, <code>GS</code></li>
+                        </ul>
+
+                        <h3>64-bit Mode Specifics</h3>
+
+                        <ul>
+                            <li><strong>Default operand size:</strong> 32-bit. Changeable to 64-bit by <strong>REX.W = 1</strong> prefix. The <code>66h</code> prefix selects 16-bit operands (REX.W, if present, overrides 66h)</li>
+                            <li><strong>Default address size:</strong> 64-bit. The <code>67h</code> prefix selects 32-bit addressing (16-bit addressing generally unsupported in 64-bit mode)</li>
+                            <li><strong>Write-zero extension rule:</strong> writing to a 32-bit GPR (e.g., <code>EAX</code>) zero-extends into the full 64-bit register (<code>RAX</code>)</li>
+                            <li><strong>RIP-relative addressing:</strong> memory operands can be addressed relative to the current <code>RIP</code> (useful for position-independent code)</li>
+                        </ul>
+
+                        <!-- Operand Addressing -->
+                        <h2>Operand Addressing</h2>
+
+                        <p>IA-32/Intel 64 instructions can use zero or more operands. Some are implicit (e.g., <code>MUL</code> uses <code>EAX/RAX</code>) and some explicit. A source operand may reside in:</p>
+
+                        <ul>
+                            <li>The instruction itself (<strong>immediate</strong>)</li>
+                            <li>A <strong>register</strong></li>
+                            <li>A <strong>memory</strong> location</li>
+                            <li>An <strong>I/O port</strong> (with <code>IN</code>/<code>OUT</code> instructions)</li>
+                        </ul>
+
+                        <h3>Immediate Operands</h3>
+
+                        <p>Immediates are encoded directly in the instruction. Size follows the instruction&rsquo;s effective operand size unless a special form is defined.</p>
+
+<pre><code class="language-nasm">; Adds the immediate 14 to EAX (32-bit add)
+ADD EAX, 14</code></pre>
+
+                        <ul>
+                            <li>Some 64-bit forms use a <strong>sign-extended imm32</strong> to load 64-bit registers (e.g., <code>MOV r64, imm32</code> sign-extends to 64 bits)</li>
+                            <li>Encoding may include <code>imm8</code> with implicit sign-extension for certain ALU ops (saves code size)</li>
+                        </ul>
+
+                        <h3>Register Operands</h3>
+
+                        <p>Depending on the instruction, register operands can be:</p>
+
+                        <ul>
+                            <li><strong>General-purpose:</strong> 8/16/32/64-bit GPRs (e.g., <code>AL</code>/<code>AX</code>/<code>EAX</code>/<code>RAX</code>, &hellip;, <code>R8&ndash;R15</code> in 64-bit mode)</li>
+                            <li><strong>Segment registers:</strong> <code>CS</code>, <code>DS</code>, <code>SS</code>, <code>ES</code>, <code>FS</code>, <code>GS</code> (limited instruction set)</li>
+                            <li><strong>EFLAGS/RFLAGS</strong> (via dedicated instructions: <code>PUSHF/POPF</code>, <code>LAHF/SAHF</code> subset, etc.)</li>
+                            <li><strong>x87 FPU:</strong> <code>ST0&ndash;ST7</code></li>
+                            <li><strong>MMX:</strong> <code>MM0&ndash;MM7</code></li>
+                            <li><strong>XMM</strong>/<strong>YMM</strong>/<strong>ZMM</strong> and <code>MXCSR</code> for SIMD and FP control</li>
+                        </ul>
+
+                        <p>Convention matters: for example, <code>ECX/RCX</code> is the loop counter for <code>REP</code> string ops; <code>RDI/RSI</code> are default destination/source for string moves in 64-bit System V ABIs during <code>REP MOVSx</code>.</p>
+
+                        <h3>Memory Operands</h3>
+
+                        <p>Memory operands are formed from a segment selector (implicit or overridden) and an effective address (EA). In legacy modes you often see &ldquo;16:16&rdquo; or &ldquo;16:32&rdquo; notation (segment:offset). In 64-bit mode, segmentation is largely disabled for addressing; <code>FS</code> and <code>GS</code> can still provide a base via segment overrides.</p>
+
+                        <p>Offsets (effective addresses) are built from the components below:</p>
+
+                        <ul>
+                            <li><strong>Displacement</strong> (<code>disp8/disp16/disp32</code>)</li>
+                            <li><strong>Base</strong> (any GPR except <code>RSP</code> has special encoding rules; <code>RBP/EBP</code> as base implies disp if needed)</li>
+                            <li><strong>Index</strong> (any GPR except <code>RSP</code> in SIB; in 64-bit, <code>R12</code> acts like <code>RSP</code> in encoding)</li>
+                            <li><strong>Scale</strong> (1, 2, 4, 8 multiplies the index)</li>
+                        </ul>
+
+                        <h4>Common EA Forms (Intel Syntax)</h4>
+
+<pre><code class="language-nasm">[number]                     ; displacement only
+[reg]                        ; base only
+[reg + reg*scale]            ; index*scale (+ optional base if encoding allows)
+[reg + number]               ; base + displacement
+[reg + reg*scale + number]   ; full form: base + index*scale + displacement
+FS:[reg + disp]              ; with explicit segment override (legacy &amp; 64-bit)
+[RIP + disp32]               ; RIP-relative (64-bit only), disp is signed 32-bit</code></pre>
+
+                        <h4>64-bit Addressing Notes</h4>
+
+                        <ul>
+                            <li>Default address size is 64-bit; <code>67h</code> selects 32-bit addressing for that instruction</li>
+                            <li>RIP-relative uses a signed 32-bit displacement added to the address of the next instruction; useful for position-independent code and data</li>
+                            <li>FS/GS base can be used for thread-local storage or OS data. Segment prefixes <code>64h</code>/<code>65h</code> still apply</li>
+                        </ul>
+
+                        <!-- Putting It Together -->
+                        <h2>Putting It Together: Effective Sizes and Examples</h2>
+
+                        <h3>Operand vs Address Size</h3>
+
+                        <p>An instruction has two independent attributes:</p>
+
+                        <ul>
+                            <li><strong>Operand size:</strong> width of the data being operated on (affects immediate width, register width, and how memory data is read/written)</li>
+                            <li><strong>Address size:</strong> width used to compute effective addresses (size of base/index and displacement interpretation)</li>
+                        </ul>
+
+<pre><code class="language-nasm">; Legacy 32-bit default (D=1): 32-bit operands, 32-bit addressing
+ADD EAX, DWORD PTR [EBX + ECX*4 + 8]
+
+; Operand-size override (66h) toggles to 16-bit operand, address remains 32-bit
+ADD AX, WORD PTR [EBX + ECX*4 + 8]
+
+; Address-size override (67h) toggles to 16-bit addressing in 16-bit segments,
+; or 32-bit addressing in 64-bit mode
+MOV EAX, DWORD PTR [EBX]        ; default addr size (32 in legacy, 64 in x64)
+MOV EAX, DWORD PTR [ECX]        ; with 67h in x64, use 32-bit addressing
+
+; 64-bit mode: default operand = 32, address = 64
+ADD EAX, DWORD PTR [RDI + RSI*2 + 16]
+
+; 64-bit operand via REX.W
+REX.W + ADD RAX, QWORD PTR [RDI + RSI*2 + 16]
+
+; 64-bit mode: write to 32-bit reg zero-extends
+MOV EAX, 1                      ; RAX becomes 0x00000000_00000001</code></pre>
+
+                        <h3>Immediates and Sign-Extension</h3>
+
+<pre><code class="language-nasm">; 64-bit move with sign-extended imm32
+MOV RAX, 0xFFFFFFFF             ; encodes as imm32, becomes -1 sign-extended
+MOV RAX, 0x00000001             ; encodes as imm32, becomes +1 sign-extended
+
+; Using 66h in 64-bit mode selects 16-bit operand (when valid)
+ADD AX, 5</code></pre>
+
+                        <!-- Segment Registers and Overrides -->
+                        <h2>Segment Registers and Overrides</h2>
+
+                        <p>By default the segment used for address calculation is determined by the addressing form (e.g., <code>SS</code> for stack addressing with <code>EBP/RBP/ESP/RSP</code>, otherwise <code>DS</code>). You may override with segment prefixes:</p>
+
+<pre><code class="language-nasm">MOV EAX, FS:[ECX + 8]    ; force FS segment
+MOV EAX, GS:[RCX + 8]    ; 64-bit mode, GS base used</code></pre>
+
+                        <p>In 64-bit mode, <code>CS</code>, <code>DS</code>, <code>ES</code>, and <code>SS</code> are largely ignored for linear addressing; <code>FS</code> and <code>GS</code> retain special roles.</p>
+
+                        <!-- Quick Reference -->
+                        <h2>Quick Reference</h2>
+
+                        <ul>
+                            <li>Use <strong>66h</strong> to switch operand size (16&harr;32 in legacy; 16 in x64 unless REX.W set)</li>
+                            <li>Use <strong>67h</strong> to switch address size (16&harr;32 in legacy; 64&harr;32 in x64)</li>
+                            <li>Use <strong>REX.W=1</strong> to get 64-bit operands in 64-bit mode</li>
+                            <li>In 64-bit mode, writing a 32-bit GPR <strong>zero-extends</strong> to 64 bits</li>
+                            <li>Prefer <strong>RIP-relative</strong> addressing for position-independent data/code on x64</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing large-scale distributed systems. Specialized in Generative AI, AI Agents, and cloud-native architectures.</p>
+                        <div class="sidebar-author-links">
+                            <a href="https://www.linkedin.com/in/paolo-mascia-italy" target="_blank" aria-label="LinkedIn"><svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg></a>
+                            <a href="https://github.com/paolomascia" target="_blank" aria-label="GitHub"><svg viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg></a>
+                            <a href="https://www.kaggle.com/paolomascia" target="_blank" aria-label="Kaggle"><svg viewBox="0 0 24 24"><path d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.233-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.075.378z"/></svg></a>
+                        </div>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="cs-assembly-part2.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Assembly</span>
+                            <div class="sidebar-link-title">IA-32 and Intel 64 ISA Assembly Language (Part 2)</div>
+                            <span class="sidebar-link-meta">Apr 2023</span>
+                        </a>
+                        <a href="cs-assembly-part4.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Assembly</span>
+                            <div class="sidebar-link-title">IA-32 and Intel 64 ISA Assembly Language (Part 4)</div>
+                            <span class="sidebar-link-meta">Aug 2023</span>
+                        </a>
+                        <a href="cs-assembly-part5.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Assembly</span>
+                            <div class="sidebar-link-title">IA-32 and Intel 64 ISA Assembly Language (Part 5)</div>
+                            <span class="sidebar-link-meta">Nov 2023</span>
+                        </a>
+                        <a href="cs-reverse-engineering.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cybersecurity</span>
+                            <div class="sidebar-link-title">Reverse Engineering</div>
+                            <span class="sidebar-link-meta">Aug 2024</span>
+                        </a>
+                        <a href="cs-buffer-overflow.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cybersecurity</span>
+                            <div class="sidebar-link-title">Buffer Overflow</div>
+                            <span class="sidebar-link-meta">Sep 2023</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-nasm.min.js"></script>
+</body>
+</html>

@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Building Domain-Specific Languages (DSLs) in Go Using Generics and Reflection &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="golang-tech-insights.html" class="back-link">&larr; Back to Go Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Oct 2025</span>
+                            <span class="post-reading">12 min read</span>
+                        </div>
+                        <h1>Building Domain-Specific Languages (DSLs) in Go Using Generics and Reflection</h1>
+                        <div class="post-tags">
+                            <span>Go</span>
+                            <span>Generics</span>
+                            <span>Reflection</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">A Domain-Specific Language (DSL) is a small, focused language designed to solve problems in a specific domain &mdash; like configuration, validation, data pipelines, or query building. While Go is not a dynamically-typed language, its generics (since Go 1.18) and reflection capabilities make it possible to implement elegant, type-safe DSLs that feel expressive and declarative.</p>
+
+                        <h2>Why Build a DSL in Go?</h2>
+
+                        <p>Go favors explicitness, but many problems benefit from higher-level abstractions. DSLs help reduce boilerplate, enforce consistency, and let developers express intent rather than control flow.</p>
+
+                        <p>Common use cases include:</p>
+
+                        <ul>
+                            <li>Query builders (like SQL or API filters)</li>
+                            <li>Validation frameworks</li>
+                            <li>Declarative configuration</li>
+                            <li>Infrastructure definitions (IaC-like systems)</li>
+                        </ul>
+
+                        <h2>Generics for Type-Safe Builders</h2>
+
+                        <p>Generics let you write reusable DSL components while preserving type safety. Here&rsquo;s an example of a mini &ldquo;query builder&rdquo; DSL built using generics:</p>
+
+<pre><code class="language-go">package main
+
+import (
+	"fmt"
+	"strings"
+)
+
+type Field[T any] struct {
+	Name string
+}
+
+type Condition[T any] struct {
+	Field Field[T]
+	Op    string
+	Value T
+}
+
+func Eq[T any](f Field[T], v T) Condition[T] {
+	return Condition[T]{Field: f, Op: "=", Value: v}
+}
+
+func Gt[T any](f Field[T], v T) Condition[T] {
+	return Condition[T]{Field: f, Op: "&gt;", Value: v}
+}
+
+func (c Condition[T]) String() string {
+	return fmt.Sprintf("%s %s '%v'", c.Field.Name, c.Op, c.Value)
+}
+
+type Query struct {
+	table      string
+	conditions []string
+}
+
+func NewQuery(table string) *Query {
+	return &amp;Query{table: table}
+}
+
+func (q *Query) Where(cond fmt.Stringer) *Query {
+	q.conditions = append(q.conditions, cond.String())
+	return q
+}
+
+func (q *Query) Build() string {
+	return fmt.Sprintf("SELECT * FROM %s WHERE %s;", q.table, strings.Join(q.conditions, " AND "))
+}
+
+func main() {
+	Name := Field[string]{Name: "name"}
+	Age := Field[int]{Name: "age"}
+
+	query := NewQuery("users").
+		Where(Eq(Name, "Alice")).
+		Where(Gt(Age, 18)).
+		Build()
+
+	fmt.Println(query)
+}</code></pre>
+
+                        <p>Output:</p>
+
+<pre><code class="language-bash">SELECT * FROM users WHERE name = 'Alice' AND age &gt; '18';</code></pre>
+
+                        <p>Here, generics ensure that the types of conditions are consistent &mdash; you can&rsquo;t compare a string field to an int by mistake.</p>
+
+                        <h2>Using Reflection for Dynamic DSLs</h2>
+
+                        <p>Reflection allows you to inspect and manipulate types at runtime. This can be useful for DSLs that need to serialize structs, generate configuration files, or build generic validators.</p>
+
+<pre><code class="language-go">package main
+
+import (
+	"fmt"
+	"reflect"
+)
+
+func PrintStruct(v any) {
+	val := reflect.ValueOf(v)
+	typ := reflect.TypeOf(v)
+
+	if typ.Kind() != reflect.Struct {
+		fmt.Println("Not a struct")
+		return
+	}
+
+	for i := 0; i &lt; typ.NumField(); i++ {
+		field := typ.Field(i)
+		value := val.Field(i)
+		fmt.Printf("%s = %v\n", field.Name, value.Interface())
+	}
+}
+
+type Config struct {
+	Host string
+	Port int
+}
+
+func main() {
+	cfg := Config{Host: "localhost", Port: 8080}
+	PrintStruct(cfg)
+}</code></pre>
+
+                        <p>Output:</p>
+
+<pre><code class="language-bash">Host = localhost
+Port = 8080</code></pre>
+
+                        <p>Reflection-based DSLs are powerful when you need dynamic schema inspection, data mapping, or automatic generation of configurations and documentation.</p>
+
+                        <h2>Combining Generics and Reflection</h2>
+
+                        <p>You can combine generics and reflection for even more expressive DSLs &mdash; for example, a validation engine that infers rules from struct tags:</p>
+
+<pre><code class="language-go">package main
+
+import (
+	"fmt"
+	"reflect"
+)
+
+type User struct {
+	Name string `validate:"required"`
+	Age  int    `validate:"min=18"`
+}
+
+func Validate[T any](obj T) {
+	val := reflect.ValueOf(obj)
+	typ := reflect.TypeOf(obj)
+
+	for i := 0; i &lt; typ.NumField(); i++ {
+		field := typ.Field(i)
+		tag := field.Tag.Get("validate")
+		value := val.Field(i)
+
+		if tag == "required" &amp;&amp; value.IsZero() {
+			fmt.Printf("Field %s is required\n", field.Name)
+		}
+		if tag == "min=18" &amp;&amp; value.Int() &lt; 18 {
+			fmt.Printf("Field %s must be at least 18\n", field.Name)
+		}
+	}
+}
+
+func main() {
+	u := User{Name: "", Age: 15}
+	Validate(u)
+}</code></pre>
+
+                        <p>Output:</p>
+
+<pre><code class="language-bash">Field Name is required
+Field Age must be at least 18</code></pre>
+
+                        <p>This pattern is similar to libraries like <code>go-playground/validator</code>, but implemented manually to illustrate reflection-driven DSLs.</p>
+
+                        <h2>When to Use a DSL in Go</h2>
+
+                        <p>DSLs in Go make sense when:</p>
+
+                        <ul>
+                            <li>The domain has repetitive, rule-based logic (validation, configuration).</li>
+                            <li>Abstractions can improve readability without hiding complexity.</li>
+                            <li>Strong typing helps prevent misuse or invalid state.</li>
+                            <li>The performance cost of reflection is acceptable (for non-hot paths).</li>
+                        </ul>
+
+                        <h2>Best Practices</h2>
+
+                        <ul>
+                            <li>Use generics for compile-time safety and clear syntax.</li>
+                            <li>Use reflection only for dynamic behavior where necessary.</li>
+                            <li>Keep DSLs declarative and avoid embedding control logic.</li>
+                            <li>Document the DSL syntax and error behavior clearly.</li>
+                            <li>Benchmark reflection-heavy paths using <code>go test -bench</code>.</li>
+                        </ul>
+
+                        <h2>Example Use Cases</h2>
+
+                        <ul>
+                            <li>Config file parsers (JSON/YAML into structs with tags).</li>
+                            <li>SQL or API query builders (like <code>gorm</code> or <code>ent</code>).</li>
+                            <li>Pipeline builders (chaining transformations).</li>
+                            <li>Code generation tools (parsing Go structs with reflection).</li>
+                        </ul>
+
+                        <h2>Conclusion</h2>
+
+                        <p>By combining Go&rsquo;s modern generics with runtime reflection, you can design expressive, maintainable, and type-safe Domain-Specific Languages. While Go is intentionally not dynamic, these tools make it surprisingly capable for declarative frameworks, configuration engines, and internal DSLs that rival those of more dynamic languages.</p>
+                    </div>
+                </div>
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="go-goroutines.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Goroutines</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-advanced-concurrency.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Advanced Concurrency Patterns in Go</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-performance-tuning.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Go Performance Tuning</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-memory-gc-internals.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Go Memory Model, GC &amp; Internals</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-rest-apis.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Calling REST APIs in Go</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+
+</body>
+</html>

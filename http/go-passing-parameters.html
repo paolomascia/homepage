@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Passing Parameters to Go Applications &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="golang-tech-insights.html" class="back-link">&larr; Back to Go Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Dec 2023</span>
+                            <span class="post-reading">18 min read</span>
+                        </div>
+                        <h1>Passing Parameters to Go Applications</h1>
+                        <div class="post-tags">
+                            <span>Go</span>
+                            <span>Configuration</span>
+                            <span>CLI</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Modern Go applications accept configuration from multiple sources: command-line arguments, environment variables, and configuration files. This guide demonstrates each approach individually, then shows how to combine them with proper precedence ordering, validate inputs, and deploy in containers and Kubernetes.</p>
+
+                        <h2>Raw Command-Line Arguments with <code>os.Args</code></h2>
+
+                        <p><code>os.Args</code> provides raw positional arguments where index 0 is the program name. Use this for quick scripts or when you need full control over parsing.</p>
+
+<pre><code class="language-go">package main
+
+import (
+    "fmt"
+    "os"
+)
+
+func main() {
+    // Print all arguments (including program name at index 0)
+    fmt.Println(os.Args)
+
+    // Handle positional args (after the program name)
+    if len(os.Args) &lt; 2 {
+        fmt.Println("usage: app &lt;name&gt; [greeting]")
+        os.Exit(1)
+    }
+    name := os.Args[1]
+    greeting := "Hello"
+    if len(os.Args) &gt;= 3 {
+        greeting = os.Args[2]
+    }
+    fmt.Printf("%s, %s!\n", greeting, name)
+}</code></pre>
+
+                        <p><strong>Pros:</strong> zero dependencies, total control. <strong>Cons:</strong> no help/usage, no flags parsing.</p>
+
+                        <h2>Command-Line Flags with the Standard <code>flag</code> Package</h2>
+
+                        <p>The <code>flag</code> package is idiomatic for flags like <code>-p</code> or <code>-port</code>. It provides default values, help text, and parses primitives.</p>
+
+<pre><code class="language-go">package main
+
+import (
+    "flag"
+    "fmt"
+)
+
+func main() {
+    var help bool
+    var verbose bool
+    var port int
+    var host string
+
+    flag.BoolVar(&amp;help, "h", false, "Show help")
+    flag.BoolVar(&amp;verbose, "v", false, "Enable verbose logs")
+    flag.IntVar(&amp;port, "port", 8080, "Port to listen on")
+    flag.StringVar(&amp;host, "host", "127.0.0.1", "Bind address")
+
+    flag.Parse() // important
+
+    if help {
+        flag.Usage()
+        return
+    }
+
+    // Positional args AFTER flags:
+    args := flag.Args()
+    fmt.Printf("server=%s:%d verbose=%v args=%v\n", host, port, verbose, args)
+}</code></pre>
+
+                        <p><strong>Tip:</strong> Use long names (e.g., <code>-port</code>) for clarity; alias short names (e.g., <code>-p</code>) if needed.</p>
+
+                        <h2>Environment Variables with <code>os.Getenv</code></h2>
+
+                        <p>Environment variables form the foundation of the 12-Factor App. They&rsquo;re valuable for containerized deployments and secrets management.</p>
+
+<pre><code class="language-go">package main
+
+import (
+    "fmt"
+    "os"
+)
+
+func main() {
+    dbURL := os.Getenv("DB_URL")
+    if dbURL == "" {
+        dbURL = "postgres://localhost:5432/app" // default fallback
+    }
+    fmt.Println("DB_URL:", dbURL)
+}</code></pre>
+
+                        <p>Run with environment variables:</p>
+
+<pre><code class="language-bash">DB_URL="postgres://prod:5432/app" go run main.go</code></pre>
+
+                        <p><strong>Best practice:</strong> don&rsquo;t log sensitive values; log only whether they exist or their masked forms.</p>
+
+                        <h2>Configuration Files with Viper</h2>
+
+                        <p>Files enable version control and review of configuration. Viper supports YAML/JSON/TOML, environment overrides, and file watching.</p>
+
+<pre><code class="language-bash">go get github.com/spf13/viper</code></pre>
+
+                        <p>Example <code>config.yaml</code>:</p>
+
+<pre><code class="language-bash">server:
+  host: "0.0.0.0"
+  port: 8080
+log:
+  level: "info"
+database:
+  url: "postgres://user:pass@localhost:5432/app?sslmode=disable"</code></pre>
+
+<pre><code class="language-go">package main
+
+import (
+    "fmt"
+    "github.com/spf13/viper"
+)
+
+func main() {
+    viper.SetConfigFile("config.yaml")
+    if err := viper.ReadInConfig(); err != nil {
+        fmt.Println("read config:", err)
+        return
+    }
+    fmt.Println("server.host:", viper.GetString("server.host"))
+    fmt.Println("server.port:", viper.GetInt("server.port"))
+    fmt.Println("log.level:", viper.GetString("log.level"))
+    fmt.Println("database.url:", viper.GetString("database.url"))
+}</code></pre>
+
+                        <p><strong>Note:</strong> Viper can search config paths, set defaults, bind env/flags, and read nested keys.</p>
+
+                        <h2>Precedence &amp; Combining Sources (Flags &gt; Env &gt; File &gt; Defaults)</h2>
+
+                        <p>Most applications combine all inputs. A sensible precedence is: Flags &gt; Environment &gt; Config file &gt; Built-in defaults.</p>
+
+<pre><code class="language-go">package main
+
+import (
+    "flag"
+    "fmt"
+    "log"
+    "strings"
+
+    "github.com/spf13/viper"
+)
+
+type Config struct {
+    Server struct {
+        Host string
+        Port int
+    }
+    Log struct {
+        Level string
+        JSON  bool
+    }
+    Database struct {
+        URL string
+    }
+}
+
+func main() {
+    // 1) Defaults
+    viper.SetDefault("server.host", "127.0.0.1")
+    viper.SetDefault("server.port", 8080)
+    viper.SetDefault("log.level", "info")
+    viper.SetDefault("log.json", false)
+
+    // 2) Config file (optional)
+    viper.SetConfigName("config") // config.yaml|json|toml
+    viper.SetConfigType("yaml")
+    viper.AddConfigPath(".")
+    _ = viper.ReadInConfig() // ignore error if file missing
+
+    // 3) Env vars (prefix + automatic mapping for nested keys)
+    viper.SetEnvPrefix("APP")
+    viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+    viper.AutomaticEnv()
+    // e.g., APP_SERVER_PORT=9090 will override server.port
+
+    // 4) Flags
+    host := flag.String("host", "", "server host")
+    port := flag.Int("port", 0, "server port")
+    logLevel := flag.String("log-level", "", "log level (debug|info|warn|error)")
+    logJSON := flag.Bool("log-json", false, "log as JSON")
+    dbURL := flag.String("db-url", "", "database URL")
+    flag.Parse()
+
+    // Bind flag values to Viper if provided (non-zero/empty)
+    if *host != "" {
+        viper.Set("server.host", *host)
+    }
+    if *port != 0 {
+        viper.Set("server.port", *port)
+    }
+    if *logLevel != "" {
+        viper.Set("log.level", *logLevel)
+    }
+    if flag.Lookup("log-json").Value.String() == "true" {
+        viper.Set("log.json", true)
+    }
+    if *dbURL != "" {
+        viper.Set("database.url", *dbURL)
+    }
+
+    // Unmarshal into a struct
+    var cfg Config
+    if err := viper.Unmarshal(&amp;cfg); err != nil {
+        log.Fatalf("config unmarshal: %v", err)
+    }
+
+    fmt.Printf("Effective config: %+v\n", cfg)
+}</code></pre>
+
+                        <p><strong>Try it:</strong> run with different combinations (file, env, flags) to see the precedence in action.</p>
+
+                        <h2>Validating Configuration</h2>
+
+                        <p>Validate required fields (e.g., database URL). Write simple checks or integrate a validator.</p>
+
+<pre><code class="language-go">package main
+
+import (
+    "errors"
+    "fmt"
+    "net/url"
+)
+
+type Config struct {
+    DatabaseURL string
+    Port        int
+}
+
+func Validate(cfg Config) error {
+    if cfg.Port &lt;= 0 || cfg.Port &gt; 65535 {
+        return errors.New("port must be 1..65535")
+    }
+    if cfg.DatabaseURL == "" {
+        return errors.New("database.url is required")
+    }
+    if _, err := url.Parse(cfg.DatabaseURL); err != nil {
+        return fmt.Errorf("database.url invalid: %w", err)
+    }
+    return nil
+}</code></pre>
+
+                        <h2>.env Files (Local Development)</h2>
+
+                        <p>For local development, a <code>.env</code> file is convenient. Load it at startup while keeping real secrets out of Git.</p>
+
+<pre><code class="language-bash">go get github.com/joho/godotenv</code></pre>
+
+                        <p>Example <code>.env</code> file:</p>
+
+<pre><code class="language-bash">APP_SERVER_PORT=9090
+APP_LOG_LEVEL=debug
+DATABASE_URL=postgres://dev:dev@localhost:5432/app?sslmode=disable</code></pre>
+
+<pre><code class="language-go">import "github.com/joho/godotenv"
+
+func init() {
+    _ = godotenv.Load() // loads .env if present; ignore if missing
+}</code></pre>
+
+                        <h2>Subcommands with Cobra</h2>
+
+                        <p>For applications with subcommands (<code>serve</code>, <code>migrate</code>, <code>admin</code>), Cobra is recommended. It integrates with Viper and provides rootCmd and subcommands with built-in help, completion, and flag binding.</p>
+
+<pre><code class="language-bash">go get github.com/spf13/cobra@latest</code></pre>
+
+                        <h2>Hot Reloading Config (Watch Files)</h2>
+
+                        <p>Viper can watch config files and trigger callbacks. This is best for feature flags or non-critical tuning. Prefer restart for critical changes (e.g., credentials).</p>
+
+<pre><code class="language-go">viper.WatchConfig()
+viper.OnConfigChange(func(e fsnotify.Event) {
+    fmt.Println("config changed:", e.Name)
+    // re-read config into your struct, apply safe runtime updates
+})</code></pre>
+
+                        <p><strong>Note:</strong> requires <code>github.com/fsnotify/fsnotify</code> (Viper pulls it in).</p>
+
+                        <h2>Containers &amp; Kubernetes</h2>
+
+                        <h3>Docker: Environment Injection</h3>
+
+<pre><code class="language-bash">docker run --rm -e APP_SERVER_PORT=8080 -e DATABASE_URL='postgres://...' myapp:latest</code></pre>
+
+                        <h3>Kubernetes: ConfigMap &amp; Secret</h3>
+
+<pre><code class="language-bash"># configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+data:
+  APP_LOG_LEVEL: "info"
+  APP_SERVER_PORT: "8080"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secrets
+type: Opaque
+stringData:
+  DATABASE_URL: "postgres://user:pass@db:5432/app?sslmode=disable"</code></pre>
+
+                        <p>Mount or inject as env vars in your Deployment, then read them via <code>os.Getenv</code> or Viper env binding.</p>
+
+                        <h2>Security &amp; Secrets</h2>
+
+                        <ul>
+                            <li>Prefer environment variables (or secret managers) for credentials; avoid plain-text config files.</li>
+                            <li>Never log sensitive values. Show masked values for diagnostics.</li>
+                            <li>Validate inputs; fail fast with clear messages.</li>
+                        </ul>
+
+                        <h2>Recommended Pattern (All-in-One Example)</h2>
+
+                        <p>This example wires everything together: defaults, file, env, flags &mdash; then validates and starts a server.</p>
+
+<pre><code class="language-go">package main
+
+import (
+    "flag"
+    "fmt"
+    "log"
+    "net/http"
+    "strings"
+
+    "github.com/spf13/viper"
+)
+
+type Config struct {
+    Server struct {
+        Host string
+        Port int
+    }
+    Log struct {
+        Level string
+        JSON  bool
+    }
+    Database struct {
+        URL string
+    }
+}
+
+func main() {
+    // Defaults
+    viper.SetDefault("server.host", "127.0.0.1")
+    viper.SetDefault("server.port", 8080)
+    viper.SetDefault("log.level", "info")
+    viper.SetDefault("log.json", false)
+
+    // Config file (optional)
+    viper.SetConfigName("config")
+    viper.SetConfigType("yaml")
+    viper.AddConfigPath(".")
+    _ = viper.ReadInConfig()
+
+    // Env
+    viper.SetEnvPrefix("APP")
+    viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+    viper.AutomaticEnv()
+
+    // Flags
+    var (
+        fHost    = flag.String("host", "", "server host")
+        fPort    = flag.Int("port", 0, "server port")
+        fLogLvl  = flag.String("log-level", "", "log level (debug|info|warn|error)")
+        fLogJSON = flag.Bool("log-json", false, "log as JSON")
+        fDBURL   = flag.String("db-url", "", "database connection URL")
+    )
+    flag.Parse()
+
+    if *fHost != "" { viper.Set("server.host", *fHost) }
+    if *fPort != 0 { viper.Set("server.port", *fPort) }
+    if *fLogLvl != "" { viper.Set("log.level", *fLogLvl) }
+    if flag.Lookup("log-json").Value.String() == "true" { viper.Set("log.json", true) }
+    if *fDBURL != "" { viper.Set("database.url", *fDBURL) }
+
+    // Unmarshal + validate
+    var cfg Config
+    if err := viper.Unmarshal(&amp;cfg); err != nil {
+        log.Fatalf("config: %v", err)
+    }
+    if err := validate(cfg); err != nil {
+        log.Fatalf("invalid config: %v", err)
+    }
+
+    addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
+    http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("OK")) })
+    log.Printf("listening on %s (log.level=%s json=%v)", addr, cfg.Log.Level, cfg.Log.JSON)
+    log.Fatal(http.ListenAndServe(addr, nil))
+}
+
+func validate(cfg Config) error {
+    if cfg.Server.Port &lt;= 0 || cfg.Server.Port &gt; 65535 {
+        return fmt.Errorf("server.port out of range: %d", cfg.Server.Port)
+    }
+    if cfg.Database.URL == "" {
+        return fmt.Errorf("database.url is required (set APP_DATABASE_URL or --db-url or config file)")
+    }
+    return nil
+}</code></pre>
+
+                        <h2>Testing Configuration</h2>
+
+                        <ul>
+                            <li>Inject env vars temporarily in tests (restore afterward).</li>
+                            <li>Use temp directories for config files when testing Viper.</li>
+                            <li>Test precedence explicitly (file vs env vs flags).</li>
+                        </ul>
+
+<pre><code class="language-go">// Pseudocode
+os.Setenv("APP_SERVER_PORT", "9090")
+defer os.Unsetenv("APP_SERVER_PORT")
+// load config, assert the expected port</code></pre>
+
+                        <h2>Cheatsheet</h2>
+
+                        <ul>
+                            <li><strong>Positional args:</strong> <code>os.Args[1:]</code></li>
+                            <li><strong>Flags:</strong> <code>flag.String(...)</code>, <code>flag.Parse()</code>, <code>flag.Args()</code></li>
+                            <li><strong>Env:</strong> <code>os.Getenv("NAME")</code></li>
+                            <li><strong>Viper:</strong> <code>SetDefault</code>, <code>ReadInConfig</code>, <code>AutomaticEnv</code>, <code>Unmarshal</code></li>
+                            <li><strong>Precedence:</strong> Flags &gt; Env &gt; File &gt; Defaults</li>
+                            <li><strong>Validation:</strong> fail fast with clear error messages</li>
+                        </ul>
+                    </div>
+                </div>
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="go-goroutines.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Goroutines</div>
+                            <span class="sidebar-link-meta">Jan 2024</span>
+                        </a>
+                        <a href="go-error-handling.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Error Handling in Go</div>
+                            <span class="sidebar-link-meta">May 2024</span>
+                        </a>
+                        <a href="go-scheduler-internals.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Go Scheduler Internals</div>
+                            <span class="sidebar-link-meta">Jul 2025</span>
+                        </a>
+                        <a href="go-zero-copy-io.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Zero-Copy I/O and Memory Efficiency in Go</div>
+                            <span class="sidebar-link-meta">Aug 2024</span>
+                        </a>
+                        <a href="go-goroutine-leaks.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Detecting and Preventing Goroutine Leaks</div>
+                            <span class="sidebar-link-meta">Sep 2025</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+
+</body>
+</html>

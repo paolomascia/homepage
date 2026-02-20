@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IA-32 and Intel 64 ISA Assembly Language (Part 1) &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="cybersecurity-tech-insights.html" class="back-link">&larr; Back to Cybersecurity</a>
+                        <div class="post-meta">
+                            <span class="post-date">Feb 2023</span>
+                            <span class="post-reading">11 min read</span>
+                        </div>
+                        <h1>IA-32 and Intel 64 ISA Assembly Language (Part 1)</h1>
+                        <div class="post-tags">
+                            <span>Assembly</span>
+                            <span>x86 Architecture</span>
+                            <span>Low-Level Programming</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Each processor family has its own instruction set &mdash; fundamental commands that execute machine language instructions. Since binary code is unreadable for humans, engineers use assembly language with mnemonic symbols that map one-to-one to machine instructions. This first part of the IA-32 assembly series covers the x86 execution environment, register architecture, operating modes, and why assembly knowledge remains essential for cybersecurity professionals.</p>
+
+                        <h2>What Is Assembly Language?</h2>
+
+                        <p>Each processor family has its own instruction set &mdash; fundamental commands executing machine language instructions. Since binary code is unreadable, engineers use assembly language with mnemonic symbols mapping one-to-one to machine instructions.</p>
+
+                        <h3>Why Learn Assembly?</h3>
+
+                        <ul>
+                            <li>Understanding processor code execution at the lowest level</li>
+                            <li>Writing hardware-specific routines where higher-level languages prove insufficient</li>
+                            <li>Optimizing performance-critical code sections</li>
+                            <li>Reverse engineering and malware analysis</li>
+                            <li>Understanding vulnerabilities like buffer overflows and return-oriented programming (ROP)</li>
+                        </ul>
+
+                        <p>Assembly remains rarely used for full applications but stays essential for systems programming, reverse engineering, and security research.</p>
+
+                        <h2>Why Assembly Matters in Cybersecurity</h2>
+
+                        <p>Disassemblers reconstruct executables into assembly representations. Security analysts use disassembly for understanding binary functionality, locating backdoors, and determining exploit mechanisms.</p>
+
+                        <p>Exploits and payloads are often written directly in assembly for size, precision, and speed, making assembly knowledge foundational for cybersecurity professionals.</p>
+
+                        <h2>IA-32 Execution Environment</h2>
+
+                        <h3>Address Space</h3>
+
+                        <p>IA-32 supports up to <strong>4 GB</strong> (2<sup>32</sup> bytes) of linear memory and up to <strong>64 GB</strong> (2<sup>36</sup> bytes) of physical address space through Physical Address Extension (PAE).</p>
+
+                        <h3>Registers</h3>
+
+                        <p>The IA-32 architecture provides the following register groups:</p>
+
+                        <ul>
+                            <li><strong>8 General-Purpose Registers:</strong> EAX, EBX, ECX, EDX, ESI, EDI, EBP, ESP &mdash; used for data manipulation, addressing, and stack operations.</li>
+                            <li><strong>Control Registers:</strong> CR0&ndash;CR4 &mdash; control processor operating modes, paging, and protection.</li>
+                            <li><strong>6 Segment Registers:</strong> CS, DS, SS, ES, FS, GS &mdash; define memory segments for code, data, stack, and extra segments.</li>
+                            <li><strong>EFLAGS:</strong> Status and control flags including Zero Flag (ZF), Carry Flag (CF), Sign Flag (SF), Overflow Flag (OF), and more.</li>
+                            <li><strong>EIP:</strong> Instruction pointer &mdash; holds the address of the next instruction to execute.</li>
+                        </ul>
+
+                        <h3>Floating Point and SIMD Extensions</h3>
+
+                        <ul>
+                            <li><strong>x87 FPU:</strong> Eight 80-bit floating-point registers for extended-precision arithmetic.</li>
+                            <li><strong>MMX:</strong> Eight 64-bit SIMD registers for integer multimedia operations.</li>
+                            <li><strong>XMM:</strong> Eight 128-bit SIMD registers for SSE (Streaming SIMD Extensions) operations.</li>
+                            <li><strong>YMM:</strong> 256-bit SIMD registers introduced with AVX (Advanced Vector Extensions).</li>
+                        </ul>
+
+                        <h3>System-Level Resources</h3>
+
+                        <ul>
+                            <li><strong>I/O Ports:</strong> For external device communication via <code>IN</code> and <code>OUT</code> instructions.</li>
+                            <li><strong>GDTR/IDTR:</strong> Hold addresses for the Global Descriptor Table and Interrupt Descriptor Table.</li>
+                            <li><strong>Debug Registers (DR0&ndash;DR7):</strong> Support hardware breakpoints and debugging capabilities.</li>
+                            <li><strong>Performance Counters:</strong> Measure hardware-level events for profiling and optimization.</li>
+                        </ul>
+
+                        <h2>64-bit Execution Environment (Intel 64 / IA-32e Mode)</h2>
+
+                        <h3>Address Space</h3>
+
+                        <ul>
+                            <li><strong>Linear:</strong> Up to 2<sup>64</sup> bytes (16 exabytes theoretical).</li>
+                            <li><strong>Physical:</strong> Typically up to 2<sup>52</sup> bytes (varies by CPU model).</li>
+                        </ul>
+
+                        <h3>Register Extensions</h3>
+
+                        <ul>
+                            <li><strong>General-Purpose:</strong> 16 registers (RAX, RBX, RCX, RDX, RSI, RDI, RBP, RSP, R8&ndash;R15) &mdash; each 64 bits wide.</li>
+                            <li><strong>SIMD:</strong> 16 XMM registers (128-bit); extended to 256-bit (YMM) with AVX and 512-bit (ZMM) with AVX-512.</li>
+                            <li><strong>Stack Pointer:</strong> 64-bit RSP; the stack grows downward from high to low addresses.</li>
+                            <li><strong>Control Registers:</strong> CR0&ndash;CR8 (CR8 added for 64-bit mode, used for Task Priority Register).</li>
+                            <li><strong>Debug Registers:</strong> Expanded to 64 bits for full address space support.</li>
+                        </ul>
+
+                        <h2>Processor Operating Modes</h2>
+
+                        <h3>1. Protected Mode</h3>
+
+                        <p>The processor&rsquo;s native operating mode supporting multitasking, paging, and memory protection. It provides controlled execution of real-mode programs through virtual 8086 mode. This is the primary mode used by modern 32-bit operating systems.</p>
+
+                        <h3>2. Real Address Mode</h3>
+
+                        <p>The original Intel 8086 mode using segment:offset addressing. The processor starts in this mode upon power-on or reset. It provides direct access to up to 1 MB of memory with no protection mechanisms.</p>
+
+                        <h3>3. System Management Mode (SMM)</h3>
+
+                        <p>A special-purpose mode providing transparent implementation of low-level system functions such as power management, hardware control, and proprietary OEM-defined operations. SMM is entered through a System Management Interrupt (SMI).</p>
+
+                        <h3>4. IA-32e Mode (Intel 64)</h3>
+
+                        <p>Adds 64-bit capabilities with two sub-modes:</p>
+
+                        <ul>
+                            <li><strong>Compatibility Mode:</strong> Runs 16-bit and 32-bit applications without recompilation under a 64-bit operating system. Applications see a standard 32-bit environment.</li>
+                            <li><strong>64-bit Mode:</strong> Enables full 64-bit registers, a larger address space, and new instruction sets. This is the native mode for 64-bit applications.</li>
+                        </ul>
+
+                        <h2>Summary: IA-32 vs. Intel 64</h2>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Feature</th>
+                                    <th>IA-32 (32-bit)</th>
+                                    <th>Intel 64 (64-bit)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Address Space</td>
+                                    <td>4 GB (2<sup>32</sup>)</td>
+                                    <td>Up to 2<sup>64</sup> bytes</td>
+                                </tr>
+                                <tr>
+                                    <td>General-Purpose Registers</td>
+                                    <td>8 &times; 32-bit (EAX&ndash;EDI)</td>
+                                    <td>16 &times; 64-bit (RAX&ndash;R15)</td>
+                                </tr>
+                                <tr>
+                                    <td>Instruction Pointer</td>
+                                    <td>EIP (32-bit)</td>
+                                    <td>RIP (64-bit)</td>
+                                </tr>
+                                <tr>
+                                    <td>Stack Pointer</td>
+                                    <td>ESP (32-bit)</td>
+                                    <td>RSP (64-bit)</td>
+                                </tr>
+                                <tr>
+                                    <td>SIMD Registers</td>
+                                    <td>XMM0&ndash;XMM7 (128-bit)</td>
+                                    <td>XMM0&ndash;XMM15, YMM/ZMM extensions</td>
+                                </tr>
+                                <tr>
+                                    <td>Control Registers</td>
+                                    <td>CR0&ndash;CR4</td>
+                                    <td>CR0&ndash;CR8</td>
+                                </tr>
+                                <tr>
+                                    <td>Debug Registers</td>
+                                    <td>DR0&ndash;DR7 (32-bit)</td>
+                                    <td>DR0&ndash;DR7 (64-bit)</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <h2>Key Takeaways</h2>
+
+                        <ul>
+                            <li>Assembly language provides a human-readable representation of machine code, with each mnemonic mapping directly to a processor instruction.</li>
+                            <li>x86 assembly (IA-32 and Intel 64) forms the foundation of modern computing and is the architecture most commonly encountered in reverse engineering.</li>
+                            <li>Understanding execution environments &mdash; registers, memory organization, and operating modes &mdash; is essential before writing or analyzing assembly code.</li>
+                            <li>Assembly knowledge proves crucial for low-level programming, performance tuning, vulnerability research, and reverse engineering.</li>
+                        </ul>
+
+                        <p><strong>Next in the series:</strong> Part 2 explores the basic structure of an assembly program and how instructions interact with processor registers and memory.</p>
+                    </div>
+                </div>
+
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing large-scale distributed systems. Specialized in Generative AI, AI Agents, and cloud-native architectures.</p>
+                        <div class="sidebar-author-links">
+                            <a href="https://www.linkedin.com/in/paolo-mascia-italy" target="_blank" aria-label="LinkedIn">
+                                <svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                            </a>
+                            <a href="https://github.com/paolomascia" target="_blank" aria-label="GitHub">
+                                <svg viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+                            </a>
+                            <a href="https://www.kaggle.com/paolomascia" target="_blank" aria-label="Kaggle">
+                                <svg viewBox="0 0 24 24"><path d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.233-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.075.378z"/></svg>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="cs-reverse-engineering.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Reverse Engineering</span>
+                            <div class="sidebar-link-title">Reverse Engineering</div>
+                            <span class="sidebar-link-meta">Aug 2024</span>
+                        </a>
+                        <a href="cs-buffer-overflow.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cybersecurity</span>
+                            <div class="sidebar-link-title">Buffer Overflow</div>
+                            <span class="sidebar-link-meta">Sep 2023</span>
+                        </a>
+                        <a href="cs-assembly-part2.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Assembly</span>
+                            <div class="sidebar-link-title">IA-32 Assembly (Part 2)</div>
+                            <span class="sidebar-link-meta">Apr 2023</span>
+                        </a>
+                        <a href="cs-computer-viruses.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cybersecurity</span>
+                            <div class="sidebar-link-title">Computer Viruses</div>
+                            <span class="sidebar-link-meta">Mar 2024</span>
+                        </a>
+                        <a href="cs-intro-cybersecurity.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cybersecurity</span>
+                            <div class="sidebar-link-title">Introduction to Cybersecurity</div>
+                            <span class="sidebar-link-meta">Apr 2023</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-nasm.min.js"></script>
+</body>
+</html>

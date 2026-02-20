@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control Flow Statements &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="golang-tech-insights.html" class="back-link">&larr; Back to Go Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Apr 2023</span>
+                            <span class="post-reading">5 min read</span>
+                        </div>
+                        <h1>Control Flow Statements</h1>
+                        <div class="post-tags">
+                            <span>Go</span>
+                            <span>Control Flow</span>
+                            <span>Loops</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Control flow statements determine how your Go program executes &mdash; which code paths are taken, how loops iterate, and when execution branches. Go keeps things simple with a small set of powerful constructs: <code>if</code>, <code>for</code>, <code>switch</code>, and a few supporting keywords.</p>
+
+                        <h2>If Statement</h2>
+                        <p>If statements execute an operation if a specified condition is true and can include else clauses for alternative operations.</p>
+<pre><code class="language-go">if x &gt; 5 {
+    fmt.Println("x is greater than 5")
+} else {
+    fmt.Println("x is less than or equal to 5")
+}
+
+x := 5
+if x &gt; 10 {
+    fmt.Println("x is greater than 10")
+} else if x &gt; 5 {
+    fmt.Println("x is greater than 5 but not greater than 10")
+} else {
+    fmt.Println("x is less than or equal to 5")
+}</code></pre>
+
+                        <h2>For Statement</h2>
+                        <p>Go provides three main approaches to looping, all using the <code>for</code> keyword:</p>
+<pre><code class="language-go">// Traditional for loop
+for i := 0; i &lt; 10; i++ {
+    fmt.Println(i)
+}
+
+// for range to iterate over a slice
+mySlice := []int{1, 2, 3, 4, 5}
+for index, value := range mySlice {
+    fmt.Println(index, value)
+}
+
+// Infinite loop
+for {
+    // execute operations
+    break // use break to exit
+}</code></pre>
+
+                        <h2>Break and Continue</h2>
+                        <p>The <code>break</code> keyword exits a loop entirely, while <code>continue</code> skips the current iteration and moves to the next one.</p>
+<pre><code class="language-go">for i := 1; i &lt;= 10; i++ {
+    if i == 5 {
+        break // exit the loop
+    }
+    if i == 3 {
+        continue // skip current iteration
+    }
+    fmt.Println(i)
+}</code></pre>
+
+                        <h2>Switch Statement</h2>
+                        <p>The <code>switch</code> statement evaluates an expression and executes the matching case. Unlike many other languages, Go&rsquo;s switch cases do not fall through by default.</p>
+<pre><code class="language-go">switch x {
+case 1:
+    fmt.Println("x equals 1")
+case 2:
+    fmt.Println("x equals 2")
+default:
+    fmt.Println("x is neither 1 nor 2")
+}</code></pre>
+
+                        <h2>While-like Loops</h2>
+                        <p>Go doesn&rsquo;t have <code>while</code> and <code>do-while</code> constructs, but you can achieve the same behavior using <code>for</code>:</p>
+<pre><code class="language-go">// While-like loop
+i := 0
+for i &lt; 5 {
+    fmt.Println(i)
+    i++
+}
+
+// Do-while-like loop
+i := 0
+for {
+    fmt.Println(i)
+    i++
+    if i == 5 {
+        break
+    }
+}</code></pre>
+                    </div>
+                </div>
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="go-advanced-concurrency.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Advanced Concurrency Patterns in Go</div>
+                            <span class="sidebar-link-meta">Jun 2025</span>
+                        </a>
+                        <a href="go-performance-tuning.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Go Performance Tuning</div>
+                            <span class="sidebar-link-meta">Dec 2025</span>
+                        </a>
+                        <a href="go-rest-apis.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Calling REST APIs in Go</div>
+                            <span class="sidebar-link-meta">Nov 2023</span>
+                        </a>
+                        <a href="go-generic-data-structures.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Building Generic Data Structures in Go</div>
+                            <span class="sidebar-link-meta">Mar 2025</span>
+                        </a>
+                        <a href="go-memory-gc-internals.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Go Memory Model, GC &amp; Internals</div>
+                            <span class="sidebar-link-meta">May 2025</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+
+</body>
+</html>

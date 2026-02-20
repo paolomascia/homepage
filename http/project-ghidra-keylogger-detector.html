@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ghidra Keylogger Detector — Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <header class="article-header">
+                <a href="index.html#projects" class="back-link">&larr; Back to Projects</a>
+                <div class="project-tag" style="margin-bottom: 12px;">Reverse Engineering</div>
+                <h1>Ghidra Keylogger Detector</h1>
+                <div class="project-tech" style="margin-top: 16px;">
+                    <span>Java</span>
+                    <span>Ghidra</span>
+                    <span>Malware Analysis</span>
+                    <span>Static Analysis</span>
+                </div>
+                <div style="margin-top: 20px;">
+                    <a href="https://github.com/paolomascia/ghidra-keylogger-detector" target="_blank" rel="noopener noreferrer" class="btn btn-outline" style="display: inline-flex; align-items: center; gap: 8px;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+                        View on GitHub
+                    </a>
+                </div>
+            </header>
+
+            <div class="article-body">
+                <p class="lead">Ghidra Keylogger Detector is a specialized plugin for the NSA's Ghidra reverse engineering framework, designed for security researchers and reverse engineers to identify potential keylogger behavior in Windows executables through automated static analysis.</p>
+
+                <h2>Why This Tool?</h2>
+                <p>Keyloggers are among the most common and insidious forms of spyware — silently capturing passwords, credit card numbers, and private messages. Manually hunting for keylogger patterns in a disassembled binary is tedious and error-prone. This plugin automates the process with targeted detection, fast analysis without execution, detailed severity-classified reports, and an extensible architecture for adding new detection patterns.</p>
+
+                <h2>Detection Capabilities</h2>
+                <p>The plugin scans for suspicious Windows APIs across six categories:</p>
+
+                <h3>Keyboard Hooks</h3>
+                <ul>
+                    <li><code>SetWindowsHookExA</code> / <code>SetWindowsHookExW</code> — installs a system-wide or thread-level keyboard hook</li>
+                    <li><code>RegisterRawInputDevices</code> — registers for raw keyboard input, bypassing higher-level abstractions</li>
+                </ul>
+
+                <h3>Key State Monitoring</h3>
+                <ul>
+                    <li><code>GetAsyncKeyState</code> — polls the state of a specific key asynchronously</li>
+                    <li><code>GetKeyState</code> — retrieves the state of a virtual key</li>
+                    <li><code>GetKeyboardState</code> — captures the full keyboard state array (256 keys)</li>
+                </ul>
+
+                <h3>Key Processing</h3>
+                <ul>
+                    <li><code>GetKeyNameTextA</code> / <code>GetKeyNameTextW</code> — translates scan codes to key names</li>
+                    <li><code>MapVirtualKeyA</code> / <code>MapVirtualKeyW</code> — maps virtual-key codes to scan codes and characters</li>
+                    <li><code>ToAscii</code> — converts virtual-key code and keyboard state to ASCII</li>
+                    <li><code>ToUnicode</code> — converts virtual-key code and keyboard state to Unicode</li>
+                </ul>
+
+                <h3>Data Logging</h3>
+                <ul>
+                    <li><code>CreateFileA</code> / <code>CreateFileW</code> — creates or opens files for writing captured data</li>
+                    <li><code>WriteFile</code> — writes data to a file handle</li>
+                    <li><code>fopen</code>, <code>fwrite</code>, <code>fprintf</code> — C runtime file I/O functions</li>
+                </ul>
+
+                <h3>Network Exfiltration</h3>
+                <ul>
+                    <li><code>send</code>, <code>sendto</code>, <code>WSASend</code> — socket-level data transmission</li>
+                    <li><code>InternetOpenA</code> / <code>InternetOpenW</code> — initializes WinINet for HTTP exfiltration</li>
+                    <li><code>HttpSendRequestA</code> / <code>HttpSendRequestW</code> — sends captured data via HTTP</li>
+                </ul>
+
+                <h3>System Persistence</h3>
+                <ul>
+                    <li><code>RegSetValueExA</code> / <code>RegSetValueExW</code> — writes registry values for autostart persistence</li>
+                    <li><code>RegCreateKeyExA</code> / <code>RegCreateKeyExW</code> — creates registry keys for persistence</li>
+                </ul>
+
+                <h2>Four-Phase Analysis Pipeline</h2>
+                <ol>
+                    <li><strong>API Call Detection</strong> — Searches the symbol table and cross-references for all suspicious API calls listed above, recording the address and category of each match.</li>
+                    <li><strong>Constant Analysis</strong> — Scans instructions for keyboard-related numeric constants:
+                        <ul>
+                            <li><code>0x0D</code> (13) — <code>WH_KEYBOARD_LL</code>, low-level keyboard hook type</li>
+                            <li><code>0x02</code> (2) — <code>WH_KEYBOARD</code>, standard keyboard hook type</li>
+                            <li><code>0x100</code> (256) — <code>WM_KEYDOWN</code>, key press message</li>
+                            <li><code>0x101</code> (257) — <code>WM_KEYUP</code>, key release message</li>
+                            <li><code>0x104</code> (260) — <code>WM_SYSKEYDOWN</code>, system key press message</li>
+                            <li><code>0x105</code> (261) — <code>WM_SYSKEYUP</code>, system key release message</li>
+                        </ul>
+                    </li>
+                    <li><strong>String Analysis</strong> — Searches data segments for suspicious keywords: <code>keyboard</code>, <code>keylog</code>, <code>hook</code>, <code>capture</code>, <code>pressed</code>, <code>input</code>, <code>.log</code>, <code>keystrokes</code>.</li>
+                    <li><strong>Report Generation</strong> — Aggregates all findings into a structured report with pattern counts, severity distribution, and an overall risk assessment.</li>
+                </ol>
+
+                <h2>Severity Classification</h2>
+                <p>Each detected indicator is classified into one of three severity tiers:</p>
+                <ul>
+                    <li><strong>HIGH</strong> — Direct keyboard monitoring: <code>SetWindowsHookEx</code>, <code>GetAsyncKeyState</code>, <code>RegisterRawInputDevices</code>, <code>GetKeyboardState</code>. These are strong, direct signals of keylogger behavior.</li>
+                    <li><strong>MEDIUM</strong> — Supporting functions suspicious in combination: <code>ToUnicode</code>, <code>MapVirtualKey</code>, <code>WriteFile</code>, <code>send</code>, clipboard access. Individually legitimate, but concerning alongside HIGH indicators.</li>
+                    <li><strong>LOW</strong> — Generic indicators: suspicious strings, file operations, registry access, timer functions. May be present in legitimate applications but worth noting in context.</li>
+                </ul>
+
+                <h2>Risk Assessment Output</h2>
+                <p>The generated report concludes with one of four risk levels:</p>
+                <ul>
+                    <li><strong>Clean</strong> — "No significant keylogger patterns detected."</li>
+                    <li><strong>Low Suspicion</strong> — "Suspicious patterns detected but might be legitimate."</li>
+                    <li><strong>Moderate Concern</strong> — "Suspicious behavior detected. In-depth analysis recommended."</li>
+                    <li><strong>Strong Suspicion</strong> — "WARNING: Strong suspicion of keylogger behavior!"</li>
+                </ul>
+
+                <h2>Installation &amp; Usage</h2>
+                <h3>Requirements</h3>
+                <ul>
+                    <li>Ghidra 10.0 or later</li>
+                    <li>Java JDK 17 or higher</li>
+                    <li>Git (optional, for cloning the repository)</li>
+                    <li>Compatible with Windows, Linux, and macOS</li>
+                </ul>
+
+                <h3>Installation</h3>
+                <p>Copy <code>KeyloggerDetectorPlugin.java</code> to your Ghidra scripts directory:</p>
+                <ul>
+                    <li><strong>Linux / macOS:</strong> <code>~/ghidra_scripts/</code></li>
+                    <li><strong>Windows:</strong> <code>%USERPROFILE%\ghidra_scripts\</code></li>
+                </ul>
+
+                <h3>Running the Analysis</h3>
+                <ol>
+                    <li>Open a binary in Ghidra and let auto-analysis complete</li>
+                    <li>Go to <strong>Window &rarr; Script Manager</strong></li>
+                    <li>Search for "Keylogger"</li>
+                    <li>Double-click or click Run on <code>KeyloggerDetectorPlugin.java</code></li>
+                    <li>Review the results in the Console output</li>
+                </ol>
+
+                <h2>Known Limitations</h2>
+                <ul>
+                    <li>Cannot detect runtime-only behavior or packed/encrypted executables</li>
+                    <li>May miss dynamically resolved API calls (e.g., via <code>GetProcAddress</code>)</li>
+                    <li>Cannot detect custom keystroke-capture implementations that bypass standard APIs</li>
+                    <li>Legitimate applications (e.g., accessibility tools, game engines) may trigger false positives</li>
+                    <li>Currently focused on Windows executables — limited cross-platform coverage</li>
+                </ul>
+
+                <h2>Roadmap</h2>
+                <ul>
+                    <li><strong>v1.1</strong> — JSON/CSV export, Ghidra bookmarks integration, enhanced obfuscation detection, performance optimizations</li>
+                    <li><strong>v1.2</strong> — Extended detection patterns, improved heuristics</li>
+                    <li><strong>v2.0</strong> — Cross-platform analysis capabilities</li>
+                </ul>
+
+                <p>The project is open-source under the MIT License and available on <a href="https://github.com/paolomascia/ghidra-keylogger-detector" target="_blank" rel="noopener noreferrer">GitHub</a>. Contributions via pull requests are welcome.</p>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+</body>
+</html>

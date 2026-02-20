@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LangGraph IDE — Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <header class="article-header">
+                <a href="index.html#projects" class="back-link">&larr; Back to Projects</a>
+                <div class="project-tag" style="margin-bottom: 12px;">AI Agent Tools</div>
+                <h1>LangGraph IDE</h1>
+                <div class="project-tech" style="margin-top: 16px;">
+                    <span>.NET 8</span>
+                    <span>WPF</span>
+                    <span>LangGraph</span>
+                    <span>Python</span>
+                </div>
+                <div style="margin-top: 20px;">
+                    <a href="https://github.com/paolomascia/langraph-ide" target="_blank" rel="noopener noreferrer" class="btn btn-outline" style="display: inline-flex; align-items: center; gap: 8px;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+                        View on GitHub
+                    </a>
+                </div>
+            </header>
+
+            <div class="article-body">
+                <p class="lead">LangGraph IDE is a standalone visual editor for designing LangGraph AI agent workflows. It lets you build complex multi-node agent graphs through an intuitive drag-and-drop interface and instantly exports them as ready-to-run Python code — no backend server required.</p>
+
+                <img src="images/langgraph-ide.png" alt="LangGraph IDE — Visual editor for AI agent workflows" style="width:100%; border-radius:8px; margin:24px 0;">
+
+                <h2>Why LangGraph IDE?</h2>
+                <p>Designing multi-agent workflows with LangGraph typically means writing and mentally mapping out graph structures in code. LangGraph IDE flips this around: you design the graph visually, connect nodes intuitively, and the tool generates production-ready Python code in real time. It's aimed at AI engineers, researchers, and practitioners who want to prototype and iterate on agent architectures faster.</p>
+
+                <h2>Key Features</h2>
+                <ul>
+                    <li><strong>Visual Graph Editor</strong> — Drag-and-drop canvas for placing nodes and drawing edge connections between them. The layout reflects the actual LangGraph structure.</li>
+                    <li><strong>Rich Node Library</strong> — A curated palette covering the full LangGraph ecosystem:
+                        <ul>
+                            <li><strong>LLMs</strong> — OpenAI, Anthropic, Google Gemini, Mistral, Ollama</li>
+                            <li><strong>Tools</strong> — Tool-calling nodes for function integration</li>
+                            <li><strong>Memory</strong> — Short-term and long-term memory nodes</li>
+                            <li><strong>RAG</strong> — Retrieval-Augmented Generation components</li>
+                            <li><strong>Logic</strong> — Routing, decision, and conditional nodes</li>
+                            <li><strong>Custom</strong> — User-defined node types</li>
+                        </ul>
+                    </li>
+                    <li><strong>Conditional Edges</strong> — Define routing logic directly on edges through an inline condition editor, without leaving the canvas.</li>
+                    <li><strong>Real-time Python Preview</strong> — A syntax-highlighted code panel (powered by AvalonEdit) updates live as you build the graph, showing exactly what Python code will be generated.</li>
+                    <li><strong>Export to Python</strong> — Export the complete agent graph as a <code>.py</code> file, ready to run with your LangGraph environment.</li>
+                    <li><strong>Save &amp; Load</strong> — Persist and reload agent designs as <code>.agent.json</code> files for iterative development and sharing.</li>
+                    <li><strong>Dark Theme UI</strong> — A focused, distraction-free interface built entirely with WPF.</li>
+                    <li><strong>Keyboard Shortcuts</strong> — Full keyboard support for common operations: <code>Ctrl+N</code> (new), <code>Ctrl+O</code> (open), <code>Ctrl+S</code> (save), <code>Ctrl+Z</code>/<code>Ctrl+Y</code> (undo/redo), and more.</li>
+                </ul>
+
+                <h2>How It Works</h2>
+                <ol>
+                    <li><strong>Design the Graph</strong> — Drop nodes from the library onto the canvas. Each node represents a component of your LangGraph pipeline: an LLM call, a tool invocation, a memory read, a RAG retrieval, or custom logic.</li>
+                    <li><strong>Connect Nodes</strong> — Draw edges between nodes to define the flow. For conditional routing, open the inline edge editor to specify the routing condition directly.</li>
+                    <li><strong>Preview the Code</strong> — The Python code panel on the right-hand side updates in real time as you modify the graph, giving immediate feedback on how the visual structure maps to LangGraph code.</li>
+                    <li><strong>Export &amp; Run</strong> — When the design is ready, export it as a <code>.py</code> file. The generated code is structured, readable, and ready to execute in any Python environment with LangGraph installed.</li>
+                </ol>
+
+                <h2>Technology Stack</h2>
+                <ul>
+                    <li><strong>.NET 8</strong> — Runtime and application framework</li>
+                    <li><strong>WPF (Windows Presentation Foundation)</strong> — Desktop UI framework for the visual editor and canvas</li>
+                    <li><strong>AvalonEdit 6.3.1</strong> — Syntax-highlighted, embeddable code editor for the Python preview panel</li>
+                    <li><strong>Newtonsoft.Json 13.0.3</strong> — JSON serialization for saving and loading <code>.agent.json</code> graph files</li>
+                </ul>
+
+                <h2>Requirements</h2>
+                <ul>
+                    <li>Windows 10 or Windows 11</li>
+                    <li>.NET 8 Runtime</li>
+                    <li>A Python environment with LangGraph installed (for running the exported code)</li>
+                </ul>
+
+                <h2>Node Categories</h2>
+                <p>The node library is organized into eight categories to cover the full range of LangGraph agent patterns:</p>
+                <ul>
+                    <li><strong>Control</strong> — Entry points, termination, and flow control nodes</li>
+                    <li><strong>Input / Output</strong> — Nodes for handling user input and agent output</li>
+                    <li><strong>LLM</strong> — Language model nodes for OpenAI, Anthropic, Gemini, Mistral, and Ollama</li>
+                    <li><strong>Tools</strong> — Function and API tool-calling nodes</li>
+                    <li><strong>Memory</strong> — Nodes for reading from and writing to agent memory</li>
+                    <li><strong>RAG</strong> — Retrieval-Augmented Generation nodes for document search and context injection</li>
+                    <li><strong>Logic</strong> — Conditional branching and routing decision nodes</li>
+                    <li><strong>Custom</strong> — User-defined nodes for extending the library</li>
+                </ul>
+
+                <p>The project is open-source and available on <a href="https://github.com/paolomascia/langraph-ide" target="_blank" rel="noopener noreferrer">GitHub</a>.</p>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+</body>
+</html>

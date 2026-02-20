@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JWT Authentication in Go &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="golang-tech-insights.html" class="back-link">&larr; Back to Go Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">October 2025</span>
+                            <span class="post-reading">20 min read</span>
+                        </div>
+                        <h1>JWT Authentication in Go &mdash; Complete Lesson</h1>
+                        <div class="post-tags">
+                            <span>Go</span>
+                            <span>JWT</span>
+                            <span>Authentication</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">A JWT is a signed token that contains claims (e.g., user id, username, roles). The server signs the token (HS/RS algorithms); clients include it with subsequent requests (commonly as a Bearer token header or an HTTP-only cookie). This guide walks through building a production-ready JWT authentication system in Go with access tokens, refresh tokens, secure cookies, and middleware.</p>
+
+                        <h2>Libraries and Project Setup</h2>
+
+                        <p>The implementation uses three main dependencies:</p>
+
+                        <ul>
+                            <li><code>github.com/gorilla/mux</code> &mdash; for HTTP routing</li>
+                            <li><code>github.com/golang-jwt/jwt/v5</code> &mdash; for JWT handling</li>
+                            <li><code>golang.org/x/crypto/bcrypt</code> &mdash; for password hashing</li>
+                        </ul>
+
+<pre><code class="language-bash">go mod init example.com/jwt-demo
+go get github.com/gorilla/mux
+go get github.com/golang-jwt/jwt/v5
+go get golang.org/x/crypto/bcrypt</code></pre>
+
+                        <h2>Design Overview</h2>
+
+                        <p>The authentication flow implements a two-token strategy:</p>
+
+                        <ul>
+                            <li><strong>Access tokens</strong> (short-lived, 5&ndash;15 minutes) for API requests</li>
+                            <li><strong>Refresh tokens</strong> (longer-lived, 7&ndash;30 days) for obtaining new access tokens</li>
+                        </ul>
+
+                        <p>Protected routes use middleware that validates access tokens from either cookies or <code>Authorization: Bearer</code> headers.</p>
+
+                        <h2>Full Implementation</h2>
+
+<pre><code class="language-go">package main
+
+import (
+    "context"
+    "encoding/json"
+    "errors"
+    "fmt"
+    "log"
+    "net/http"
+    "strings"
+    "time"
+
+    "github.com/golang-jwt/jwt/v5"
+    "github.com/gorilla/mux"
+    "golang.org/x/crypto/bcrypt"
+)
+
+// Configuration
+var (
+    jwtAccessSecret  = []byte("access_secret_change_me")
+    jwtRefreshSecret = []byte("refresh_secret_change_me")
+    accessTTL        = 15 * time.Minute
+    refreshTTL       = 7 * 24 * time.Hour
+    cookieDomain     = ""
+    cookieSecure     = false
+)
+
+// In-memory user store
+var users = map[string]string{}
+
+// Data Models
+type Credentials struct {
+    Username string `json:"username"`
+    Password string `json:"password"`
+}
+
+type AccessClaims struct {
+    Username string `json:"username"`
+    jwt.RegisteredClaims
+}
+
+type RefreshClaims struct {
+    Username string `json:"username"`
+    jwt.RegisteredClaims
+}
+
+// Initialize demo users
+func init() {
+    hashUser("user1", "password1")
+    hashUser("user2", "password2")
+}
+
+func hashUser(username, plain string) {
+    h, err := bcrypt.GenerateFromPassword([]byte(plain), bcrypt.DefaultCost)
+    if err != nil {
+        log.Fatal(err)
+    }
+    users[username] = string(h)
+}
+
+func verifyUser(username, plain string) bool {
+    hash, ok := users[username]
+    if !ok {
+        return false
+    }
+    return bcrypt.CompareHashAndPassword([]byte(hash), []byte(plain)) == nil
+}
+
+// Token Generation
+func issueAccessToken(username string) (string, error) {
+    now := time.Now()
+    claims := &amp;AccessClaims{
+        Username: username,
+        RegisteredClaims: jwt.RegisteredClaims{
+            Issuer:    "jwt-demo",
+            Subject:   username,
+            ExpiresAt: jwt.NewNumericDate(now.Add(accessTTL)),
+            NotBefore: jwt.NewNumericDate(now),
+            IssuedAt:  jwt.NewNumericDate(now),
+        },
+    }
+    token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+    return token.SignedString(jwtAccessSecret)
+}
+
+func issueRefreshToken(username string) (string, error) {
+    now := time.Now()
+    claims := &amp;RefreshClaims{
+        Username: username,
+        RegisteredClaims: jwt.RegisteredClaims{
+            Issuer:    "jwt-demo",
+            Subject:   username,
+            ExpiresAt: jwt.NewNumericDate(now.Add(refreshTTL)),
+            NotBefore: jwt.NewNumericDate(now),
+            IssuedAt:  jwt.NewNumericDate(now),
+        },
+    }
+    token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+    return token.SignedString(jwtRefreshSecret)
+}
+
+// Cookie Management
+func setAuthCookies(w http.ResponseWriter, accessToken, refreshToken string) {
+    http.SetCookie(w, &amp;http.Cookie{
+        Name:     "access_token",
+        Value:    accessToken,
+        HttpOnly: true,
+        Secure:   cookieSecure,
+        SameSite: http.SameSiteLaxMode,
+        Path:     "/",
+        Domain:   cookieDomain,
+        Expires:  time.Now().Add(accessTTL),
+    })
+    http.SetCookie(w, &amp;http.Cookie{
+        Name:     "refresh_token",
+        Value:    refreshToken,
+        HttpOnly: true,
+        Secure:   cookieSecure,
+        SameSite: http.SameSiteLaxMode,
+        Path:     "/auth/refresh",
+        Domain:   cookieDomain,
+        Expires:  time.Now().Add(refreshTTL),
+    })
+}
+
+func clearAuthCookies(w http.ResponseWriter) {
+    expired := time.Now().Add(-time.Hour)
+    for _, name := range []string{"access_token", "refresh_token"} {
+        http.SetCookie(w, &amp;http.Cookie{
+            Name:     name,
+            Value:    "",
+            HttpOnly: true,
+            Secure:   cookieSecure,
+            SameSite: http.SameSiteLaxMode,
+            Path:     "/",
+            Domain:   cookieDomain,
+            Expires:  expired,
+            MaxAge:   -1,
+        })
+    }
+}
+
+// Token Parsing
+func parseAccessToken(tokenStr string) (*AccessClaims, error) {
+    claims := &amp;AccessClaims{}
+    token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (any, error) {
+        if token.Method != jwt.SigningMethodHS256 {
+            return nil, fmt.Errorf("unexpected alg: %s", token.Header["alg"])
+        }
+        return jwtAccessSecret, nil
+    }, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}))
+
+    if err != nil {
+        return nil, err
+    }
+    if !token.Valid {
+        return nil, errors.New("invalid token")
+    }
+    return claims, nil
+}
+
+func parseRefreshToken(tokenStr string) (*RefreshClaims, error) {
+    claims := &amp;RefreshClaims{}
+    token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (any, error) {
+        if token.Method != jwt.SigningMethodHS256 {
+            return nil, fmt.Errorf("unexpected alg: %s", token.Header["alg"])
+        }
+        return jwtRefreshSecret, nil
+    }, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}))
+    if err != nil {
+        return nil, err
+    }
+    if !token.Valid {
+        return nil, errors.New("invalid token")
+    }
+    return claims, nil
+}
+
+// Context Management
+type ctxKey string
+
+const ctxUser ctxKey = "user"
+
+func currentUser(r *http.Request) (string, bool) {
+    v := r.Context().Value(ctxUser)
+    s, ok := v.(string)
+    return s, ok
+}
+
+// Middleware
+func withAuth(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        // Try access_token cookie
+        if c, err := r.Cookie("access_token"); err == nil {
+            if claims, err := parseAccessToken(c.Value); err == nil {
+                ctx := context.WithValue(r.Context(), ctxUser, claims.Username)
+                next.ServeHTTP(w, r.WithContext(ctx))
+                return
+            }
+        }
+        // Try Authorization header
+        auth := r.Header.Get("Authorization")
+        if strings.HasPrefix(auth, "Bearer ") {
+            token := strings.TrimPrefix(auth, "Bearer ")
+            if claims, err := parseAccessToken(token); err == nil {
+                ctx := context.WithValue(r.Context(), ctxUser, claims.Username)
+                next.ServeHTTP(w, r.WithContext(ctx))
+                return
+            }
+        }
+        http.Error(w, "unauthorized", http.StatusUnauthorized)
+    })
+}
+
+// HTTP Handlers
+func SignIn(w http.ResponseWriter, r *http.Request) {
+    var creds Credentials
+    if err := json.NewDecoder(r.Body).Decode(&amp;creds); err != nil {
+        http.Error(w, "invalid json", http.StatusBadRequest)
+        return
+    }
+    if !verifyUser(creds.Username, creds.Password) {
+        http.Error(w, "invalid credentials", http.StatusUnauthorized)
+        return
+    }
+
+    access, err := issueAccessToken(creds.Username)
+    if err != nil {
+        http.Error(w, "cannot issue access token", 500)
+        return
+    }
+    refresh, err := issueRefreshToken(creds.Username)
+    if err != nil {
+        http.Error(w, "cannot issue refresh token", 500)
+        return
+    }
+
+    setAuthCookies(w, access, refresh)
+    w.Header().Set("Content-Type", "application/json")
+    w.WriteHeader(http.StatusOK)
+    w.Write([]byte(`{"status":"ok"}`))
+}
+
+func Welcome(w http.ResponseWriter, r *http.Request) {
+    if user, ok := currentUser(r); ok {
+        w.Header().Set("Content-Type", "application/json")
+        fmt.Fprintf(w, `{"message":"Welcome %s!"}`, user)
+        return
+    }
+    http.Error(w, "unauthorized", http.StatusUnauthorized)
+}
+
+func Refresh(w http.ResponseWriter, r *http.Request) {
+    c, err := r.Cookie("refresh_token")
+    if err != nil {
+        http.Error(w, "missing refresh token", http.StatusUnauthorized)
+        return
+    }
+
+    claims, err := parseRefreshToken(c.Value)
+    if err != nil {
+        http.Error(w, "invalid refresh token", http.StatusUnauthorized)
+        return
+    }
+
+    access, err := issueAccessToken(claims.Username)
+    if err != nil {
+        http.Error(w, "cannot issue access token", 500)
+        return
+    }
+
+    setAuthCookies(w, access, c.Value)
+    w.Header().Set("Content-Type", "application/json")
+    w.Write([]byte(`{"status":"refreshed"}`))
+}
+
+func Logout(w http.ResponseWriter, r *http.Request) {
+    clearAuthCookies(w)
+    w.Header().Set("Content-Type", "application/json")
+    w.Write([]byte(`{"status":"logged_out"}`))
+}
+
+// Main
+func main() {
+    r := mux.NewRouter()
+
+    // Public endpoints
+    r.HandleFunc("/auth/signin", SignIn).Methods("POST")
+    r.HandleFunc("/auth/refresh", Refresh).Methods("POST")
+    r.HandleFunc("/auth/logout", Logout).Methods("POST")
+
+    // Protected endpoints
+    r.Handle("/welcome", withAuth(http.HandlerFunc(Welcome))).Methods("GET")
+
+    log.Println("Listening on http://localhost:8080")
+    log.Fatal(http.ListenAndServe(":8080", r))
+}</code></pre>
+
+                        <h2>Security Best Practices</h2>
+
+                        <ul>
+                            <li><strong>Use a maintained JWT library</strong> &mdash; <code>github.com/golang-jwt/jwt/v5</code> is the recommended choice.</li>
+                            <li><strong>Store secrets securely</strong> via environment variables, never hardcoded in source.</li>
+                            <li><strong>Enforce HTTPS</strong> and set cookies with <code>Secure: true</code> in production.</li>
+                            <li><strong>Set HttpOnly and SameSite</strong> on cookies to prevent XSS and CSRF attacks.</li>
+                            <li><strong>Validate all token claims</strong> (issuer, expiration, not-before).</li>
+                            <li><strong>Implement rate limiting</strong> on sign-in endpoints to mitigate brute-force attacks.</li>
+                            <li><strong>Maintain a server-side refresh token store</strong> for revocation capability.</li>
+                            <li><strong>Consider asymmetric algorithms</strong> (RS256) for microservice architectures where verifiers don&rsquo;t need the signing key.</li>
+                        </ul>
+
+                        <h2>Testing with curl</h2>
+
+<pre><code class="language-bash"># Sign in
+curl -i -c cookie-jar.txt -H "Content-Type: application/json" \
+  -d '{"username":"user1","password":"password1"}' \
+  http://localhost:8080/auth/signin
+
+# Access protected route
+curl -i -b cookie-jar.txt http://localhost:8080/welcome
+
+# Refresh access token
+curl -i -b cookie-jar.txt -X POST http://localhost:8080/auth/refresh
+
+# Logout
+curl -i -b cookie-jar.txt -X POST http://localhost:8080/auth/logout</code></pre>
+                    </div>
+                </div>
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="go-installation-data-types.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">GO Installation and Data Types</div>
+                            <span class="sidebar-link-meta">Sep 2025</span>
+                        </a>
+                        <a href="go-oop.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Object Oriented Programming in GO</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-cross-compiling-docker.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Cross-Compiling &amp; Docker</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-dsls-generics.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Building DSLs in Go Using Generics</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-arena-allocators.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Memory Optimization in Go: Arena Allocators</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+
+</body>
+</html>

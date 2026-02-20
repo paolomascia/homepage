@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cyber Attacks: Types, Techniques, and Threat Landscape &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="cybersecurity-tech-insights.html" class="back-link">&larr; Back to Cybersecurity</a>
+                        <div class="post-meta">
+                            <span class="post-date">Oct 2023</span>
+                            <span class="post-reading">10 min read</span>
+                        </div>
+                        <h1>Cyber Attacks: Types, Techniques, and Threat Landscape</h1>
+                        <div class="post-tags">
+                            <span>Cybersecurity</span>
+                            <span>Attack Vectors</span>
+                            <span>Threat Landscape</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+
+                        <blockquote>
+                            <strong>Educational Disclaimer</strong><br>
+                            This document is for educational and defensive cybersecurity purposes only. The techniques described should only be used in authorized penetration testing environments. Unauthorized use of these techniques may be illegal and could result in criminal charges. Always obtain proper written authorization before testing any systems. Use this knowledge responsibly to improve security defenses.
+                        </blockquote>
+
+                        <p class="lead">The world of cybersecurity is vast and constantly evolving. Attackers use a wide variety of methods to compromise systems, disrupt operations, or gain unauthorized access to data. Understanding these attack types is essential for designing resilient systems, training users, and implementing layered defenses.</p>
+
+                        <h2>1) Denial of Service (DoS) Attacks</h2>
+
+                        <p>A <strong>Denial of Service (DoS)</strong> attack aims to make a system or service unavailable by overwhelming it with traffic or resource requests. When multiple compromised systems participate simultaneously, the attack becomes a <strong>Distributed Denial of Service (DDoS)</strong> attack.</p>
+
+                        <p>Attackers flood target servers and networks with massive volumes of fake requests, exhausting bandwidth, CPU, or memory so that legitimate users cannot access services. Often, the attacking devices are themselves victims &mdash; infected machines in a botnet used without the owners&rsquo; consent.</p>
+
+                        <p>Common types include:</p>
+
+                        <ul>
+                            <li><strong>TCP SYN Flood:</strong> Exploits the TCP handshake to consume resources by leaving half-open connections.</li>
+                            <li><strong>Ping of Death:</strong> Sends oversized or malformed ICMP packets causing system crashes.</li>
+                            <li><strong>Teardrop Attack:</strong> Sends fragmented packets that crash systems when reassembled incorrectly.</li>
+                            <li><strong>Smurf Attack:</strong> Uses ICMP echo requests to broadcast traffic from many systems toward a victim.</li>
+                        </ul>
+
+                        <h2>2) Malware</h2>
+
+                        <p>The term <strong>malware</strong> encompasses all types of malicious software designed to infiltrate, damage, or gain control over systems without user consent. Malware can be delivered through phishing emails, malicious downloads, infected USB drives, or vulnerabilities in web browsers and applications.</p>
+
+                        <h3>Common Malware Categories</h3>
+
+                        <ul>
+                            <li><strong>Viruses:</strong> Self-replicating code that infects other files and spreads across systems.</li>
+                            <li><strong>Trojans:</strong> Malicious software disguised as legitimate applications, often used to create backdoors.</li>
+                            <li><strong>Worms:</strong> Self-propagating programs that spread through networks autonomously &mdash; commonly via email or file sharing.</li>
+                            <li><strong>Ransomware:</strong> Encrypts a victim&rsquo;s files and demands payment (often in cryptocurrency) to restore access or prevent data leaks.</li>
+                            <li><strong>Spyware:</strong> Secretly collects user data, browsing habits, or credentials for misuse or sale.</li>
+                        </ul>
+
+                        <h3>Malware Delivery Methods</h3>
+
+                        <p>Malware often exploits human error or system flaws. Clicking on unsafe links, opening attachments, or visiting compromised websites can trigger infection. Some variants exploit browser or plugin vulnerabilities, executing code simply upon visiting a webpage (drive-by downloads).</p>
+
+                        <p>Developers often provide checksums or digital signatures that allow users to verify authenticity before installation.</p>
+
+                        <h2>3) Man-in-the-Middle (MitM) Attacks</h2>
+
+                        <p>A <strong>Man-in-the-Middle (MitM)</strong> attack occurs when an attacker secretly intercepts and potentially alters communication between two parties. This allows the attacker to eavesdrop, steal credentials, or inject malicious content without either side&rsquo;s awareness.</p>
+
+                        <p>MitM attacks often target insecure Wi-Fi networks, unencrypted connections, or compromised routers. Although the widespread use of HTTPS and TLS has reduced risk, protocol exploits, weak certificates, and phishing techniques can still enable such attacks.</p>
+
+                        <h2>4) Password Attacks</h2>
+
+                        <p>Passwords remain one of the most common authentication mechanisms worldwide. Attackers often target weak or reused passwords using a range of methods:</p>
+
+                        <ul>
+                            <li><strong>Brute Force:</strong> Systematically tries every possible combination of characters until the correct password is found.</li>
+                            <li><strong>Dictionary Attack:</strong> Uses lists of common words or passwords (e.g., <code>123456</code>, <code>password</code>, <code>qwerty</code>).</li>
+                            <li><strong>Credential Stuffing:</strong> Uses stolen username-password pairs from prior breaches to access new accounts.</li>
+                            <li><strong>Social Engineering:</strong> Exploits human psychology to trick users into revealing their passwords directly.</li>
+                        </ul>
+
+                        <p>Complex passwords, password managers, and multi-factor authentication (MFA) greatly reduce exposure to these attacks.</p>
+
+                        <h2>5) SQL Injection (SQLi)</h2>
+
+                        <p><strong>SQL Injection</strong> attacks target web applications that interact with databases. By injecting malicious SQL queries into input fields (e.g., login forms or comment sections), attackers can manipulate backend queries to access, modify, or delete sensitive information.</p>
+
+                        <p>Poor input validation and unsafe database handling make systems vulnerable. Mitigation involves input sanitization, prepared statements, and least-privilege database permissions.</p>
+
+                        <h2>6) Cross-Site Scripting (XSS)</h2>
+
+                        <p>A <strong>Cross-Site Scripting (XSS)</strong> attack allows attackers to inject and execute malicious JavaScript in the browsers of other users. The script runs as if it were part of the trusted site, enabling credential theft, session hijacking, or redirection to phishing pages.</p>
+
+                        <p>Preventing XSS requires strict input/output validation, context-aware encoding, and use of Content Security Policy (CSP).</p>
+
+                        <h2>7) Zero-Day Exploits</h2>
+
+                        <p>A <strong>Zero-Day exploit</strong> targets vulnerabilities unknown to software vendors or for which no patch exists. Attackers exploit these &ldquo;day-zero&rdquo; weaknesses before developers can respond. Such attacks are particularly dangerous because there are no existing defenses at the time of discovery.</p>
+
+                        <p>Organizations must rely on proactive detection, behavioral analysis, and rapid patch management to mitigate the impact of zero-day threats.</p>
+
+                        <h2>8) Internet of Things (IoT) Attacks</h2>
+
+                        <p>The explosion of Internet of Things (IoT) devices &mdash; cameras, thermostats, sensors, and smart appliances &mdash; has created new attack surfaces. Many IoT devices lack robust security features, receive infrequent updates, and require open ports or insecure protocols for remote access.</p>
+
+                        <p>Because these devices are connected to networks, they can be exploited as entry points or as components of large-scale botnets (e.g., Mirai). Manufacturers&rsquo; limited update cycles further compound risks, leaving vulnerabilities unpatched.</p>
+
+                        <p>To defend IoT environments, organizations should isolate devices on separate network segments, disable unnecessary services, and change default credentials immediately.</p>
+
+                        <h2>Summary</h2>
+
+                        <p>The attack types described above represent only a fraction of today&rsquo;s cybersecurity landscape. Every day, new vulnerabilities, tools, and threat actors emerge, increasing both the volume and sophistication of attacks. Effective defense requires continuous monitoring, timely patching, security awareness, and a layered security architecture that assumes compromise is possible.</p>
+
+                    </div>
+                </div>
+
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing large-scale distributed systems. Specialized in Generative AI, AI Agents, and cloud-native architectures.</p>
+                        <div class="sidebar-author-links">
+                            <a href="https://www.linkedin.com/in/paolo-mascia-italy" target="_blank" aria-label="LinkedIn">
+                                <svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                            </a>
+                            <a href="https://github.com/paolomascia" target="_blank" aria-label="GitHub">
+                                <svg viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+                            </a>
+                            <a href="https://www.kaggle.com/paolomascia" target="_blank" aria-label="Kaggle">
+                                <svg viewBox="0 0 24 24"><path d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.233-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.075.378z"/></svg>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="cs-intro-cybersecurity.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cybersecurity</span>
+                            <div class="sidebar-link-title">Introduction to Cybersecurity</div>
+                            <span class="sidebar-link-meta">Apr 2023</span>
+                        </a>
+                        <a href="cs-motivations-cybercrime.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cybersecurity</span>
+                            <div class="sidebar-link-title">Motivations of Cybercrime</div>
+                            <span class="sidebar-link-meta">Jul 2023</span>
+                        </a>
+                        <a href="cs-social-engineering.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cybersecurity</span>
+                            <div class="sidebar-link-title">Social Engineering</div>
+                            <span class="sidebar-link-meta">Jan 2024</span>
+                        </a>
+                        <a href="cs-dos-attacks-part1.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cybersecurity</span>
+                            <div class="sidebar-link-title">DoS Attacks Part 1</div>
+                            <span class="sidebar-link-meta">May 2024</span>
+                        </a>
+                        <a href="cs-buffer-overflow.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cybersecurity</span>
+                            <div class="sidebar-link-title">Buffer Overflow</div>
+                            <span class="sidebar-link-meta">Sep 2023</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-nasm.min.js"></script>
+</body>
+</html>

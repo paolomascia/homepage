@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IA-32 and Intel 64 ISA Assembly Language (Part 2) &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="cybersecurity-tech-insights.html" class="back-link">&larr; Back to Cybersecurity</a>
+                        <div class="post-meta">
+                            <span class="post-date">Apr 2023</span>
+                            <span class="post-reading">10 min read</span>
+                        </div>
+                        <h1>IA-32 and Intel 64 ISA Assembly Language (Part 2)</h1>
+                        <div class="post-tags">
+                            <span>Assembly</span>
+                            <span>IA-32</span>
+                            <span>Registers</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">This second installment explores the register architecture of x86 processors, covering general-purpose registers, segment registers, the EFLAGS register, and the instruction pointer &mdash; the foundational building blocks that every assembly programmer must understand.</p>
+
+                        <!-- Registers in the x86 Architecture -->
+                        <h2>Registers in the x86 Architecture</h2>
+
+                        <h3>General Purpose Registers</h3>
+
+                        <p>The x86 architecture provides several general-purpose registers used to store operands, intermediate results, pointers, and counters. In the IA-32 (32-bit) environment, there are eight such registers: <strong>EAX, EBX, ECX, EDX, ESI, EDI, EBP,</strong> and <strong>ESP</strong>.</p>
+
+                        <p>These registers are versatile and can hold:</p>
+                        <ul>
+                            <li>Operands for arithmetic or logical operations.</li>
+                            <li>Operands for memory addressing calculations.</li>
+                            <li>Pointers to memory locations or data structures.</li>
+                        </ul>
+
+                        <p>Although all general-purpose registers can theoretically be used for any type of operation, certain registers have conventional roles and restrictions. For example, <strong>ESP</strong> is reserved for managing the system stack and should not be used as a general-purpose register.</p>
+
+                        <h3>Special Register Uses</h3>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Register</th>
+                                    <th>Purpose</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>EAX</strong></td>
+                                    <td>Accumulator register used for arithmetic and logic operations. Often holds results of multiplications and divisions.</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>EBX</strong></td>
+                                    <td>Base register used as a pointer to data in the DS segment.</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>ECX</strong></td>
+                                    <td>Counter register used in loops and string operations.</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>EDX</strong></td>
+                                    <td>Data register used for I/O operations and to store high-order parts of multiplication/division results.</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>ESI</strong></td>
+                                    <td>Source index register used for string operations, referencing data in the DS segment.</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>EDI</strong></td>
+                                    <td>Destination index register used for string operations, referencing data in the ES segment.</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>ESP</strong></td>
+                                    <td>Stack pointer that tracks the top of the stack in the SS segment.</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>EBP</strong></td>
+                                    <td>Base pointer used to reference function parameters and local variables on the stack.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <h3>Register Subdivisions</h3>
+
+                        <p>Each 32-bit register can be accessed in smaller parts for compatibility with 16-bit and 8-bit code. This subdivision enables efficient use of processor resources and compatibility with older x86 software.</p>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>32-bit Register</th>
+                                    <th>16-bit</th>
+                                    <th>8-bit High</th>
+                                    <th>8-bit Low</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>EAX</td><td>AX</td><td>AH</td><td>AL</td></tr>
+                                <tr><td>EBX</td><td>BX</td><td>BH</td><td>BL</td></tr>
+                                <tr><td>ECX</td><td>CX</td><td>CH</td><td>CL</td></tr>
+                                <tr><td>EDX</td><td>DX</td><td>DH</td><td>DL</td></tr>
+                                <tr><td>ESI</td><td>SI</td><td>&ndash;</td><td>&ndash;</td></tr>
+                                <tr><td>EDI</td><td>DI</td><td>&ndash;</td><td>&ndash;</td></tr>
+                                <tr><td>EBP</td><td>BP</td><td>&ndash;</td><td>&ndash;</td></tr>
+                                <tr><td>ESP</td><td>SP</td><td>&ndash;</td><td>&ndash;</td></tr>
+                            </tbody>
+                        </table>
+
+                        <h3>64-bit Extensions</h3>
+
+                        <p>With the introduction of the x86-64 (Intel 64) architecture, the number of general-purpose registers increased from 8 to 16. Each register is 64 bits wide and can still be accessed as 32-, 16-, or 8-bit components for backward compatibility.</p>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Operand Size</th>
+                                    <th>Registers</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>32-bit</td>
+                                    <td>EAX, EBX, ECX, EDX, ESI, EDI, EBP, ESP, R8D&ndash;R15D</td>
+                                </tr>
+                                <tr>
+                                    <td>64-bit</td>
+                                    <td>RAX, RBX, RCX, RDX, RSI, RDI, RBP, RSP, R8&ndash;R15</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <p>These extensions not only expand register availability but also improve performance for operations requiring numerous variables or memory pointers.</p>
+
+                        <!-- Segment Registers -->
+                        <h2>Segment Registers</h2>
+
+                        <p>Segment registers are used to hold <strong>segment selectors</strong> &mdash; pointers to specific memory segments. These segments define different areas of memory such as code, data, and stack spaces. The segment registers include <strong>CS, DS, SS, ES, FS,</strong> and <strong>GS</strong>.</p>
+
+                        <h3>Segment Register Roles</h3>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Register</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>CS</strong></td>
+                                    <td>Code Segment &ndash; points to the memory segment containing executable instructions.</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>DS</strong></td>
+                                    <td>Data Segment &ndash; used for variables and constants.</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>SS</strong></td>
+                                    <td>Stack Segment &ndash; contains the active stack used by ESP and EBP.</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>ES, FS, GS</strong></td>
+                                    <td>Additional data segments for special use (thread-local storage, OS-level data structures, etc.).</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <h3>Flat vs. Segmented Memory Models</h3>
+
+                        <p>In modern 32- and 64-bit operating systems, memory is typically accessed via a <strong>flat memory model</strong>, where all segment registers point to overlapping areas that start at address 0. This simplifies addressing, effectively treating memory as a single continuous linear space.</p>
+
+                        <p>Older systems and DOS-based environments use the <strong>segmented memory model</strong>, in which each segment register points to a separate 64 KB segment. This model required combining segment and offset values to form a physical address.</p>
+
+                        <p>In 64-bit mode, segmentation is largely disabled. CS, DS, ES, and SS are ignored for address translation, while FS and GS remain functional for specific purposes such as thread-local storage.</p>
+
+                        <!-- EFLAGS Register -->
+                        <h2>EFLAGS Register</h2>
+
+                        <p>The <strong>EFLAGS</strong> register (32-bit) stores a set of flags that reflect the current state of the processor. It includes <strong>status flags</strong> (indicating arithmetic results), <strong>control flags</strong> (affecting processor behavior), and <strong>system flags</strong> (used by the OS).</p>
+
+                        <h3>Status Flags</h3>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Flag</th>
+                                    <th>Bit</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>CF</strong></td>
+                                    <td>0</td>
+                                    <td>Carry Flag &ndash; Set if an arithmetic operation produces a carry or borrow from the most significant bit.</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>PF</strong></td>
+                                    <td>2</td>
+                                    <td>Parity Flag &ndash; Set if the least significant byte of the result has an even number of 1 bits.</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>AF</strong></td>
+                                    <td>4</td>
+                                    <td>Auxiliary Carry Flag &ndash; Set if there is a carry/borrow from bit 3.</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>ZF</strong></td>
+                                    <td>6</td>
+                                    <td>Zero Flag &ndash; Set if the result of an operation is zero.</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>SF</strong></td>
+                                    <td>7</td>
+                                    <td>Sign Flag &ndash; Reflects the sign of the result (0 = positive, 1 = negative).</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>OF</strong></td>
+                                    <td>11</td>
+                                    <td>Overflow Flag &ndash; Set if a signed arithmetic operation exceeds the representable range.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <h3>Direction Flag</h3>
+
+                        <p>The <strong>Direction Flag (DF)</strong> controls the direction of string operations:</p>
+                        <ul>
+                            <li><strong>DF = 0:</strong> Auto-incrementing (forward direction).</li>
+                            <li><strong>DF = 1:</strong> Auto-decrementing (backward direction).</li>
+                        </ul>
+
+                        <p>Instructions such as <code>MOVS</code>, <code>CMPS</code>, <code>STOS</code>, and <code>LODS</code> rely on the DF flag to determine whether string data is processed from low to high memory or in reverse.</p>
+
+                        <h3>System Flags</h3>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Flag</th>
+                                    <th>Bit</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>TF</strong></td>
+                                    <td>8</td>
+                                    <td>Trap Flag &ndash; Enables single-step debug mode.</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>IF</strong></td>
+                                    <td>9</td>
+                                    <td>Interrupt Flag &ndash; Enables or disables maskable interrupts.</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>IOPL</strong></td>
+                                    <td>12&ndash;13</td>
+                                    <td>I/O Privilege Level &ndash; Determines privilege level for I/O instructions.</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>NT</strong></td>
+                                    <td>14</td>
+                                    <td>Nested Task Flag &ndash; Manages task chaining for multitasking systems.</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>RF</strong></td>
+                                    <td>16</td>
+                                    <td>Resume Flag &ndash; Controls continuation after debug exceptions.</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>VM</strong></td>
+                                    <td>17</td>
+                                    <td>Virtual-8086 Mode &ndash; Enables 8086-style virtualized execution.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <p>In 64-bit processors, EFLAGS extends to <strong>RFLAGS</strong>. The lower 32 bits remain the same, while the upper 32 bits are reserved.</p>
+
+                        <!-- Instruction Pointer -->
+                        <h2>Instruction Pointer</h2>
+
+                        <p>The <strong>Instruction Pointer (EIP)</strong> register stores the offset of the next instruction to be executed within the current code segment. It is automatically updated as instructions are executed and is manipulated by control transfer instructions such as <code>JMP</code>, <code>CALL</code>, <code>RET</code>, and <code>IRET</code>.</p>
+
+                        <p>EIP cannot be directly modified by general-purpose instructions. However, it can be indirectly affected through jumps, calls, or interrupts. To read its value, a function can issue a <code>CALL</code> instruction and inspect the return address stored on the stack.</p>
+
+                        <h3>64-bit Extension (RIP)</h3>
+
+                        <p>In 64-bit mode, the instruction pointer becomes <strong>RIP</strong>. RIP holds a 64-bit offset and introduces <strong>RIP-relative addressing</strong>, allowing instructions to reference memory locations relative to the current instruction&rsquo;s position. This mechanism simplifies position-independent code (PIC) used by modern operating systems and compilers.</p>
+
+                        <!-- Summary -->
+                        <h2>Summary</h2>
+
+                        <ul>
+                            <li>x86 processors use a rich set of general-purpose and specialized registers for computation and memory addressing.</li>
+                            <li>The transition from 32-bit to 64-bit mode expanded both the number and size of registers, improving performance and flexibility.</li>
+                            <li>The EFLAGS register plays a central role in maintaining the processor&rsquo;s current state, while the instruction pointer (EIP/RIP) controls execution flow.</li>
+                            <li>Segment registers have become largely obsolete in 64-bit systems, replaced by flat memory addressing models.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing large-scale distributed systems. Specialized in Generative AI, AI Agents, and cloud-native architectures.</p>
+                        <div class="sidebar-author-links">
+                            <a href="https://www.linkedin.com/in/paolo-mascia-italy" target="_blank" aria-label="LinkedIn"><svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg></a>
+                            <a href="https://github.com/paolomascia" target="_blank" aria-label="GitHub"><svg viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg></a>
+                            <a href="https://www.kaggle.com/paolomascia" target="_blank" aria-label="Kaggle"><svg viewBox="0 0 24 24"><path d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.233-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.075.378z"/></svg></a>
+                        </div>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="cs-assembly-part1.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Assembly</span>
+                            <div class="sidebar-link-title">IA-32 and Intel 64 ISA Assembly Language (Part 1)</div>
+                            <span class="sidebar-link-meta">Feb 2023</span>
+                        </a>
+                        <a href="cs-assembly-part3.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Assembly</span>
+                            <div class="sidebar-link-title">IA-32 and Intel 64 ISA Assembly Language (Part 3)</div>
+                            <span class="sidebar-link-meta">Jun 2023</span>
+                        </a>
+                        <a href="cs-assembly-part4.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Assembly</span>
+                            <div class="sidebar-link-title">IA-32 and Intel 64 ISA Assembly Language (Part 4)</div>
+                            <span class="sidebar-link-meta">Aug 2023</span>
+                        </a>
+                        <a href="cs-reverse-engineering.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cybersecurity</span>
+                            <div class="sidebar-link-title">Reverse Engineering</div>
+                            <span class="sidebar-link-meta">Aug 2024</span>
+                        </a>
+                        <a href="cs-buffer-overflow.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cybersecurity</span>
+                            <div class="sidebar-link-title">Buffer Overflow</div>
+                            <span class="sidebar-link-meta">Sep 2023</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-nasm.min.js"></script>
+</body>
+</html>

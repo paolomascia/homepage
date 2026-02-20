@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Computer Viruses: How They Work, How They Spread, and How to Defend &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="cybersecurity-tech-insights.html" class="back-link">&larr; Back to Cybersecurity</a>
+                        <div class="post-meta">
+                            <span class="post-date">Mar 2024</span>
+                            <span class="post-reading">10 min read</span>
+                        </div>
+                        <h1>Computer Viruses: How They Work, How They Spread, and How to Defend</h1>
+                        <div class="post-tags">
+                            <span>Cybersecurity</span>
+                            <span>Malware</span>
+                            <span>Defense</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">A computer virus is malicious software that replicates by inserting a copy of itself into another executable program. Unlike standalone malware, viruses require a host to execute and spread. This article examines how viruses propagate, the various classification types, code insertion techniques, and a comprehensive defensive framework for prevention, detection, and response.</p>
+
+                        <blockquote>
+                            <p><strong>Disclaimer:</strong> This content serves <strong>educational and defensive cybersecurity</strong> purposes only. Do not create, modify, or deploy malware. Only perform security testing with explicit authorization.</p>
+                        </blockquote>
+
+                        <h2>What Is a Computer Virus?</h2>
+
+                        <p>A computer virus is malicious software that replicates by inserting a copy of itself into another executable program. Viruses require a host program to execute and spread &mdash; unlike worms, which can propagate independently across networks. Once activated, a virus can corrupt data, steal information, disrupt operations, or serve as an entry point for further attacks.</p>
+
+                        <h2>Propagation Methods</h2>
+
+                        <p>Viruses spread through five primary distribution channels:</p>
+
+                        <ol>
+                            <li><strong>Email and messaging attachments:</strong> Malicious files disguised as legitimate documents, invoices, or updates.</li>
+                            <li><strong>Drive-by downloads and malvertising:</strong> Compromised or malicious websites that exploit browser vulnerabilities to deliver payloads without user interaction.</li>
+                            <li><strong>Untrusted freeware/installers:</strong> Bundled malware within seemingly legitimate software downloads from unofficial sources.</li>
+                            <li><strong>Social media links and shareable content:</strong> Deceptive links spread through social platforms that redirect to malicious payloads.</li>
+                            <li><strong>Removable media and network shares:</strong> Infected USB drives, external disks, or shared network folders that spread the virus when accessed.</li>
+                        </ol>
+
+                        <h2>Infection Symptoms</h2>
+
+                        <p>Common indicators of a virus infection include:</p>
+
+                        <ul>
+                            <li>Suspicious pop-ups and unexpected dialog boxes</li>
+                            <li>Unauthorized browser setting changes (homepage, search engine)</li>
+                            <li>Mass emails sent from compromised accounts without user knowledge</li>
+                            <li>Frequent application and system crashes</li>
+                            <li>Significant system slowdowns and high resource usage</li>
+                            <li>Unknown programs appearing in startup configuration</li>
+                        </ul>
+
+                        <h2>Virus Classification</h2>
+
+                        <p>Viruses are categorized by their behavior, target, and propagation technique:</p>
+
+                        <ul>
+                            <li><strong>Boot sector virus:</strong> Infects the system boot code, loading before the operating system and gaining early execution control.</li>
+                            <li><strong>Web scripting virus:</strong> Exploits browser vulnerabilities through malicious scripts embedded in web pages.</li>
+                            <li><strong>Browser hijacker:</strong> Alters browser settings and redirects traffic to malicious or ad-laden websites.</li>
+                            <li><strong>Resident virus:</strong> Loads into memory during runtime, persisting even after the infected program closes.</li>
+                            <li><strong>Direct-action virus:</strong> Activates only when the infected file executes, then immediately seeks new targets.</li>
+                            <li><strong>Polymorphic virus:</strong> Mutates its code with each infection cycle to evade signature-based detection.</li>
+                            <li><strong>File infector:</strong> Targets executables and operating system files, embedding malicious code within them.</li>
+                            <li><strong>Multipartite virus:</strong> Uses multiple infection vectors simultaneously, combining boot sector and file infection techniques.</li>
+                            <li><strong>Macro virus:</strong> Embedded in document macros (Word, Excel), executing when the document is opened with macros enabled.</li>
+                        </ul>
+
+                        <h2>Code Insertion Techniques</h2>
+
+                        <p>Viruses employ four primary strategies to embed themselves within host files:</p>
+
+                        <h3>1. File Beginning with Destructive Overwriting</h3>
+
+                        <p>The virus replaces the initial sections of the host file with its own code. This technique is easily detected because the infected program immediately malfunctions, alerting users and security tools.</p>
+
+                        <h3>2. Random Position with Overwriting</h3>
+
+                        <p>The virus inserts its code at random offsets within the file. This can cause system crashes if critical code sections are corrupted, making the infected file unstable and eventually detectable.</p>
+
+                        <h3>3. Appended Viruses</h3>
+
+                        <p>The virus attaches its malicious code to the end of the host file and redirects the entry point to execute the virus first. The original program still appears to function normally, making this technique more stealthy than overwriting approaches.</p>
+
+                        <h3>4. Cavity (Gap) Viruses</h3>
+
+                        <p>The most stealthy technique in this set: the virus locates unused padding or cavities inside the file and fills them with malicious code. The file size and apparent functionality remain largely unchanged, making detection significantly more difficult.</p>
+
+                        <h2>Defensive Framework</h2>
+
+                        <h3>Prevention</h3>
+
+                        <ul>
+                            <li><strong>Patch management:</strong> Regularly update operating systems, applications, and firmware to close known vulnerabilities.</li>
+                            <li><strong>Application control:</strong> Whitelist approved applications and block unauthorized executables.</li>
+                            <li><strong>Email/web filtering with sandboxing:</strong> Inspect attachments and downloads in isolated environments before delivery.</li>
+                            <li><strong>Least privilege access:</strong> Restrict user permissions to minimize the impact of a compromised account.</li>
+                            <li><strong>User security training:</strong> Educate users on phishing, social engineering, and safe computing practices.</li>
+                            <li><strong>Regular offline backups:</strong> Maintain backups disconnected from the network to ensure recovery capability.</li>
+                        </ul>
+
+                        <h3>Detection</h3>
+
+                        <ul>
+                            <li><strong>Endpoint protection and XDR:</strong> Deploy modern endpoint detection and response solutions with behavioral analysis.</li>
+                            <li><strong>Macro controls:</strong> Disable macros from untrusted sources and require signed macros for Office documents.</li>
+                            <li><strong>File integrity monitoring:</strong> Track changes to critical system files and executables.</li>
+                            <li><strong>Network analytics:</strong> Monitor for anomalous traffic patterns indicating data exfiltration or C2 communication.</li>
+                        </ul>
+
+                        <h3>Response</h3>
+
+                        <ul>
+                            <li><strong>Network isolation:</strong> Immediately isolate affected systems to prevent lateral spread.</li>
+                            <li><strong>Malware eradication and reimaging:</strong> Remove the infection and rebuild compromised systems from known-good images.</li>
+                            <li><strong>Credential rotation:</strong> Reset passwords and invalidate sessions for potentially compromised accounts.</li>
+                            <li><strong>Integrity validation:</strong> Verify system and data integrity post-eradication.</li>
+                            <li><strong>Post-incident analysis:</strong> Conduct root cause analysis and improve controls based on lessons learned.</li>
+                        </ul>
+
+                        <h2>Conceptual Policy Examples</h2>
+
+                        <h3>Email Gateway Policy</h3>
+
+<pre><code class="language-python"># Conceptual email gateway policy (non-functional)
+if attachment_type in {exe, js, vbs, ps1, macro-enabled} and sender not trusted:
+    hold_for_sandbox()
+    warn_recipient()</code></pre>
+
+                        <h3>Office Macro Policy</h3>
+
+                        <ul>
+                            <li>Disable macros from Internet zone</li>
+                            <li>Require signed, vetted macros from trusted publishers</li>
+                            <li>Open unknown documents in Protected View</li>
+                        </ul>
+
+                        <h3>Endpoint Hardening</h3>
+
+                        <ul>
+                            <li>Enable Attack Surface Reduction (ASR) rules</li>
+                            <li>Block process injection and script abuse</li>
+                            <li>Monitor startup entries for unauthorized modifications</li>
+                        </ul>
+
+                        <h3>Backup Policy</h3>
+
+                        <ul>
+                            <li><strong>3-2-1 principle:</strong> 3 copies, 2 different media types, 1 offsite/offline</li>
+                            <li>Quarterly restore testing to verify backup integrity</li>
+                        </ul>
+
+                        <h2>Key Takeaways</h2>
+
+                        <ul>
+                            <li>Viruses replicate by inserting themselves into host programs, requiring user action or system processes to spread.</li>
+                            <li>Multiple virus types exist, each with distinct infection strategies and evasion techniques.</li>
+                            <li>Code insertion techniques range from crude overwriting to stealthy cavity injection.</li>
+                            <li>Layered defense across people, process, and technology is essential for prevention, rapid detection, and recovery.</li>
+                            <li>Regular patching, privilege restriction, and strong email controls are the most effective risk-reduction measures.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing large-scale distributed systems. Specialized in Generative AI, AI Agents, and cloud-native architectures.</p>
+                        <div class="sidebar-author-links">
+                            <a href="https://www.linkedin.com/in/paolo-mascia-italy" target="_blank" aria-label="LinkedIn">
+                                <svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                            </a>
+                            <a href="https://github.com/paolomascia" target="_blank" aria-label="GitHub">
+                                <svg viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+                            </a>
+                            <a href="https://www.kaggle.com/paolomascia" target="_blank" aria-label="Kaggle">
+                                <svg viewBox="0 0 24 24"><path d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.233-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.075.378z"/></svg>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="cs-buffer-overflow.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cybersecurity</span>
+                            <div class="sidebar-link-title">Buffer Overflow</div>
+                            <span class="sidebar-link-meta">Sep 2023</span>
+                        </a>
+                        <a href="cs-keyloggers.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cybersecurity</span>
+                            <div class="sidebar-link-title">Windows Keyloggers</div>
+                            <span class="sidebar-link-meta">Nov 2024</span>
+                        </a>
+                        <a href="cs-autorun.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cybersecurity</span>
+                            <div class="sidebar-link-title">Autorun.inf</div>
+                            <span class="sidebar-link-meta">Feb 2024</span>
+                        </a>
+                        <a href="cs-reverse-engineering.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Reverse Engineering</span>
+                            <div class="sidebar-link-title">Reverse Engineering</div>
+                            <span class="sidebar-link-meta">Aug 2024</span>
+                        </a>
+                        <a href="cs-social-engineering.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cybersecurity</span>
+                            <div class="sidebar-link-title">Social Engineering</div>
+                            <span class="sidebar-link-meta">Jan 2024</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-nasm.min.js"></script>
+</body>
+</html>

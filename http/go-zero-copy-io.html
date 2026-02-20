@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zero-Copy I/O and Memory Efficiency in Go &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="golang-tech-insights.html" class="back-link">&larr; Back to Go Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Oct 2025</span>
+                            <span class="post-reading">15 min read</span>
+                        </div>
+                        <h1>Zero-Copy I/O and Memory Efficiency in Go &mdash; Mastering io.Reader and io.Writer</h1>
+                        <div class="post-tags">
+                            <span>Go</span>
+                            <span>I/O</span>
+                            <span>Performance</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">In performance-critical Go applications like proxies, message brokers, and data pipelines, unnecessary data copies are the silent killers of throughput. Go&rsquo;s <code>io.Reader</code> and <code>io.Writer</code> interfaces combined with buffer reuse patterns enable near zero-copy I/O.</p>
+
+                        <h2>The Core Abstractions: io.Reader and io.Writer</h2>
+
+                        <p>Go&rsquo;s I/O model is built on two fundamental interfaces:</p>
+
+<pre><code class="language-go">type Reader interface {
+	Read(p []byte) (n int, err error)
+}
+
+type Writer interface {
+	Write(p []byte) (n int, err error)
+}</code></pre>
+
+                        <p>These interfaces form the foundation for all I/O operations across files, network sockets, HTTP requests, compression, and encryption.</p>
+
+                        <h2>Streaming Data Without Loading Everything Into Memory</h2>
+
+                        <p>One of the most common anti-patterns is reading the entire file or response into memory. Instead, you should stream data using <code>io.Copy</code>:</p>
+
+<pre><code class="language-go">package main
+
+import (
+	"io"
+	"log"
+	"os"
+)
+
+func main() {
+	src, err := os.Open("input.log")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer src.Close()
+
+	dst, err := os.Create("output.log")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer dst.Close()
+
+	written, err := io.Copy(dst, src)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("Copied %d bytes\n", written)
+}</code></pre>
+
+                        <h2>Understanding Zero-Copy</h2>
+
+                        <p>Zero-copy I/O transfers data between sources without unnecessary copying. While Go cannot always guarantee kernel-level zero-copy like <code>sendfile()</code>, it minimizes user-space copies through streaming and buffer reuse.</p>
+
+                        <h2>Using Buffers Efficiently</h2>
+
+                        <p>The <code>bytes.Buffer</code> and <code>bufio</code> packages provide efficient buffered I/O:</p>
+
+<pre><code class="language-go">package main
+
+import (
+	"bufio"
+	"bytes"
+	"fmt"
+)
+
+func main() {
+	data := []byte("streaming example")
+	buffer := bytes.NewBuffer(data)
+
+	reader := bufio.NewReader(buffer)
+	line, _ := reader.ReadString('\n')
+	fmt.Println("Read:", line)
+}</code></pre>
+
+                        <h2>Pooling Buffers with sync.Pool</h2>
+
+                        <p>For high-load systems, buffer recycling using <code>sync.Pool</code> prevents excessive allocations:</p>
+
+<pre><code class="language-go">package main
+
+import (
+	"bytes"
+	"io"
+	"log"
+	"net"
+	"sync"
+)
+
+var bufPool = sync.Pool{
+	New: func() any { return make([]byte, 32*1024) },
+}
+
+func handleConn(conn net.Conn) {
+	defer conn.Close()
+	buf := bufPool.Get().([]byte)
+	defer bufPool.Put(buf)
+
+	for {
+		n, err := conn.Read(buf)
+		if n &gt; 0 {
+			io.CopyN(conn, bytes.NewReader(buf[:n]), int64(n))
+		}
+		if err != nil {
+			if err != io.EOF {
+				log.Println("Error:", err)
+			}
+			return
+		}
+	}
+}</code></pre>
+
+                        <h2>Chaining Readers and Writers</h2>
+
+                        <p>Go&rsquo;s I/O interfaces are composable, allowing you to chain transformations seamlessly:</p>
+
+<pre><code class="language-go">package main
+
+import (
+	"compress/gzip"
+	"io"
+	"os"
+)
+
+func main() {
+	src, _ := os.Open("data.txt")
+	defer src.Close()
+
+	dst, _ := os.Create("data.txt.gz")
+	defer dst.Close()
+
+	gw := gzip.NewWriter(dst)
+	defer gw.Close()
+
+	io.Copy(gw, src)
+}</code></pre>
+
+                        <h2>Minimizing Data Copies Between Layers</h2>
+
+                        <p>To reduce unnecessary copies throughout your application:</p>
+
+                        <ul>
+                            <li>Keep data as <code>[]byte</code> until serialization is needed.</li>
+                            <li>Use <code>strings.Builder</code> instead of string concatenation.</li>
+                            <li>Prefer <code>io.Copy()</code> or <code>io.Pipe()</code> for streaming transformations.</li>
+                        </ul>
+
+                        <h2>Zero-Copy Streaming with io.Pipe</h2>
+
+                        <p><code>io.Pipe</code> creates a synchronous in-memory pipe, enabling zero-copy data transfer between a producer and consumer:</p>
+
+<pre><code class="language-go">package main
+
+import (
+	"fmt"
+	"io"
+	"strings"
+)
+
+func main() {
+	pr, pw := io.Pipe()
+
+	go func() {
+		defer pw.Close()
+		io.Copy(pw, strings.NewReader("streaming via pipe"))
+	}()
+
+	buf := make([]byte, 8)
+	for {
+		n, err := pr.Read(buf)
+		if n &gt; 0 {
+			fmt.Print(string(buf[:n]))
+		}
+		if err == io.EOF {
+			break
+		}
+	}
+}</code></pre>
+
+                        <h2>Profiling I/O Performance</h2>
+
+                        <p>Use the <code>-bench</code> flag and <code>pprof</code> for measurements:</p>
+
+<pre><code class="language-bash">go test -bench=. -benchmem</code></pre>
+
+<pre><code class="language-bash">GODEBUG=gctrace=1 go run main.go</code></pre>
+
+                        <h2>Practical Tips</h2>
+
+                        <ul>
+                            <li>Reuse buffers with <code>sync.Pool</code>.</li>
+                            <li>Stream instead of loading data in full.</li>
+                            <li>Chain <code>io.Reader</code>/<code>io.Writer</code> interfaces for transformation.</li>
+                            <li>Avoid <code>[]byte</code> to <code>string</code> conversions unless necessary.</li>
+                            <li>Profile allocations and GC using <code>-benchmem</code> and <code>pprof</code>.</li>
+                        </ul>
+
+                        <h2>Conclusion</h2>
+
+                        <p>Zero-copy I/O in Go isn&rsquo;t magic &mdash; it&rsquo;s about structuring code around streaming interfaces, minimizing allocations, and reusing buffers effectively. By mastering <code>io.Reader</code>, <code>io.Writer</code>, <code>io.Pipe</code>, and <code>sync.Pool</code>, you can build high-throughput systems that handle massive data volumes with minimal memory overhead.</p>
+                    </div>
+                </div>
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="go-goroutines.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Goroutines</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-advanced-concurrency.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Advanced Concurrency Patterns in Go</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-performance-tuning.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Go Performance Tuning</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-memory-gc-internals.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Go Memory Model, GC &amp; Internals</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-rest-apis.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Calling REST APIs in Go</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+
+</body>
+</html>

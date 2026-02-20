@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Error Handling in Go &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="golang-tech-insights.html" class="back-link">&larr; Back to Go Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">May 2024</span>
+                            <span class="post-reading">7 min read</span>
+                        </div>
+                        <h1>Error Handling in Go</h1>
+                        <div class="post-tags">
+                            <span>Go</span>
+                            <span>Error Handling</span>
+                            <span>Best Practices</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Error handling is foundational for creating dependable Go applications. Rather than using exceptions like other languages, Go employs a simple, explicit, and reliable mechanism for dealing with errors. This approach forces developers to acknowledge and handle each failure path, leading to cleaner and more predictable software systems.</p>
+
+                        <h2>The <code>error</code> Type</h2>
+                        <p>In Go, an error implements the built-in interface:</p>
+<pre><code class="language-go">type error interface {
+    Error() string
+}</code></pre>
+                        <p>Functions typically return an error value as the final return value &mdash; <code>nil</code> if successful, or a non-nil error describing what went wrong.</p>
+<pre><code class="language-go">package main
+
+import (
+    "errors"
+    "fmt"
+)
+
+func divide(a, b float64) (float64, error) {
+    if b == 0 {
+        return 0, errors.New("cannot divide by zero")
+    }
+    return a / b, nil
+}
+
+func main() {
+    result, err := divide(10, 0)
+    if err != nil {
+        fmt.Println("Error:", err)
+        return
+    }
+    fmt.Println("Result:", result)
+}</code></pre>
+
+                        <h2>Custom Error Types</h2>
+                        <p>You can define custom error types to provide structured error information including context like operation names or parameters:</p>
+<pre><code class="language-go">package main
+
+import (
+    "fmt"
+)
+
+type DivideError struct {
+    A, B float64
+    Msg  string
+}
+
+func (e *DivideError) Error() string {
+    return fmt.Sprintf("error dividing %.2f by %.2f: %s", e.A, e.B, e.Msg)
+}
+
+func divide(a, b float64) (float64, error) {
+    if b == 0 {
+        return 0, &amp;DivideError{A: a, B: b, Msg: "division by zero"}
+    }
+    return a / b, nil
+}
+
+func main() {
+    if _, err := divide(5, 0); err != nil {
+        fmt.Println(err)
+    }
+}</code></pre>
+
+                        <h2>Wrapping and Unwrapping Errors</h2>
+                        <p>Since Go 1.13, <code>fmt.Errorf</code> supports error wrapping using the <code>%w</code> verb, preserving the original error while adding context:</p>
+<pre><code class="language-go">package main
+
+import (
+    "errors"
+    "fmt"
+)
+
+func readConfig() error {
+    return errors.New("config file not found")
+}
+
+func initApp() error {
+    if err := readConfig(); err != nil {
+        return fmt.Errorf("failed to initialize app: %w", err)
+    }
+    return nil
+}
+
+func main() {
+    err := initApp()
+    if err != nil {
+        fmt.Println("Error:", err)
+        if errors.Is(err, errors.New("config file not found")) {
+            fmt.Println("Root cause: missing configuration")
+        }
+    }
+}</code></pre>
+
+                        <h2>Checking and Unwrapping with <code>errors.Is</code> and <code>errors.As</code></h2>
+                        <p>Use <code>errors.Is</code> to check if an error matches a specific value, or <code>errors.As</code> to test and extract a specific type:</p>
+<pre><code class="language-go">package main
+
+import (
+    "errors"
+    "fmt"
+)
+
+var ErrNotFound = errors.New("item not found")
+
+func findItem(id int) (string, error) {
+    if id != 1 {
+        return "", fmt.Errorf("search failed: %w", ErrNotFound)
+    }
+    return "Item A", nil
+}
+
+func main() {
+    _, err := findItem(2)
+    if errors.Is(err, ErrNotFound) {
+        fmt.Println("Item does not exist.")
+    } else if err != nil {
+        fmt.Println("Unexpected error:", err)
+    }
+}</code></pre>
+
+                        <h2>Best Practices</h2>
+                        <ul>
+                            <li>Always check error values immediately after function calls</li>
+                            <li>Return early when errors occur (&ldquo;fail fast&rdquo; pattern)</li>
+                            <li>Wrap errors with additional context using <code>fmt.Errorf("...: %w", err)</code></li>
+                            <li>Define sentinel errors (<code>var ErrXYZ = errors.New("...")</code>) for reusable comparisons</li>
+                            <li>Prefer custom error types for structured or contextual information</li>
+                        </ul>
+
+                        <h2>Conclusion</h2>
+                        <p>Error handling in Go is simple but explicit &mdash; it forces developers to acknowledge and handle each failure path. This leads to cleaner, more maintainable, and predictable software systems.</p>
+                    </div>
+                </div>
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="go-advanced-concurrency.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Advanced Concurrency Patterns in Go</div>
+                            <span class="sidebar-link-meta">Jun 2025</span>
+                        </a>
+                        <a href="go-performance-tuning.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Go Performance Tuning</div>
+                            <span class="sidebar-link-meta">Dec 2025</span>
+                        </a>
+                        <a href="go-rest-apis.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Calling REST APIs in Go</div>
+                            <span class="sidebar-link-meta">Nov 2023</span>
+                        </a>
+                        <a href="go-generic-data-structures.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Building Generic Data Structures in Go</div>
+                            <span class="sidebar-link-meta">Mar 2025</span>
+                        </a>
+                        <a href="go-memory-gc-internals.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Go Memory Model, GC &amp; Internals</div>
+                            <span class="sidebar-link-meta">May 2025</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+
+</body>
+</html>

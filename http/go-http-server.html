@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Creating an HTTP Server in Go &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="golang-tech-insights.html" class="back-link">&larr; Back to Go Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Sep 2024</span>
+                            <span class="post-reading">15 min read</span>
+                        </div>
+                        <h1>Creating an HTTP Server in Go</h1>
+                        <div class="post-tags">
+                            <span>Go</span>
+                            <span>HTTP</span>
+                            <span>REST API</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Go&rsquo;s <code>net/http</code> package provides a powerful yet extremely simple framework for creating web servers and RESTful APIs. Unlike many other languages, you don&rsquo;t need third-party frameworks to get started &mdash; Go&rsquo;s standard library includes everything required to build production-grade HTTP services.</p>
+
+                        <h2>Basic HTTP Server</h2>
+
+<pre><code class="language-go">package main
+
+import (
+    "encoding/json"
+    "log"
+    "net/http"
+)
+
+// Response defines the structure of the JSON response
+type Response struct {
+    Message string `json:"message"`
+}
+
+func main() {
+    // Define a handler function for the "/hello" endpoint
+    http.HandleFunc("/hello", func(w http.ResponseWriter, r *http.Request) {
+        // Set response header to JSON
+        w.Header().Set("Content-Type", "application/json")
+
+        // Create a response object
+        response := Response{Message: "Hello World!"}
+
+        // Encode response as JSON and send to client
+        json.NewEncoder(w).Encode(response)
+    })
+
+    // Start the HTTP server on port 8080
+    log.Println("Server listening on http://localhost:8080")
+    log.Fatal(http.ListenAndServe(":8080", nil))
+}</code></pre>
+
+                        <p>In this example:</p>
+
+                        <ul>
+                            <li><code>http.HandleFunc</code> maps a URL path (<code>/hello</code>) to a function.</li>
+                            <li><code>w http.ResponseWriter</code> is used to write data back to the client.</li>
+                            <li><code>r *http.Request</code> contains all request details (method, headers, body, etc.).</li>
+                            <li><code>json.NewEncoder(w)</code> serializes a Go struct into JSON automatically.</li>
+                        </ul>
+
+                        <h2>Creating an HTTPS Server</h2>
+
+                        <p>HTTPS (HTTP Secure) adds an encryption layer to your server, ensuring all communications between client and server are encrypted and secure. Go provides native TLS (Transport Layer Security) support through the same <code>net/http</code> package, so you can easily switch from HTTP to HTTPS with minimal changes.</p>
+
+<pre><code class="language-go">package main
+
+import (
+    "encoding/json"
+    "fmt"
+    "log"
+    "net/http"
+)
+
+// Greeting defines the structure of the JSON message
+type Greeting struct {
+    Message string `json:"message"`
+}
+
+func main() {
+    // Register a handler for incoming HTTP requests
+    http.HandleFunc("/", handleRequest)
+
+    // Start an HTTPS server with certificate and key
+    log.Println("Starting HTTPS server on https://localhost:8080")
+    err := http.ListenAndServeTLS(":8080", "server.crt", "server.key", nil)
+    if err != nil {
+        log.Fatal("ListenAndServeTLS:", err)
+    }
+}
+
+// Handle requests and dispatch to appropriate methods
+func handleRequest(w http.ResponseWriter, r *http.Request) {
+    switch r.Method {
+    case "GET":
+        getGreeting(w, r)
+    case "POST":
+        postGreeting(w, r)
+    default:
+        http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+    }
+}
+
+// Handle GET requests
+func getGreeting(w http.ResponseWriter, r *http.Request) {
+    greeting := Greeting{Message: "Hello, World!"}
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(greeting)
+}
+
+// Handle POST requests
+func postGreeting(w http.ResponseWriter, r *http.Request) {
+    var greeting Greeting
+    err := json.NewDecoder(r.Body).Decode(&amp;greeting)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusBadRequest)
+        return
+    }
+
+    response := fmt.Sprintf("Received message: %s", greeting.Message)
+    w.Write([]byte(response))
+}</code></pre>
+
+                        <h3>HTTPS Configuration Notes</h3>
+
+                        <p>To use HTTPS securely:</p>
+
+                        <ul>
+                            <li>You must have a valid <strong>TLS certificate</strong> (<code>server.crt</code>) and corresponding <strong>private key</strong> (<code>server.key</code>).</li>
+                            <li>For testing purposes, you can generate self-signed certificates using <code>openssl</code> or <code>mkcert</code>.</li>
+                        </ul>
+
+                        <p>Certificate generation command:</p>
+
+<pre><code class="language-bash">openssl req -x509 -newkey rsa:4096 -keyout server.key -out server.crt -days 365 -nodes</code></pre>
+
+                        <h2>Building a Full RESTful Server</h2>
+
+                        <p>While <code>net/http</code> provides the foundation for serving HTTP requests, large applications benefit from a more structured approach. The <strong>gorilla/mux</strong> package extends the standard HTTP router with powerful features such as:</p>
+
+                        <ul>
+                            <li>Named route parameters (<code>/books/{id}</code>).</li>
+                            <li>HTTP method matching (<code>GET</code>, <code>POST</code>, <code>PUT</code>, <code>DELETE</code>).</li>
+                            <li>Middleware and subrouters for modular architectures.</li>
+                        </ul>
+
+                        <p>Here&rsquo;s an example of a simple <strong>CRUD REST API</strong> (Create, Read, Update, Delete) for managing books.</p>
+
+<pre><code class="language-go">package main
+
+import (
+    "encoding/json"
+    "log"
+    "net/http"
+    "github.com/gorilla/mux"
+)
+
+// Book represents a book entity
+type Book struct {
+    ID     string  `json:"id"`
+    Title  string  `json:"title"`
+    Author string  `json:"author"`
+    Price  float64 `json:"price"`
+}
+
+var books []Book
+
+func main() {
+    // Initialize router
+    r := mux.NewRouter()
+
+    // Define endpoints and associate them with handlers
+    r.HandleFunc("/books", createBook).Methods("POST")
+    r.HandleFunc("/books", getBooks).Methods("GET")
+    r.HandleFunc("/books/{id}", getBook).Methods("GET")
+    r.HandleFunc("/books/{id}", updateBook).Methods("PUT")
+    r.HandleFunc("/books/{id}", deleteBook).Methods("DELETE")
+
+    // Start server
+    log.Println("RESTful API running on http://localhost:8080")
+    log.Fatal(http.ListenAndServe(":8080", r))
+}</code></pre>
+
+                        <h3>CRUD Handler Functions</h3>
+
+                        <h3>Create Handler</h3>
+
+<pre><code class="language-go">// Create a new book
+func createBook(w http.ResponseWriter, r *http.Request) {
+    var book Book
+    _ = json.NewDecoder(r.Body).Decode(&amp;book)
+    books = append(books, book)
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(book)
+}</code></pre>
+
+                        <h3>Read All Handler</h3>
+
+<pre><code class="language-go">// Retrieve all books
+func getBooks(w http.ResponseWriter, r *http.Request) {
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(books)
+}</code></pre>
+
+                        <h3>Read Single Handler</h3>
+
+<pre><code class="language-go">// Retrieve a specific book by ID
+func getBook(w http.ResponseWriter, r *http.Request) {
+    params := mux.Vars(r)
+    for _, book := range books {
+        if book.ID == params["id"] {
+            json.NewEncoder(w).Encode(book)
+            return
+        }
+    }
+    http.Error(w, "Book not found", http.StatusNotFound)
+}</code></pre>
+
+                        <h3>Update Handler</h3>
+
+<pre><code class="language-go">// Update a book
+func updateBook(w http.ResponseWriter, r *http.Request) {
+    params := mux.Vars(r)
+    for i, book := range books {
+        if book.ID == params["id"] {
+            books = append(books[:i], books[i+1:]...)
+            var updatedBook Book
+            _ = json.NewDecoder(r.Body).Decode(&amp;updatedBook)
+            updatedBook.ID = book.ID
+            books = append(books, updatedBook)
+            json.NewEncoder(w).Encode(updatedBook)
+            return
+        }
+    }
+    http.Error(w, "Book not found", http.StatusNotFound)
+}</code></pre>
+
+                        <h3>Delete Handler</h3>
+
+<pre><code class="language-go">// Delete a book
+func deleteBook(w http.ResponseWriter, r *http.Request) {
+    params := mux.Vars(r)
+    for i, book := range books {
+        if book.ID == params["id"] {
+            books = append(books[:i], books[i+1:]...)
+            break
+        }
+    }
+    json.NewEncoder(w).Encode(books)
+}</code></pre>
+
+                        <p>Install Gorilla Mux:</p>
+
+<pre><code class="language-bash">go get -u github.com/gorilla/mux</code></pre>
+
+                        <p>This REST API now supports all main CRUD operations:</p>
+
+                        <ul>
+                            <li><strong>POST /books</strong> &mdash; Create a new book</li>
+                            <li><strong>GET /books</strong> &mdash; Retrieve all books</li>
+                            <li><strong>GET /books/{id}</strong> &mdash; Retrieve a specific book</li>
+                            <li><strong>PUT /books/{id}</strong> &mdash; Update an existing book</li>
+                            <li><strong>DELETE /books/{id}</strong> &mdash; Delete a book</li>
+                        </ul>
+
+                        <h2>Handling Requests Asynchronously</h2>
+
+                        <p>One of Go&rsquo;s greatest strengths is its <strong>concurrency model</strong> based on <strong>goroutines</strong> and <strong>channels</strong>. The <code>net/http</code> server automatically handles each incoming request in a separate goroutine, allowing thousands of requests to be processed in parallel.</p>
+
+                        <p>However, sometimes you might want to manage concurrency explicitly &mdash; for example, when handling long-running tasks or background jobs.</p>
+
+<pre><code class="language-go">package main
+
+import (
+    "encoding/json"
+    "log"
+    "net/http"
+    "sync"
+    "time"
+)
+
+type Request struct {
+    ID        int       `json:"id"`
+    Timestamp time.Time `json:"timestamp"`
+}
+
+type Response struct {
+    ID         int       `json:"id"`
+    Timestamp  time.Time `json:"timestamp"`
+    ResultCode int       `json:"result_code"`
+}
+
+func main() {
+    var wg sync.WaitGroup
+    mux := http.NewServeMux()
+
+    mux.HandleFunc("/process", func(w http.ResponseWriter, r *http.Request) {
+        var req Request
+        if err := json.NewDecoder(r.Body).Decode(&amp;req); err != nil {
+            http.Error(w, err.Error(), http.StatusBadRequest)
+            return
+        }
+
+        wg.Add(1)
+        go func() {
+            defer wg.Done()
+
+            // Simulate some processing work (e.g., database or API call)
+            time.Sleep(5 * time.Second)
+
+            res := Response{
+                ID:         req.ID,
+                Timestamp:  time.Now(),
+                ResultCode: 0,
+            }
+
+            log.Printf("Processed request %d\n", req.ID)
+
+            // Response generation (asynchronous)
+            if err := json.NewEncoder(w).Encode(res); err != nil {
+                log.Printf("Error encoding response: %s\n", err.Error())
+            }
+        }()
+
+        // Immediately return HTTP 202 Accepted
+        w.WriteHeader(http.StatusAccepted)
+    })
+
+    log.Println("Async server running on http://localhost:8080")
+    if err := http.ListenAndServe(":8080", mux); err != nil {
+        log.Fatalf("Error starting HTTP server: %s\n", err.Error())
+    }
+
+    wg.Wait()
+}</code></pre>
+
+                        <p>In this example:</p>
+
+                        <ul>
+                            <li>Each request is handled in a <strong>separate goroutine</strong> via <code>go func()</code>.</li>
+                            <li>The server sends an <strong>HTTP 202 Accepted</strong> response immediately, signaling that the request was received and is being processed in the background.</li>
+                            <li>The <code>sync.WaitGroup</code> ensures that all goroutines finish before the program exits (useful in graceful shutdown scenarios).</li>
+                        </ul>
+
+                        <h3>Real-World Asynchronous Use Cases</h3>
+
+                        <p>This design pattern is common in real-world systems that require <strong>asynchronous processing</strong> such as:</p>
+
+                        <ul>
+                            <li>Background report generation</li>
+                            <li>File uploads or video encoding</li>
+                            <li>Long-running machine learning tasks</li>
+                            <li>Batch data processing</li>
+                        </ul>
+
+                        <h2>Summary</h2>
+
+                        <p>Go&rsquo;s <code>net/http</code> ecosystem provides a complete framework for developing web services, ranging from simple JSON APIs to high-performance, concurrent REST servers.</p>
+
+                        <ul>
+                            <li><strong>HTTP Server:</strong> Minimal setup, just a few lines of code.</li>
+                            <li><strong>HTTPS Support:</strong> Built-in TLS encryption with <code>ListenAndServeTLS()</code>.</li>
+                            <li><strong>RESTful APIs:</strong> Easy CRUD endpoints with <code>gorilla/mux</code>.</li>
+                            <li><strong>Concurrency:</strong> Lightweight, scalable request handling with goroutines.</li>
+                        </ul>
+
+                        <p>Go&rsquo;s design philosophy emphasizes <strong>simplicity, efficiency, and safety</strong> &mdash; making it an ideal language for modern web services, APIs, and microservice architectures.</p>
+                    </div>
+                </div>
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="go-goroutines.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Goroutines</div>
+                            <span class="sidebar-link-meta">Jan 2024</span>
+                        </a>
+                        <a href="go-error-handling.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Error Handling in Go</div>
+                            <span class="sidebar-link-meta">May 2024</span>
+                        </a>
+                        <a href="go-scheduler-internals.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Go Scheduler Internals</div>
+                            <span class="sidebar-link-meta">Jul 2025</span>
+                        </a>
+                        <a href="go-zero-copy-io.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Zero-Copy I/O and Memory Efficiency in Go</div>
+                            <span class="sidebar-link-meta">Aug 2024</span>
+                        </a>
+                        <a href="go-goroutine-leaks.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Detecting and Preventing Goroutine Leaks</div>
+                            <span class="sidebar-link-meta">Sep 2025</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Windows Keyloggers: How They Work, How to Detect Them, and How to Defend &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="cybersecurity-tech-insights.html" class="back-link">&larr; Back to Cybersecurity</a>
+                        <div class="post-meta">
+                            <span class="post-date">Nov 2024</span>
+                            <span class="post-reading">9 min read</span>
+                        </div>
+                        <h1>Windows Keyloggers: How They Work, How to Detect Them, and How to Defend</h1>
+                        <div class="post-tags">
+                            <span>Cybersecurity</span>
+                            <span>Malware</span>
+                            <span>Blue Team</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Keyloggers are malware that records keystrokes, often exfiltrating captured data to attackers. On Windows systems, they may operate as user-mode applications or sophisticated kernel drivers, targeting credential theft, espionage, and lateral movement. This article examines how keyloggers function on Windows, the techniques they employ, and provides a comprehensive blue-team playbook for prevention, detection, and response.</p>
+
+                        <blockquote>
+                            <p><strong>Disclaimer:</strong> This content serves <strong>educational and defensive</strong> purposes only. No weaponized or compile-ready keylogger code is provided. Use this knowledge to strengthen monitoring, prevention, and incident response. Always obtain explicit authorization for security testing.</p>
+                        </blockquote>
+
+                        <h2>What Is a Keylogger?</h2>
+
+                        <p>A keylogger is malware designed to record keystrokes, often exfiltrating the captured data to attackers. On Windows systems, keyloggers may operate as user-mode applications or sophisticated kernel drivers. Their primary objectives include credential theft, corporate espionage, and enabling lateral movement within compromised networks.</p>
+
+                        <h2>Common Windows Techniques (High Level)</h2>
+
+                        <p>Keyloggers on Windows employ several technical approaches to intercept keyboard input:</p>
+
+                        <ul>
+                            <li><strong>UI/Message Hooks:</strong> Intercepts keyboard messages through the Windows message system. This technique is heavily monitored by modern EDR (Endpoint Detection and Response) solutions.</li>
+                            <li><strong>Polling APIs:</strong> Periodically queries the key state using Windows API functions. This approach is noisier and more detectable due to its repeated API calls.</li>
+                            <li><strong>Raw Input/Accessibility Abuse:</strong> Misuses legitimate Windows APIs designed for accessibility and raw input processing to observe keyboard input covertly.</li>
+                            <li><strong>Kernel Drivers:</strong> Low-level observation at the kernel level, requiring elevated privileges and driver signing. This is the most powerful but also the most difficult technique to deploy.</li>
+                        </ul>
+
+                        <h3>Persistence Mechanisms</h3>
+
+                        <p>Keyloggers maintain their presence through various persistence techniques:</p>
+
+                        <ul>
+                            <li>Scheduled tasks</li>
+                            <li>Registry Run keys</li>
+                            <li>Startup folders</li>
+                            <li>WMI event subscriptions</li>
+                            <li>DLL hijacking</li>
+                        </ul>
+
+                        <h3>Exfiltration Methods</h3>
+
+                        <p>Captured keystrokes are typically exfiltrated through local logging followed by uploads via HTTP(S), DNS tunneling, SMTP, or cloud storage service abuse.</p>
+
+                        <h2>Infection Signs</h2>
+
+                        <p>Indicators that a keylogger may be present on a system include:</p>
+
+                        <ul>
+                            <li>Unexpected processes requesting keyboard access or injecting into applications</li>
+                            <li>Suspicious persistence entries in Run keys, Startup folders, Scheduled Tasks, or WMI subscriptions</li>
+                            <li>Unusual outbound connections to unfamiliar domains or IP addresses</li>
+                            <li>Text files or encrypted data appearing in user profiles or temporary directories</li>
+                            <li>Security control tampering attempts (disabled antivirus, modified Tamper Protection)</li>
+                        </ul>
+
+                        <h2>Blue-Team Playbook</h2>
+
+                        <h3>Prevention &amp; Hardening</h3>
+
+                        <ul>
+                            <li><strong>Enforce least privilege:</strong> Restrict local admin rights to minimize the ability to install kernel drivers or modify system components.</li>
+                            <li><strong>Implement WDAC/AppLocker allow-listing:</strong> Only permit approved applications to execute, blocking unauthorized keylogger binaries.</li>
+                            <li><strong>Enable Attack Surface Reduction (ASR) rules:</strong> Block common attack techniques used by keyloggers and other malware.</li>
+                            <li><strong>Maintain Defender/EDR protections:</strong> Keep endpoint protection updated with Tamper Protection enabled to prevent security tool manipulation.</li>
+                            <li><strong>Control macros and scripts:</strong> Block Internet-sourced macros and restrict PowerShell execution to reduce initial access vectors.</li>
+                            <li><strong>Deploy browser isolation:</strong> Use browser isolation for high-risk activities to prevent credential interception.</li>
+                        </ul>
+
+                        <h3>Detection &amp; Monitoring</h3>
+
+                        <ul>
+                            <li><strong>Alert on global input hook requests:</strong> Monitor processes that request global keyboard hooks outside of approved application lists.</li>
+                            <li><strong>Baseline module loads:</strong> Establish normal DLL loading patterns and flag anomalous module injections.</li>
+                            <li><strong>Monitor persistence points:</strong> Continuously watch Run keys, Startup folders, Scheduled Tasks, and WMI subscriptions for unauthorized changes.</li>
+                            <li><strong>Hunt for low-and-slow periodic egress:</strong> Inspect TLS/JA3 fingerprint outliers and detect periodic, small-payload data transfers.</li>
+                            <li><strong>Watch for rotating log artifacts:</strong> Monitor user profiles and temp paths for files that match keylogger output patterns.</li>
+                        </ul>
+
+                        <h3>Triage &amp; Response</h3>
+
+                        <ul>
+                            <li><strong>Immediately isolate infected hosts:</strong> Disconnect from the network and capture volatile evidence (memory dumps, running processes).</li>
+                            <li><strong>Enumerate autoruns:</strong> Review all scheduled tasks, services, WMI event subscriptions, and startup entries.</li>
+                            <li><strong>Assume credential compromise:</strong> Rotate all credentials and invalidate active sessions for users of the affected system.</li>
+                            <li><strong>Reimage if eradication confidence is low:</strong> When full cleanup cannot be verified, rebuild the system from a known-good image.</li>
+                            <li><strong>Address initial access vectors:</strong> Identify how the keylogger was delivered and update detection rules to prevent recurrence.</li>
+                        </ul>
+
+                        <h2>Sanitized Learning Aids (Conceptual Snippets)</h2>
+
+                        <p>The following pseudocode examples demonstrate defensive detection logic only. These are non-functional and conceptual.</p>
+
+                        <h3>1. Input Monitoring Detection</h3>
+
+<pre><code class="language-python"># Conceptual: flag processes requesting global input access
+# outside an approved list
+for process in running_processes:
+    if process.requests_global_input_hook():
+        if process.name not in approved_input_hooks:
+            alert("Suspicious global input hook", process)
+            quarantine(process)</code></pre>
+
+                        <h3>2. Persistence Sweep</h3>
+
+<pre><code class="language-python"># Conceptual: identify suspicious entries in autoruns locations
+# with untrusted publishers
+for entry in get_autorun_entries():
+    if not entry.publisher_trusted():
+        if entry.recently_added():
+            alert("Untrusted persistence entry", entry)
+            investigate(entry.file_path)</code></pre>
+
+                        <h3>3. Exfiltration Heuristic</h3>
+
+<pre><code class="language-python"># Conceptual: detect periodic, small-payload flows
+# to new or rare infrastructure
+for flow in network_flows:
+    if flow.is_periodic() and flow.payload_size_small():
+        if flow.destination_is_rare():
+            alert("Potential exfiltration pattern", flow)
+            block_and_investigate(flow.destination)</code></pre>
+
+                        <h2>User Awareness Tips</h2>
+
+                        <ul>
+                            <li>Install software only from trusted, verified sources.</li>
+                            <li>Exercise caution with unexpected email attachments and links.</li>
+                            <li>Report any unusual prompts requesting accessibility or input permissions.</li>
+                            <li>Disconnect immediately if compromise is suspected and contact your IT security team.</li>
+                        </ul>
+
+                        <h2>Key Takeaways</h2>
+
+                        <ul>
+                            <li>Keyloggers capture keystrokes through various techniques ranging from user-mode hooks to kernel drivers.</li>
+                            <li>Persistence and exfiltration are the two critical phases where keyloggers are most detectable.</li>
+                            <li>A layered defense combining least privilege, application whitelisting, EDR, and network monitoring provides the strongest protection.</li>
+                            <li>Assume credential compromise during any keylogger incident and rotate credentials immediately.</li>
+                            <li>Publishing or distributing keyloggers is illegal and unethical &mdash; focus on detection, prevention, and response.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing large-scale distributed systems. Specialized in Generative AI, AI Agents, and cloud-native architectures.</p>
+                        <div class="sidebar-author-links">
+                            <a href="https://www.linkedin.com/in/paolo-mascia-italy" target="_blank" aria-label="LinkedIn">
+                                <svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                            </a>
+                            <a href="https://github.com/paolomascia" target="_blank" aria-label="GitHub">
+                                <svg viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+                            </a>
+                            <a href="https://www.kaggle.com/paolomascia" target="_blank" aria-label="Kaggle">
+                                <svg viewBox="0 0 24 24"><path d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.233-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.075.378z"/></svg>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="cs-computer-viruses.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cybersecurity</span>
+                            <div class="sidebar-link-title">Computer Viruses</div>
+                            <span class="sidebar-link-meta">Mar 2024</span>
+                        </a>
+                        <a href="cs-buffer-overflow.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cybersecurity</span>
+                            <div class="sidebar-link-title">Buffer Overflow</div>
+                            <span class="sidebar-link-meta">Sep 2023</span>
+                        </a>
+                        <a href="cs-autorun.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cybersecurity</span>
+                            <div class="sidebar-link-title">Autorun.inf</div>
+                            <span class="sidebar-link-meta">Feb 2024</span>
+                        </a>
+                        <a href="cs-reverse-engineering.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Reverse Engineering</span>
+                            <div class="sidebar-link-title">Reverse Engineering</div>
+                            <span class="sidebar-link-meta">Aug 2024</span>
+                        </a>
+                        <a href="cs-intro-cryptography.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cryptography</span>
+                            <div class="sidebar-link-title">Introduction to Cryptography</div>
+                            <span class="sidebar-link-meta">May 2023</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-nasm.min.js"></script>
+</body>
+</html>

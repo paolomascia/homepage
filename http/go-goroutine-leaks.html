@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detecting and Preventing Goroutine Leaks &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="golang-tech-insights.html" class="back-link">&larr; Back to Go Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">October 2025</span>
+                            <span class="post-reading">11 min read</span>
+                        </div>
+                        <h1>Detecting and Preventing Goroutine Leaks and Concurrency Bugs in Go</h1>
+                        <div class="post-tags">
+                            <span>Go</span>
+                            <span>Concurrency</span>
+                            <span>Debugging</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Go&rsquo;s concurrency model is elegant and simple&mdash;goroutines and channels make it easy to write parallel code. But with great simplicity comes great responsibility: a small mistake can lead to goroutine leaks, deadlocks, or subtle race conditions that cripple production systems.</p>
+
+                        <p>This post explains how to detect, debug, and prevent goroutine leaks using context, synchronization primitives, profiling tools, and safe patterns.</p>
+
+                        <h2>What Are Goroutine Leaks?</h2>
+
+                        <p>A goroutine leak occurs when a goroutine never terminates&mdash;usually because it&rsquo;s blocked on a channel, waiting forever for input or output that will never come.</p>
+
+<pre><code class="language-go">package main
+
+import (
+    "fmt"
+    "time"
+)
+
+func leakyGoroutine(ch chan int) {
+    for {
+        select {
+        case val := &lt;-ch:
+            fmt.Println("Received:", val)
+        // Missing default or context cancel!
+        }
+    }
+}
+
+func main() {
+    ch := make(chan int)
+    go leakyGoroutine(ch)
+
+    time.Sleep(2 * time.Second)
+    fmt.Println("Main exits, but goroutine keeps running...")
+}</code></pre>
+
+                        <p>The goroutine blocks indefinitely on <code>&lt;-ch</code>, persisting after <code>main()</code> exits.</p>
+
+                        <h2>Using Context to Prevent Leaks</h2>
+
+                        <p>The recommended approach uses Go&rsquo;s <code>context</code> package to signal termination cleanly.</p>
+
+<pre><code class="language-go">package main
+
+import (
+    "context"
+    "fmt"
+    "time"
+)
+
+func worker(ctx context.Context, ch chan int) {
+    for {
+        select {
+        case val := &lt;-ch:
+            fmt.Println("Received:", val)
+        case &lt;-ctx.Done():
+            fmt.Println("Worker stopped.")
+            return
+        }
+    }
+}
+
+func main() {
+    ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+    defer cancel()
+
+    ch := make(chan int)
+    go worker(ctx, ch)
+
+    time.Sleep(3 * time.Second)
+    fmt.Println("Main finished.")
+}</code></pre>
+
+                        <h2>Common Causes of Goroutine Leaks</h2>
+
+                        <ul>
+                            <li>Blocking reads/writes on channels with no sender or receiver.</li>
+                            <li>Forgetting to close channels when no more values will be sent.</li>
+                            <li>Infinite loops without <code>select { case &lt;-ctx.Done() }</code>.</li>
+                            <li>Returning early without cleaning up goroutines.</li>
+                            <li>Deadlocks caused by circular waits between goroutines.</li>
+                        </ul>
+
+                        <h2>Deadlocks and How to Detect Them</h2>
+
+                        <p>A deadlock happens when goroutines wait on each other indefinitely. Go&rsquo;s runtime will panic with <code>fatal error: all goroutines are asleep - deadlock!</code> if the deadlock involves all goroutines.</p>
+
+<pre><code class="language-go">package main
+
+import "sync"
+
+func main() {
+    var mu sync.Mutex
+    mu.Lock()
+    // This will deadlock:
+    mu.Lock()
+}</code></pre>
+
+                        <p>Not all deadlocks affect all goroutines, requiring profiling for detection.</p>
+
+                        <h2>Using pprof to Detect Goroutine Leaks</h2>
+
+<pre><code class="language-go">package main
+
+import (
+    "log"
+    "net/http"
+    _ "net/http/pprof"
+)
+
+func main() {
+    log.Println("pprof running at http://localhost:6060/debug/pprof/goroutine")
+    log.Fatal(http.ListenAndServe("localhost:6060", nil))
+}</code></pre>
+
+                        <p>Visit <code>/debug/pprof/goroutine?debug=2</code> to view all goroutine stacks.</p>
+
+                        <h2>Using -race to Catch Data Races</h2>
+
+<pre><code class="language-bash">go run -race main.go</code></pre>
+
+<pre><code class="language-go">package main
+
+import "fmt"
+
+var counter int
+
+func main() {
+    for i := 0; i &lt; 2; i++ {
+        go func() { counter++ }()
+    }
+    fmt.Scanln()
+}</code></pre>
+
+                        <p>The race detector identifies concurrent read/write conflicts with stack traces.</p>
+
+                        <h2>Detecting Goroutine Count Growth</h2>
+
+<pre><code class="language-go">package main
+
+import (
+    "fmt"
+    "runtime"
+    "time"
+)
+
+func main() {
+    for {
+        fmt.Println("Active goroutines:", runtime.NumGoroutine())
+        time.Sleep(time.Second)
+    }
+}</code></pre>
+
+                        <p>Integrate into monitoring dashboards to catch leaks early.</p>
+
+                        <h2>Best Practices to Avoid Concurrency Bugs</h2>
+
+                        <ul>
+                            <li>Always pass <code>context.Context</code> into worker goroutines.</li>
+                            <li>Close channels when done sending data.</li>
+                            <li>Use <code>sync.WaitGroup</code> to coordinate shutdowns.</li>
+                            <li>Guard shared variables with <code>sync.Mutex</code> or <code>sync.RWMutex</code>.</li>
+                            <li>Test under <code>-race</code> and load conditions regularly.</li>
+                            <li>Inspect goroutine stacks with <code>pprof</code> periodically.</li>
+                        </ul>
+
+                        <h2>Safe Concurrency Pattern: Worker Pool</h2>
+
+<pre><code class="language-go">package main
+
+import (
+    "context"
+    "fmt"
+    "sync"
+    "time"
+)
+
+func worker(ctx context.Context, id int, jobs &lt;-chan int, wg *sync.WaitGroup) {
+    defer wg.Done()
+    for {
+        select {
+        case job, ok := &lt;-jobs:
+            if !ok {
+                return
+            }
+            fmt.Printf("Worker %d processing job %d\n", id, job)
+            time.Sleep(500 * time.Millisecond)
+        case &lt;-ctx.Done():
+            fmt.Printf("Worker %d shutting down\n", id)
+            return
+        }
+    }
+}
+
+func main() {
+    ctx, cancel := context.WithCancel(context.Background())
+    defer cancel()
+
+    jobs := make(chan int)
+    var wg sync.WaitGroup
+
+    for i := 1; i &lt;= 3; i++ {
+        wg.Add(1)
+        go worker(ctx, i, jobs, &amp;wg)
+    }
+
+    for j := 1; j &lt;= 5; j++ {
+        jobs &lt;- j
+    }
+    close(jobs)
+
+    time.Sleep(1 * time.Second)
+    cancel()
+    wg.Wait()
+
+    fmt.Println("All workers exited cleanly.")
+}</code></pre>
+
+                        <h2>Conclusion</h2>
+
+                        <p>Combining context cancellation, <code>-race</code> flag testing, and <code>pprof</code> inspection prevents concurrency issues before production deployment. Always design goroutines with explicit termination paths, guard shared state, and monitor goroutine counts to build robust, leak-free Go services.</p>
+                    </div>
+                </div>
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="go-json.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Working with JSON in Go</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-file-handling.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">File Handling in Go</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-http-server.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Creating an HTTP Server</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-logging.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Application Logging in Go</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-generic-data-structures.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Building Generic Data Structures in Go</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+
+</body>
+</html>

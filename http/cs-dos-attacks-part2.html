@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DoS Attacks (Part 2): SYN Flood, ICMP/UDP Floods, Fragmentation, Smurf &amp; Amplification &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="cybersecurity-tech-insights.html" class="back-link">&larr; Back to Cybersecurity</a>
+                        <div class="post-meta">
+                            <span class="post-date">Jun 2024</span>
+                            <span class="post-reading">12 min read</span>
+                        </div>
+                        <h1>DoS Attacks (Part 2): SYN Flood, ICMP/UDP Floods, Fragmentation, Smurf &amp; Amplification</h1>
+                        <div class="post-tags">
+                            <span>Cybersecurity</span>
+                            <span>DoS/DDoS</span>
+                            <span>Protocol Attacks</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+
+                        <blockquote>
+                            <strong>Educational Disclaimer</strong><br>
+                            This document is for educational and defensive cybersecurity purposes only. The techniques described should only be used in authorized penetration-testing environments. Unauthorized use may be illegal and could result in criminal charges. Always obtain written authorization before testing any systems. Use this knowledge responsibly to improve security defenses.
+                        </blockquote>
+
+                        <p class="lead">Slowloris and R.U.D.Y. are <strong>application-layer (OSI L7)</strong> DoS attacks. In contrast, several high-impact DoS/DDoS techniques operate at lower layers, targeting <strong>transport</strong> (L4) and <strong>network</strong> (L3) behaviors. This article explains the mechanics at a high level and focuses on <em>defensive practices</em>.</p>
+
+                        <h2>DoS/DDoS Examples by OSI Layer</h2>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>OSI Layer</th>
+                                    <th>Category</th>
+                                    <th>Examples</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Application (L7)</td>
+                                    <td>App-Level Exhaustion</td>
+                                    <td>HTTP Flood, Slowloris, R.U.D.Y.</td>
+                                </tr>
+                                <tr>
+                                    <td>Transport (L4)</td>
+                                    <td>Protocol Resource Exhaustion</td>
+                                    <td>SYN Flood, UDP Flood</td>
+                                </tr>
+                                <tr>
+                                    <td>Network (L3)</td>
+                                    <td>Volume/Bandwidth Saturation</td>
+                                    <td>ICMP Flood (Ping Flood), Fragmentation Abuse</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <h2>SYN Flood (Transport Layer &ndash; L4)</h2>
+
+                        <h3>How TCP Connections Start (Three-Way Handshake)</h3>
+
+                        <ol>
+                            <li><strong>Client &rarr; Server:</strong> Sends <code>SYN</code> with initial sequence number <code>x</code>.</li>
+                            <li><strong>Server &rarr; Client:</strong> Replies <code>SYN/ACK</code> with its initial sequence number <code>y</code> and acknowledgment <code>x+1</code>.</li>
+                            <li><strong>Client &rarr; Server:</strong> Sends <code>ACK</code> acknowledging <code>y+1</code>. Connection opens.</li>
+                        </ol>
+
+                        <h3>How SYN Flood Works</h3>
+
+                        <ol>
+                            <li>Attacker sprays the target with a high volume of <code>SYN</code> packets (often with spoofed IPs).</li>
+                            <li>Server allocates resources and replies <code>SYN/ACK</code> for each half-open connection, awaiting final <code>ACK</code>.</li>
+                            <li>Final <code>ACK</code> never arrives; half-open slots fill up; legitimate clients are starved.</li>
+                        </ol>
+
+                        <h3>Defensive Practices</h3>
+
+                        <ul>
+                            <li><strong>SYN cookies</strong> (defer allocation until handshake completes).</li>
+                            <li><strong>Backlog tuning</strong> and <strong>reduced timeout</strong> for half-open connections.</li>
+                            <li><strong>Rate limiting</strong> and per-source <strong>connection caps</strong>.</li>
+                            <li><strong>Stateful firewalls / ADCs / WAFs</strong> with SYN proxy/intercept features.</li>
+                            <li><strong>Ingress/egress filtering</strong> (BCP 38/84) to reduce spoofing on upstream networks.</li>
+                            <li>Deploy <strong>scrubbing/mitigation services</strong> and <strong>anycast/CDN</strong> to absorb spikes.</li>
+                        </ul>
+
+<pre><code class="language-python"># Pseudo-illustration (sanitized; non-functional)
+# DO NOT USE TO ATTACK. For understanding only.
+for each incoming SYN:
+  if backlog near limit or SYN rate abnormal:
+    enable SYN-cookie mode
+    throttle new half-open state
+    prefer connections that fully complete handshake</code></pre>
+
+                        <h2>Ping Flood (ICMP Flood &ndash; Network Layer L3)</h2>
+
+                        <p>A <strong>Ping Flood</strong> overwhelms a target with ICMP Echo Requests. Each request consumes bandwidth and CPU (and may elicit Echo Replies), saturating links and devices. To be effective, attackers often use <strong>botnets</strong> to outmatch the victim&rsquo;s capacity &mdash; turning it into a DDoS.</p>
+
+                        <h3>Defensive Practices</h3>
+
+                        <ul>
+                            <li><strong>Rate limit</strong> ICMP at perimeter devices; allow diagnostic ICMP selectively.</li>
+                            <li>Prefer <strong>policing</strong> over complete blocking to retain Path MTU Discovery helpers.</li>
+                            <li>Leverage <strong>upstream filtering/scrubbing</strong> during volumetric spikes.</li>
+                            <li>Monitor for <strong>asymmetric ICMP surges</strong> and alert on anomalies.</li>
+                        </ul>
+
+                        <h2>UDP Flood (Transport Layer L4)</h2>
+
+                        <p>A <strong>UDP Flood</strong> targets random destination ports with UDP packets. The host must check for listeners and will often generate ICMP <em>Destination Unreachable</em> responses, consuming additional resources. At scale (especially via reflection/amplification), this can render services unavailable.</p>
+
+                        <h3>Defensive Practices</h3>
+
+                        <ul>
+                            <li><strong>Drop or rate limit</strong> unsolicited UDP to closed ports at the edge.</li>
+                            <li>Harden services that must remain open (strict ACLs, authentication, quotas).</li>
+                            <li><strong>Stateless filtering</strong> on upstream routers for obviously spoofed patterns.</li>
+                            <li>Use <strong>DDoS scrubbing</strong> and <strong>anycast</strong> to distribute impact.</li>
+                        </ul>
+
+                        <h2>Ping of Death (Legacy Fragmentation Abuse)</h2>
+
+                        <p>The classic <strong>Ping of Death</strong> exploited ancient IP stack bugs by forcing reassembly of oversized (&gt;65,535 bytes) packets via fragmentation, leading to crashes. Modern systems are patched; however, the <em>principle</em> &mdash; malformed fragmentation causing reassembly issues &mdash; still informs testing and defense.</p>
+
+                        <h3>Defensive Practices</h3>
+
+                        <ul>
+                            <li>Ensure systems are <strong>fully patched</strong>; enforce <strong>robust reassembly limits</strong> on firewalls.</li>
+                            <li><strong>Drop malformed fragments</strong> and enforce sane <strong>MTU</strong> policies.</li>
+                            <li>Continuously test for <strong>legacy protocol behaviors</strong> in lab environments only.</li>
+                        </ul>
+
+<pre><code class="language-python"># Historical concept (sanitized; non-functional)
+# Oversized packet crafted via fragments -&gt; reassembly overflow on vulnerable stacks
+if fragment stream invalid or size &gt; allowed:
+  drop and log; increment anomaly counters</code></pre>
+
+                        <h2>Fragmented Packet Attacks (Reassembly Exhaustion)</h2>
+
+                        <p>During normal IP transmission, large datagrams are fragmented and later reassembled. Attackers can send <em>fake/incomplete</em> fragments that never reassemble, occupying buffers and exhausting memory/CPU on middleboxes or hosts.</p>
+
+                        <h3>Defensive Practices</h3>
+
+                        <ul>
+                            <li><strong>Lower fragment reassembly timeouts</strong> and <strong>limit queues</strong>.</li>
+                            <li><strong>Drop overlapping or suspicious fragments</strong>; prefer <strong>asymmetric DF-bit routing</strong> with PMTUD.</li>
+                            <li>Offload to devices that <strong>normalize traffic</strong> (fragment reassembly at the edge).</li>
+                        </ul>
+
+                        <h2>Smurf DDoS (ICMP Broadcast Amplification)</h2>
+
+                        <p>A <strong>Smurf</strong> attack sends spoofed ICMP Echo Requests to a network&rsquo;s broadcast address; every host replies to the <em>spoofed</em> victim, amplifying traffic.</p>
+
+                        <h3>Defensive Practices</h3>
+
+                        <ul>
+                            <li><strong>Disable directed broadcast</strong> on routers (prevents forwarding to broadcast addresses).</li>
+                            <li>Configure hosts to <strong>ignore broadcast ICMP</strong>.</li>
+                            <li>Implement <strong>source address validation</strong> (BCP 38) to reduce spoofing.</li>
+                            <li>Use upstream <strong>scrubbing</strong> during events.</li>
+                        </ul>
+
+                        <h2>NTP Amplification (and Other UDP Amplifiers)</h2>
+
+                        <p>In <strong>NTP amplification</strong>, attackers spoof a victim&rsquo;s IP and issue small queries to open NTP servers that respond with much larger payloads. The result is reflected, <em>amplified</em> traffic to the victim. Historically, the <code>monlist</code> command was a notorious vector; modern NTP hardening removes or restricts it, but similar reflection exists across many UDP services.</p>
+
+                        <h3>Known UDP Amplification Vectors (examples)</h3>
+
+                        <ul>
+                            <li>NTP (legacy <code>monlist</code>)</li>
+                            <li>SNMPv2</li>
+                            <li>NetBIOS</li>
+                            <li>QOTD</li>
+                            <li>BitTorrent / Kad</li>
+                            <li>Quake Network Protocol</li>
+                            <li>Steam Protocol</li>
+                        </ul>
+
+                        <h3>Defensive Practices</h3>
+
+                        <ul>
+                            <li><strong>Do not expose</strong> unnecessary UDP services to the Internet.</li>
+                            <li>Harden NTP: disable legacy monitoring features; restrict queries to trusted clients.</li>
+                            <li><strong>Rate limit</strong> and <strong>ACL</strong> control planes; prefer <strong>anycast/CDN</strong> fronting.</li>
+                            <li>Adopt <strong>uRPF/BCP 38</strong> to curb spoofed-source traffic.</li>
+                            <li>Participate in <strong>coordinated response</strong> with ISPs and DDoS mitigation providers.</li>
+                        </ul>
+
+                        <h2>Safe Learning Aids (Sanitized)</h2>
+
+                        <p>Below are <em>non-functional</em>, high-level illustrations that demonstrate detection and mitigation logic only. They omit operational details and cannot be executed.</p>
+
+<pre><code class="language-python"># SYN anomaly guard (conceptual)
+observe incoming connections:
+  if SYN rate &gt; threshold or incomplete handshakes spike:
+    enable SYN cookies
+    shorten SYN-RECV timeout
+    cap per-IP half-open slots
+    prefer fully established flows</code></pre>
+
+<pre><code class="language-python"># ICMP/UDP policing (conceptual)
+classify traffic:
+  allow essential control ICMP at low rates
+  police bulk ICMP/UDP to safe thresholds
+  steer overflow to scrubbing/blackhole during attacks</code></pre>
+
+<pre><code class="language-python"># Amplification hygiene (conceptual)
+expose only necessary UDP services
+restrict diagnostics to trusted ranges
+apply source validation; drop spoofed egress</code></pre>
+
+                        <h2>Key Takeaways</h2>
+
+                        <ul>
+                            <li>Lower-layer DoS attacks exploit protocol behaviors and resource limits, often at massive scale via botnets.</li>
+                            <li>Defense is layered: protocol hardening, rate limits, anomaly detection, and upstream mitigation.</li>
+                            <li>Prevent spoofing and unnecessary UDP exposure to shrink your attack surface.</li>
+                            <li>Continuously test in <strong>authorized labs</strong> and keep systems <strong>patched</strong> and <strong>observed</strong>.</li>
+                        </ul>
+
+                        <blockquote>
+                            <strong>Security Note:</strong> Examples are intentionally sanitized to avoid misuse. Always perform security testing only with explicit permission in controlled environments.
+                        </blockquote>
+
+                    </div>
+                </div>
+
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing large-scale distributed systems. Specialized in Generative AI, AI Agents, and cloud-native architectures.</p>
+                        <div class="sidebar-author-links">
+                            <a href="https://www.linkedin.com/in/paolo-mascia-italy" target="_blank" aria-label="LinkedIn">
+                                <svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                            </a>
+                            <a href="https://github.com/paolomascia" target="_blank" aria-label="GitHub">
+                                <svg viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+                            </a>
+                            <a href="https://www.kaggle.com/paolomascia" target="_blank" aria-label="Kaggle">
+                                <svg viewBox="0 0 24 24"><path d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.233-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.075.378z"/></svg>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="cs-dos-attacks-part1.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cybersecurity</span>
+                            <div class="sidebar-link-title">DoS Attacks Part 1</div>
+                            <span class="sidebar-link-meta">May 2024</span>
+                        </a>
+                        <a href="cs-cyber-attacks.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cybersecurity</span>
+                            <div class="sidebar-link-title">Cyber Attacks: Types, Techniques, and Threat Landscape</div>
+                            <span class="sidebar-link-meta">Oct 2023</span>
+                        </a>
+                        <a href="cs-intro-cybersecurity.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cybersecurity</span>
+                            <div class="sidebar-link-title">Introduction to Cybersecurity</div>
+                            <span class="sidebar-link-meta">Apr 2023</span>
+                        </a>
+                        <a href="cs-network-security.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Networking</span>
+                            <div class="sidebar-link-title">Network Security</div>
+                            <span class="sidebar-link-meta">Feb 2025</span>
+                        </a>
+                        <a href="cs-buffer-overflow.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cybersecurity</span>
+                            <div class="sidebar-link-title">Buffer Overflow</div>
+                            <span class="sidebar-link-meta">Sep 2023</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-nasm.min.js"></script>
+</body>
+</html>

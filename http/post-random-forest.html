@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Random Forest Model Evaluation in Python &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="ai-tech-insights.html" class="back-link">&larr; Back to Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Dec 2023</span>
+                            <span class="post-reading">14 min read</span>
+                        </div>
+                        <h1>Random Forest Model Evaluation in Python</h1>
+                        <div class="post-tags">
+                            <span>Random Forest</span>
+                            <span>Model Evaluation</span>
+                            <span>Scikit-Learn</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">A Random Forest combines multiple decision trees, each trained on random subsets of the data and features. This guide covers how to rigorously evaluate Random Forest models using classification metrics, feature importance, cross-validation, hyperparameter tuning, and learning curves.</p>
+
+                        <h2>What is a Random Forest?</h2>
+                        <p>A Random Forest is an <strong>ensemble learning</strong> method that builds many decision trees and merges their predictions to produce a more accurate and stable result. It relies on three core ideas:</p>
+                        <ul>
+                            <li><strong>Bagging (Bootstrap Aggregating)</strong> &mdash; Each tree is trained on a random bootstrap sample drawn with replacement from the training set. This introduces diversity among the trees and reduces variance.</li>
+                            <li><strong>Feature Randomness</strong> &mdash; At every split, each tree considers only a random subset of features rather than all available ones. This decorrelates the trees, preventing a single dominant feature from controlling every split.</li>
+                            <li><strong>Ensemble Aggregation</strong> &mdash; For classification, the forest takes a majority vote across all trees. For regression, it averages their outputs. The aggregation smooths out individual tree errors and yields robust predictions.</li>
+                        </ul>
+                        <p>Because each tree sees a slightly different view of the data, the combined forest is far less prone to overfitting than any single deep decision tree.</p>
+
+                        <h2>Evaluating a Random Forest Classifier</h2>
+                        <p>We start with the Wine dataset to evaluate a multiclass Random Forest classifier using accuracy, a full classification report, ROC AUC, and the confusion matrix.</p>
+                        <pre><code class="language-python">from sklearn.datasets import load_wine
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import (
+    accuracy_score, classification_report, confusion_matrix, roc_auc_score, RocCurveDisplay
+)
+import matplotlib.pyplot as plt
+
+X, y = load_wine(return_X_y=True)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, stratify=y, random_state=42)
+
+rf = RandomForestClassifier(n_estimators=200, max_depth=None, random_state=0)
+rf.fit(X_train, y_train)
+
+y_pred = rf.predict(X_test)
+y_proba = rf.predict_proba(X_test)
+
+print("Accuracy:", round(accuracy_score(y_test, y_pred), 3))
+print("\nClassification Report:\n", classification_report(y_test, y_pred))
+print("ROC AUC (macro):", round(roc_auc_score(y_test, y_proba, multi_class="ovr"), 3))
+
+cm = confusion_matrix(y_test, y_pred)
+print("\nConfusion Matrix:\n", cm)
+
+RocCurveDisplay.from_estimator(rf, X_test, y_test)
+plt.show()</code></pre>
+                        <p><strong>Accuracy</strong> gives a quick snapshot, but the <strong>classification report</strong> breaks performance down per class with precision, recall, and F1. The <strong>ROC AUC</strong> measures how well the model separates classes across all probability thresholds. The <strong>confusion matrix</strong> reveals exactly which classes are being confused.</p>
+
+                        <h2>Feature Importance Analysis</h2>
+                        <p>Understanding which features drive predictions is essential for model interpretability. Scikit-learn provides two complementary approaches:</p>
+                        <ul>
+                            <li><strong>Gini importance</strong> (mean decrease in impurity) &mdash; fast but can be biased toward high-cardinality features.</li>
+                            <li><strong>Permutation importance</strong> &mdash; model-agnostic and more reliable, especially on test data.</li>
+                        </ul>
+                        <pre><code class="language-python">import pandas as pd
+from sklearn.inspection import permutation_importance
+
+importances = pd.Series(rf.feature_importances_)
+print("Top features (Gini):\n", importances.sort_values(ascending=False).head())
+
+perm = permutation_importance(rf, X_test, y_test, n_repeats=15, random_state=0)
+perm_sorted = pd.Series(perm.importances_mean, index=range(X.shape[1])).sort_values(ascending=False)
+print("\nTop features (Permutation):\n", perm_sorted.head())</code></pre>
+                        <p>When Gini and permutation rankings diverge, trust permutation importance &mdash; it reflects the actual impact on model performance rather than an internal tree heuristic.</p>
+
+                        <h2>Cross-Validation</h2>
+                        <p>A single train/test split can be misleading. Cross-validation evaluates the model across multiple folds to produce a more reliable performance estimate.</p>
+                        <pre><code class="language-python">from sklearn.model_selection import cross_val_score, StratifiedKFold
+
+cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=0)
+scores = cross_val_score(rf, X, y, cv=cv, scoring="accuracy")
+print("Cross-validated accuracy:", round(scores.mean(), 3), "&plusmn;", round(scores.std(), 3))</code></pre>
+                        <p><code>StratifiedKFold</code> preserves the class distribution in each fold, which is especially important for imbalanced datasets. A low standard deviation across folds indicates stable model performance.</p>
+
+                        <h2>Evaluating Overfitting</h2>
+                        <p>Comparing training and test accuracy is a fast diagnostic for overfitting. A large gap signals that the model is memorizing training data rather than learning generalizable patterns.</p>
+                        <pre><code class="language-python">train_acc = rf.score(X_train, y_train)
+test_acc = rf.score(X_test, y_test)
+print(f"Training accuracy: {train_acc:.3f}")
+print(f"Test accuracy:     {test_acc:.3f}")</code></pre>
+                        <p>Random Forests with unlimited depth often achieve perfect training accuracy. If test accuracy is substantially lower, consider limiting <code>max_depth</code>, increasing <code>min_samples_leaf</code>, or reducing <code>n_estimators</code>.</p>
+
+                        <h2>Hyperparameter Tuning with GridSearchCV</h2>
+                        <p>Systematic hyperparameter search can squeeze additional performance from a Random Forest. <code>GridSearchCV</code> exhaustively searches the parameter grid with cross-validation.</p>
+                        <pre><code class="language-python">from sklearn.model_selection import GridSearchCV
+
+param_grid = {
+    "n_estimators": [100, 200, 400],
+    "max_depth": [None, 5, 10, 20],
+    "min_samples_split": [2, 5, 10],
+    "min_samples_leaf": [1, 2, 4],
+    "max_features": ["sqrt", "log2"]
+}
+
+grid = GridSearchCV(RandomForestClassifier(random_state=0), param_grid, cv=5, scoring="accuracy", n_jobs=-1)
+grid.fit(X, y)
+print("Best parameters:", grid.best_params_)
+print("Best CV score:", round(grid.best_score_, 3))</code></pre>
+                        <p>For large grids, consider <code>RandomizedSearchCV</code> which samples a fixed number of parameter combinations and is far more efficient while still finding near-optimal configurations.</p>
+
+                        <h2>Random Forest Regressor</h2>
+                        <p>Random Forests are equally effective for regression tasks. We evaluate a regressor on the California Housing dataset using RMSE and R&sup2;.</p>
+                        <pre><code class="language-python">from sklearn.datasets import fetch_california_housing
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_squared_error, r2_score
+
+X, y = fetch_california_housing(return_X_y=True)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=0)
+
+rf_reg = RandomForestRegressor(n_estimators=300, max_depth=None, random_state=0)
+rf_reg.fit(X_train, y_train)
+y_pred = rf_reg.predict(X_test)
+
+rmse = mean_squared_error(y_test, y_pred, squared=False)
+r2 = r2_score(y_test, y_pred)
+print(f"RMSE: {rmse:.3f}")
+print(f"R&sup2;:   {r2:.3f}")</code></pre>
+                        <p><strong>RMSE</strong> measures prediction error in the same units as the target. <strong>R&sup2;</strong> indicates how much variance is explained &mdash; values closer to 1.0 are better. Together they give a complete picture of regression performance.</p>
+
+                        <h2>Learning Curves</h2>
+                        <p>Learning curves plot training and validation scores as a function of training set size. They reveal whether the model would benefit from more data or is already saturated.</p>
+                        <pre><code class="language-python">from sklearn.model_selection import learning_curve
+import numpy as np
+
+train_sizes, train_scores, val_scores = learning_curve(
+    RandomForestClassifier(n_estimators=200, random_state=0),
+    X, y, cv=5, scoring="accuracy",
+    train_sizes=np.linspace(0.1, 1.0, 10), n_jobs=-1
+)
+
+plt.figure(figsize=(8, 5))
+plt.plot(train_sizes, train_scores.mean(axis=1), label="Training score")
+plt.plot(train_sizes, val_scores.mean(axis=1), label="Validation score")
+plt.fill_between(train_sizes,
+                 val_scores.mean(axis=1) - val_scores.std(axis=1),
+                 val_scores.mean(axis=1) + val_scores.std(axis=1), alpha=0.2)
+plt.xlabel("Training Set Size")
+plt.ylabel("Accuracy")
+plt.title("Learning Curve &mdash; Random Forest")
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.show()</code></pre>
+                        <p>If the validation curve plateaus while the training curve remains high, the model may be overfitting. If both curves converge at a low score, the model is underfitting and needs more capacity or better features.</p>
+
+                        <h2>Out-of-Bag (OOB) Score</h2>
+                        <p>Because each tree in a Random Forest is trained on a bootstrap sample, roughly one-third of the data is left out. The <strong>OOB score</strong> uses these out-of-bag samples as a built-in validation set &mdash; no need for a separate holdout.</p>
+                        <pre><code class="language-python">rf_oob = RandomForestClassifier(n_estimators=200, oob_score=True, random_state=0)
+rf_oob.fit(X_train, y_train)
+print(f"OOB Score: {rf_oob.oob_score_:.3f}")
+print(f"Test Accuracy: {rf_oob.score(X_test, y_test):.3f}")</code></pre>
+                        <p>The OOB score typically closely tracks cross-validation accuracy and is computationally free. It is a reliable estimate when data is limited and you want to avoid sacrificing samples for validation.</p>
+
+                        <h2>Practical Summary of Key Metrics</h2>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Metric</th>
+                                    <th>Task</th>
+                                    <th>What It Measures</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Accuracy</td>
+                                    <td>Classification</td>
+                                    <td>Overall fraction of correct predictions</td>
+                                </tr>
+                                <tr>
+                                    <td>Precision / Recall / F1</td>
+                                    <td>Classification</td>
+                                    <td>Per-class balance between false positives and false negatives</td>
+                                </tr>
+                                <tr>
+                                    <td>ROC AUC</td>
+                                    <td>Classification</td>
+                                    <td>Discrimination ability across thresholds</td>
+                                </tr>
+                                <tr>
+                                    <td>Confusion Matrix</td>
+                                    <td>Classification</td>
+                                    <td>Detailed breakdown of prediction errors per class</td>
+                                </tr>
+                                <tr>
+                                    <td>RMSE</td>
+                                    <td>Regression</td>
+                                    <td>Average prediction error in target units</td>
+                                </tr>
+                                <tr>
+                                    <td>R&sup2;</td>
+                                    <td>Regression</td>
+                                    <td>Proportion of variance explained</td>
+                                </tr>
+                                <tr>
+                                    <td>OOB Score</td>
+                                    <td>Both</td>
+                                    <td>Internal validation using out-of-bag samples</td>
+                                </tr>
+                                <tr>
+                                    <td>Cross-Validation</td>
+                                    <td>Both</td>
+                                    <td>Stability and generalization across folds</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <h2>Key Takeaways</h2>
+                        <ul>
+                            <li><strong>Never rely on a single metric.</strong> Combine accuracy, F1, ROC AUC, and the confusion matrix for a complete picture of classification performance.</li>
+                            <li><strong>Use permutation importance</strong> over Gini importance for reliable feature ranking, especially when features have different cardinalities.</li>
+                            <li><strong>Cross-validate rigorously.</strong> A single train/test split can be misleading &mdash; stratified k-fold gives a much more trustworthy estimate.</li>
+                            <li><strong>Monitor overfitting.</strong> Compare training vs. test accuracy and use learning curves to diagnose capacity issues.</li>
+                            <li><strong>Tune hyperparameters systematically.</strong> <code>GridSearchCV</code> or <code>RandomizedSearchCV</code> with cross-validation prevents accidental overfitting to the test set.</li>
+                            <li><strong>Leverage the OOB score.</strong> It provides a free validation estimate without reducing your training data.</li>
+                            <li><strong>Random Forests work well out of the box</strong> for both classification and regression, but proper evaluation ensures you understand and trust your model.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing large-scale distributed systems. Specialized in Generative AI, AI Agents, and cloud-native architectures.</p>
+                        <div class="sidebar-author-links">
+                            <a href="https://www.linkedin.com/in/paolo-mascia-italy" target="_blank" aria-label="LinkedIn">
+                                <svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                            </a>
+                            <a href="https://github.com/paolomascia" target="_blank" aria-label="GitHub">
+                                <svg viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+                            </a>
+                            <a href="https://www.kaggle.com/paolomascia" target="_blank" aria-label="Kaggle">
+                                <svg viewBox="0 0 24 24"><path d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.233-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.075.378z"/></svg>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="post-kmeans.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">K-Means</span>
+                            <div class="sidebar-link-title">K-Means Clustering Evaluation</div>
+                            <span class="sidebar-link-meta">Feb 2024</span>
+                        </a>
+                        <a href="post-regularization.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Linear Regression</span>
+                            <div class="sidebar-link-title">Regularization: Ridge, Lasso, and Elastic Net</div>
+                            <span class="sidebar-link-meta">Jul 2023</span>
+                        </a>
+                        <a href="post-ml-pipelines.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Pipelines</span>
+                            <div class="sidebar-link-title">Building Machine Learning Pipelines in Python</div>
+                            <span class="sidebar-link-meta">Nov 2025</span>
+                        </a>
+                        <a href="post-pca.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">PCA</span>
+                            <div class="sidebar-link-title">Principal Component Analysis (PCA) in Python</div>
+                            <span class="sidebar-link-meta">May 2024</span>
+                        </a>
+                        <a href="post-random-forest-regression.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Random Forest</span>
+                            <div class="sidebar-link-title">Random Forest Regression in Python</div>
+                            <span class="sidebar-link-meta">Mar 2024</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+</body>
+</html>

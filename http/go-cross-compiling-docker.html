@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cross-Compiling &amp; Docker &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="golang-tech-insights.html" class="back-link">&larr; Back to Go Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">October 2025</span>
+                            <span class="post-reading">16 min read</span>
+                        </div>
+                        <h1>Cross-Compiling Go &mdash; End-to-End Guide</h1>
+                        <div class="post-tags">
+                            <span>Go</span>
+                            <span>Docker</span>
+                            <span>Cross-Compiling</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Go simplifies building on one platform to produce binaries for another using environment variables. This guide covers GOOS/GOARCH basics, static vs dynamic linking, version embedding, Docker multi-stage builds, and multi-arch images.</p>
+
+                        <h2>Cross-Compile Basics (GOOS / GOARCH)</h2>
+
+                        <p>Set target OS and CPU architecture when building. Example for Linux/amd64 from Windows/macOS:</p>
+
+<pre><code class="language-bash">GOOS=linux GOARCH=amd64 go build -o myprogram-linux-amd64 ./cmd/myprogram</code></pre>
+
+                        <p>For PowerShell:</p>
+
+<pre><code class="language-bash">$env:GOOS="linux"; $env:GOARCH="amd64"; go build -o myprogram-linux-amd64 .\cmd\myprogram</code></pre>
+
+                        <p>Append <code>.exe</code> for Windows targets:</p>
+
+<pre><code class="language-bash">GOOS=windows GOARCH=amd64 go build -o myprogram-windows-amd64.exe ./cmd/myprogram</code></pre>
+
+                        <h2>Common Target Matrix</h2>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>GOOS</th>
+                                    <th>GOARCH</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>linux</td><td>amd64</td><td>64-bit Linux (x86-64)</td></tr>
+                                <tr><td>linux</td><td>arm64</td><td>64-bit ARM Linux (AArch64)</td></tr>
+                                <tr><td>linux</td><td>386</td><td>32-bit Linux (x86)</td></tr>
+                                <tr><td>windows</td><td>amd64</td><td>64-bit Windows</td></tr>
+                                <tr><td>windows</td><td>arm64</td><td>64-bit Windows on ARM</td></tr>
+                                <tr><td>darwin</td><td>amd64</td><td>Intel macOS</td></tr>
+                                <tr><td>darwin</td><td>arm64</td><td>Apple Silicon macOS</td></tr>
+                            </tbody>
+                        </table>
+
+                        <p>View all valid combinations with: <code>go tool dist list</code></p>
+
+                        <h2>CGO, Static vs Dynamic Linking</h2>
+
+                        <p>Pure Go (no CGO) offers the easiest approach. For fully static Linux binaries: <code>CGO_ENABLED=0</code>.</p>
+
+                        <p>With CGO enabled, cross C toolchains targeting the destination are required (e.g., <code>aarch64-linux-gnu-gcc</code>), typically producing dynamically linked binaries (glibc) unless statically linked.</p>
+
+                        <p>Fully static build example:</p>
+
+<pre><code class="language-bash">CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o app-linux-amd64 ./cmd/app</code></pre>
+
+                        <p>CGO cross-compile example:</p>
+
+<pre><code class="language-bash">export CC=aarch64-linux-gnu-gcc
+CGO_ENABLED=1 GOOS=linux GOARCH=arm64 go build -o app-linux-arm64 ./cmd/app</code></pre>
+
+                        <p>Note: For static CGO on Linux, consider building against musl and test thoroughly.</p>
+
+                        <h2>Versioning, Build Info, and Binary Size</h2>
+
+                        <p>Inject version/commit/time using <code>-ldflags</code> variables in the main package:</p>
+
+<pre><code class="language-go">package main
+
+import "fmt"
+
+var (
+    version = "dev"
+    commit  = "none"
+    date    = "unknown"
+)
+
+func main() {
+    fmt.Printf("app %s (commit %s, built %s)\n", version, commit, date)
+    // ...
+}</code></pre>
+
+                        <p>Build command:</p>
+
+<pre><code class="language-bash">GOOS=linux GOARCH=amd64 go build \
+  -ldflags "-X main.version=1.2.3 -X main.commit=$(git rev-parse --short HEAD) -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ) -s -w" \
+  -trimpath \
+  -o app-linux-amd64 ./cmd/app</code></pre>
+
+                        <p>Flags: <code>-s -w</code> strips symbols/debug; <code>-trimpath</code> removes local paths for reproducibility.</p>
+
+                        <h2>OS-Specific Files &amp; Build Tags</h2>
+
+                        <p>Use file suffixes or build tags to include platform-specific code:</p>
+
+<pre><code class="language-go">//go:build linux &amp;&amp; amd64
+// +build linux,amd64
+
+package runtimeinfo
+
+func DefaultSocket() string { return "/var/run/app.sock" }</code></pre>
+
+                        <h2>Modules, Vendoring, and Reproducibility</h2>
+
+                        <p>Check in <code>go.mod</code> + <code>go.sum</code>. For locked builds, consider <code>go mod vendor</code> and build with <code>-mod=vendor</code>.</p>
+
+<pre><code class="language-bash">go mod tidy
+go mod verify
+go mod vendor
+GOOS=linux GOARCH=amd64 go build -mod=vendor -trimpath -o app ./cmd/app</code></pre>
+
+                        <h2>Docker Multi-Stage Builds (Tiny Images)</h2>
+
+                        <h3>Alpine Builder &rarr; Scratch Runtime (Pure Go)</h3>
+
+<pre><code class="language-bash"># syntax=docker/dockerfile:1
+
+FROM golang:1.22-alpine AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o /out/app ./cmd/app
+
+FROM scratch
+COPY --from=build /out/app /app
+ENTRYPOINT ["/app"]</code></pre>
+
+                        <h3>Multi-Stage with Alpine Runtime</h3>
+
+<pre><code class="language-bash">FROM golang:1.22-alpine AS build
+WORKDIR /app
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o app .
+
+FROM alpine:3.20
+RUN apk --no-cache add ca-certificates
+WORKDIR /root/
+COPY --from=build /app/app .
+CMD ["./app"]</code></pre>
+
+                        <p><strong>When to use:</strong></p>
+                        <ul>
+                            <li><strong>scratch:</strong> Smallest; pure Go only; add CA certs manually if needed.</li>
+                            <li><strong>alpine:</strong> Tiny, musl-based; includes package manager and CA certs.</li>
+                            <li><strong>distroless:</strong> Secure runtime, no shell/package manager; includes certs variants.</li>
+                        </ul>
+
+                        <h2>Multi-Architecture Docker Images (buildx)</h2>
+
+                        <p>Enable buildx:</p>
+
+<pre><code class="language-bash">docker buildx create --use --name multi || true</code></pre>
+
+                        <p>Build &amp; push multi-arch manifest:</p>
+
+<pre><code class="language-bash">docker buildx build --platform linux/amd64,linux/arm64 \
+  -t yourrepo/yourapp:1.2.3 \
+  -t yourrepo/yourapp:latest \
+  --push .</code></pre>
+
+                        <p>Example Dockerfile with build args:</p>
+
+<pre><code class="language-bash">FROM golang:1.22-alpine AS build
+ARG TARGETOS
+ARG TARGETARCH
+WORKDIR /src
+COPY . .
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags "-s -w" -o /out/app ./cmd/app</code></pre>
+
+                        <h2>Testing Target Binaries</h2>
+
+                        <p>Run Linux targets in a Linux container even if built on macOS/Windows:</p>
+
+<pre><code class="language-bash">docker run --rm -v "$PWD:/work" -w /work alpine:3.20 ./myprogram-linux-amd64 --help</code></pre>
+
+                        <h2>CI Pipelines (Matrix Builds)</h2>
+
+                        <p>GitHub Actions matrix example:</p>
+
+<pre><code class="language-bash">jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: [linux, windows, darwin]
+        goarch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: &rsquo;1.22&rsquo; }
+      - run: GOOS=${{matrix.goos}} GOARCH=${{matrix.goarch}} CGO_ENABLED=0 go build -o "bin/app-${{matrix.goos}}-${{matrix.goarch}}" ./cmd/app</code></pre>
+
+                        <h2>Troubleshooting</h2>
+
+                        <ul>
+                            <li><strong>&ldquo;exec format error&rdquo;:</strong> Running ARM64 on AMD64 or vice-versa; build for the correct GOARCH or use multi-arch image.</li>
+                            <li><strong>&ldquo;no such file or directory: /lib/ld-linux&hellip;&rdquo;:</strong> CGO binary requires glibc; use alpine/musl toolchains or set <code>CGO_ENABLED=0</code>.</li>
+                            <li><strong>HTTPS calls fail in scratch:</strong> Missing CA certs; copy <code>ca-certificates.crt</code> or use alpine/distroless.</li>
+                            <li><strong>Locale/timezone issues:</strong> Scratch lacks tzdata; install in alpine or vendor needs.</li>
+                            <li><strong>Cannot cross-compile CGO:</strong> Missing cross C toolchain; install appropriate compilers.</li>
+                        </ul>
+
+                        <h2>Quick Recipes</h2>
+
+                        <p>Build Linux/ARM64 and Windows/AMD64:</p>
+
+<pre><code class="language-bash">GOOS=linux   GOARCH=arm64  CGO_ENABLED=0 go build -o bin/app-linux-arm64 ./cmd/app
+GOOS=windows GOARCH=amd64  CGO_ENABLED=0 go build -o bin/app-windows-amd64.exe ./cmd/app</code></pre>
+
+                        <p>Inject version/commit/date and strip binary:</p>
+
+<pre><code class="language-bash">GOOS=linux GOARCH=amd64 go build \
+  -ldflags "-X main.version=2.0.0 -X main.commit=$(git rev-parse --short HEAD) -X main.date=$(date -u +%FT%TZ) -s -w" \
+  -trimpath -o bin/app ./cmd/app</code></pre>
+
+                        <p>Minimal multi-stage Docker:</p>
+
+<pre><code class="language-bash">FROM golang:1.22 AS build
+WORKDIR /src
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o /out/app ./cmd/app
+
+FROM scratch
+COPY --from=build /out/app /app
+ENTRYPOINT ["/app"]</code></pre>
+
+                        <h2>Why Multi-Stage Builds?</h2>
+
+                        <ul>
+                            <li><strong>Smaller images:</strong> Only binary + runtime dependencies.</li>
+                            <li><strong>Better security:</strong> No compilers/tools in production layers.</li>
+                            <li><strong>Faster deploys:</strong> Fewer megabytes to ship and start.</li>
+                            <li><strong>Cost-effective:</strong> Less storage and bandwidth.</li>
+                        </ul>
+                    </div>
+                </div>
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="go-json.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Working with JSON in Go</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-file-handling.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">File Handling in Go</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-http-server.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Creating an HTTP Server</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-logging.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Application Logging in Go</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-generic-data-structures.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Building Generic Data Structures in Go</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+
+</body>
+</html>

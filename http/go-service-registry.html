@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Service Registry &amp; Discovery in Go &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="golang-tech-insights.html" class="back-link">&larr; Back to Go Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">October 2025</span>
+                            <span class="post-reading">22 min read</span>
+                        </div>
+                        <h1>Service Registry &amp; Discovery in Go with Consul &mdash; Complete Guide</h1>
+                        <div class="post-tags">
+                            <span>Go</span>
+                            <span>Microservices</span>
+                            <span>Consul</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">In microservice architectures, a <strong>service registry</strong> keeps a live catalog of services (name, address, port, tags, health). Producers <em>register</em> themselves; consumers <em>discover</em> healthy instances at runtime. HashiCorp <strong>Consul</strong> is a popular registry that provides a catalog of services with metadata and health status, health checks (HTTP, TCP, gRPC, TTL), a DNS interface and HTTP API, ACLs, TLS, K/V store, and optional service mesh (Envoy).</p>
+
+                        <p>This lesson shows how to: register a Go HTTP service; add health checks; gracefully deregister; discover upstreams; implement client-side load balancing; and secure Consul with ACL and TLS.</p>
+
+                        <h2>Prerequisites</h2>
+
+                        <ul>
+                            <li>Go 1.20+</li>
+                            <li>Consul running locally (dev mode or Docker)</li>
+                            <li>Libraries: <code>github.com/hashicorp/consul/api</code> and a router (e.g., <code>github.com/gorilla/mux</code>)</li>
+                        </ul>
+
+                        <h3>Spin up Consul (dev mode)</h3>
+
+<pre><code class="language-bash"># 1) Dev mode (single node, in-memory)
+consul agent -dev -client=0.0.0.0
+
+# Optional: UI (usually on http://localhost:8500/ui)
+# If using Docker:
+# docker run --name=consul -p 8500:8500 -p 8600:8600/udp hashicorp/consul:latest agent -dev -ui -client=0.0.0.0</code></pre>
+
+                        <h2>Registering a Service (HTTP + Health)</h2>
+
+                        <p>Start from your service and add <strong>graceful shutdown</strong> + <strong>deregistration</strong> so Consul doesn&rsquo;t keep stale entries:</p>
+
+<pre><code class="language-go">package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+    "net/http"
+    "os"
+    "os/signal"
+    "syscall"
+    "time"
+
+    "github.com/gorilla/mux"
+    "github.com/hashicorp/consul/api"
+)
+
+type Service struct {
+    ID      string   `json:"id"`
+    Name    string   `json:"name"`
+    Address string   `json:"address"`
+    Port    int      `json:"port"`
+    Tags    []string `json:"tags"`
+}
+
+func main() {
+    svc := &amp;Service{
+        ID:      "my-service-1", // unique per instance
+        Name:    "my-service",
+        Address: "127.0.0.1",
+        Port:    8080,
+        Tags:    []string{"rest", "api"},
+    }
+
+    // 1) Consul client
+    cfg := api.DefaultConfig() // override cfg.Address for remote agent or CONSUL_HTTP_ADDR env
+    client, err := api.NewClient(cfg)
+    if err != nil {
+        log.Fatalf("consul client: %v", err)
+    }
+
+    // 2) Registration + HTTP health check
+    reg := &amp;api.AgentServiceRegistration{
+        ID:      svc.ID,
+        Name:    svc.Name,
+        Address: svc.Address,
+        Port:    svc.Port,
+        Tags:    svc.Tags,
+        Check: &amp;api.AgentServiceCheck{
+            HTTP:     fmt.Sprintf("http://%s:%d/health", svc.Address, svc.Port),
+            Interval: "10s",
+            Timeout:  "2s",
+            // Optional: automatically deregister if critical for too long
+            DeregisterCriticalServiceAfter: "1m",
+        },
+    }
+    if err := client.Agent().ServiceRegister(reg); err != nil {
+        log.Fatalf("register: %v", err)
+    }
+    log.Printf("Registered %s at %s:%d", svc.Name, svc.Address, svc.Port)
+
+    // 3) HTTP server
+    router := mux.NewRouter()
+    router.HandleFunc("/api/v1/hello", helloHandler).Methods(http.MethodGet)
+    router.HandleFunc("/health", healthHandler).Methods(http.MethodGet)
+    srv := &amp;http.Server{
+        Addr:         fmt.Sprintf("%s:%d", svc.Address, svc.Port),
+        Handler:      router,
+        ReadTimeout:  5 * time.Second,
+        WriteTimeout: 5 * time.Second,
+        IdleTimeout:  60 * time.Second,
+    }
+
+    // 4) Run server + graceful shutdown
+    go func() {
+        log.Printf("HTTP server on %s", srv.Addr)
+        if err := srv.ListenAndServe(); err != nil &amp;&amp; err != http.ErrServerClosed {
+            log.Fatalf("listen: %v", err)
+        }
+    }()
+
+    // 5) Listen for OS signals, deregister on exit
+    sigCh := make(chan os.Signal, 1)
+    signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+
+    &lt;-sigCh
+    log.Println("Shutting down...")
+
+    // Deregister from Consul first
+    if err := client.Agent().ServiceDeregister(svc.ID); err != nil {
+        log.Printf("deregister: %v", err)
+    } else {
+        log.Printf("Deregistered %s", svc.ID)
+    }
+
+    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+    defer cancel()
+    _ = srv.Shutdown(ctx)
+}
+
+func helloHandler(w http.ResponseWriter, r *http.Request) {
+    w.WriteHeader(http.StatusOK)
+    fmt.Fprintln(w, "Hello, world!")
+}
+
+func healthHandler(w http.ResponseWriter, r *http.Request) {
+    // Cheap, quick liveness/ready check; do not block long-running operations here.
+    w.WriteHeader(http.StatusOK)
+    fmt.Fprintln(w, "OK")
+}</code></pre>
+
+                        <p><strong>Notes:</strong></p>
+                        <ul>
+                            <li><code>DeregisterCriticalServiceAfter</code> prevents zombie instances if they fail health checks for too long.</li>
+                            <li>Prefer binding to a <strong>real IP</strong> (not <code>localhost</code>) if other nodes/containers must reach you.</li>
+                            <li>Expose a <strong>quick, dependency-light</strong> health endpoint &mdash; don&rsquo;t block on heavy calls.</li>
+                        </ul>
+
+                        <h2>TTL Checks (Alternative to HTTP)</h2>
+
+                        <p>Instead of HTTP checks, you can use a <strong>TTL check</strong> that your service periodically &ldquo;heartbeats.&rdquo; Useful when your service can self-assess health.</p>
+
+<pre><code class="language-go">// Replace Check with a TTL check (e.g., 15s)
+reg.Check = &amp;api.AgentServiceCheck{
+    TTL:      "15s",
+    Timeout:  "2s",
+    DeregisterCriticalServiceAfter: "1m",
+}
+
+// After ServiceRegister, periodically pass TTL:
+// client.Agent().PassTTL("service:"+svc.ID, "alive") every ~10s</code></pre>
+
+                        <h2>Discovering Services (Client Side)</h2>
+
+                        <p>Consumers query Consul to discover <strong>healthy</strong> instances of a given service. Use the Health API to filter by passing checks.</p>
+
+<pre><code class="language-go">package discovery
+
+import (
+    "fmt"
+    "math/rand"
+    "net/http"
+    "sync"
+    "time"
+
+    "github.com/hashicorp/consul/api"
+)
+
+type Endpoint struct{ Address string; Port int }
+
+type Resolver struct {
+    name   string
+    client *api.Client
+    mu     sync.RWMutex
+    eps    []Endpoint
+}
+
+func NewResolver(name string, consulAddr string) (*Resolver, error) {
+    cfg := api.DefaultConfig()
+    if consulAddr != "" { cfg.Address = consulAddr }
+    c, err := api.NewClient(cfg)
+    if err != nil { return nil, err }
+    r := &amp;Resolver{name: name, client: c}
+    _ = r.refresh() // initial populate
+    go r.watch(10 * time.Second)
+    return r, nil
+}
+
+func (r *Resolver) refresh() error {
+    // Only services with passing health checks
+    entries, _, err := r.client.Health().Service(r.name, "", true, nil)
+    if err != nil { return err }
+
+    var list []Endpoint
+    for _, e := range entries {
+        list = append(list, Endpoint{
+            Address: e.Service.Address,
+            Port:    e.Service.Port,
+        })
+    }
+    r.mu.Lock()
+    r.eps = list
+    r.mu.Unlock()
+    return nil
+}
+
+func (r *Resolver) watch(interval time.Duration) {
+    ticker := time.NewTicker(interval)
+    defer ticker.Stop()
+    for range ticker.C { _ = r.refresh() }
+}
+
+// Pick a random endpoint (or implement round robin)
+func (r *Resolver) Pick() (Endpoint, bool) {
+    r.mu.RLock()
+    defer r.mu.RUnlock()
+    if len(r.eps) == 0 { return Endpoint{}, false }
+    return r.eps[rand.Intn(len(r.eps))], true
+}
+
+// Build an *http.Client and URL to call the upstream
+func (r *Resolver) NewRequest(path string) (*http.Request, error) {
+    ep, ok := r.Pick()
+    if !ok { return nil, fmt.Errorf("no endpoints for %s", r.name) }
+    url := fmt.Sprintf("http://%s:%d%s", ep.Address, ep.Port, path)
+    return http.NewRequest(http.MethodGet, url, nil)
+}</code></pre>
+
+                        <p>Usage:</p>
+
+<pre><code class="language-go">res, _ := discovery.NewResolver("my-service", "http://127.0.0.1:8500")
+req, err := res.NewRequest("/api/v1/hello")
+if err != nil { /* handle */ }
+httpClient := &amp;http.Client{ Timeout: 2 * time.Second }
+resp, err := httpClient.Do(req)</code></pre>
+
+                        <p>This implements a simple <strong>client-side load balancing</strong> strategy (random). You can upgrade to <strong>round robin</strong>, <strong>least connections</strong>, or add <strong>circuit breaking</strong> (e.g., with <code>github.com/sony/gobreaker</code>) and <strong>retries</strong> with backoff (<code>github.com/cenkalti/backoff/v4</code>).</p>
+
+                        <h2>Service Discovery via DNS</h2>
+
+                        <p>Consul runs a DNS server (default UDP 8600). You can resolve services like <code>my-service.service.consul</code>. This is handy for non-Go clients or when you want to rely on OS-level DNS.</p>
+
+<pre><code class="language-bash"># Query using dig; returns healthy instance addresses
+dig @127.0.0.1 -p 8600 my-service.service.consul</code></pre>
+
+                        <p>In containers, ensure your DNS resolver can reach Consul&rsquo;s DNS (port 8600/udp). DNS returns <strong>IP/port</strong> (via SRV) &mdash; your client still needs to pick one and call it.</p>
+
+                        <h2>Register with Static Config Files (Alternative)</h2>
+
+                        <p>Instead of API registration from code, you can drop HCL/JSON into Consul&rsquo;s <code>-config-dir</code>.</p>
+
+<pre><code class="language-bash">{
+  "service": {
+    "name": "my-service",
+    "id": "my-service-1",
+    "port": 8080,
+    "address": "127.0.0.1",
+    "tags": ["rest","api"],
+    "check": {
+      "http": "http://127.0.0.1:8080/health",
+      "interval": "10s",
+      "timeout": "2s"
+    }
+  }
+}</code></pre>
+
+                        <p><strong>Pros:</strong> consistent ops model; Consul restarts re-register automatically. <strong>Cons:</strong> less dynamic when services bind to random ports.</p>
+
+                        <h2>Security: ACLs and TLS</h2>
+
+                        <h3>ACLs (Access Control Lists)</h3>
+
+                        <p>In production, enable ACLs so only authorized clients can read/write the catalog. Your Go client needs a token:</p>
+
+<pre><code class="language-go">cfg := api.DefaultConfig()
+cfg.Address = "https://consul.mycorp.internal:8501" // TLS-enabled HTTP API
+cfg.Token = os.Getenv("CONSUL_HTTP_TOKEN")           // load from env/secret
+
+client, err := api.NewClient(cfg)
+if err != nil { /* handle */ }</code></pre>
+
+                        <h3>TLS</h3>
+
+                        <p>When Consul&rsquo;s HTTP API is served over TLS, configure trusted CAs or custom transports. The Go SDK respects <code>CONSUL_HTTP_SSL</code>, <code>CONSUL_CACERT</code>, etc., or set <code>cfg.TLSConfig</code> directly.</p>
+
+                        <h2>Health Model: Liveness vs Readiness</h2>
+
+                        <ul>
+                            <li><strong>Liveness:</strong> is the process alive? (fast, always-on)</li>
+                            <li><strong>Readiness:</strong> can it serve traffic? (DB connection, caches warm, etc.)</li>
+                        </ul>
+
+                        <p>Consul only knows about the <em>check</em> you configure. If you need different semantics, expose both:</p>
+
+<pre><code class="language-go">router.HandleFunc("/health", liveness).Methods(http.MethodGet)
+router.HandleFunc("/ready", readiness(db)).Methods(http.MethodGet)
+
+func liveness(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) }
+
+func readiness(db *sql.DB) http.HandlerFunc {
+    return func(w http.ResponseWriter, r *http.Request) {
+        ctx, cancel := context.WithTimeout(r.Context(), 200*time.Millisecond)
+        defer cancel()
+        if err := db.PingContext(ctx); err != nil {
+            http.Error(w, "not ready", 503); return
+        }
+        w.WriteHeader(200)
+    }
+}</code></pre>
+
+                        <h2>Service Versioning &amp; Metadata</h2>
+
+                        <p>Use <strong>tags</strong> and/or <strong>Meta</strong> to encode version, region, or capabilities, then filter on discovery.</p>
+
+<pre><code class="language-go">reg.Tags = append(reg.Tags, "version:v1")
+reg.Meta = map[string]string{"region":"eu", "commit":"abc123"}
+
+// Discovery filter (by tag):
+entries, _, _ := client.Health().Service("my-service", "version:v1", true, nil)</code></pre>
+
+                        <h2>Resilience: Retries, Backoff, Circuit Breakers</h2>
+
+                        <p>When discovering and calling upstreams, add:</p>
+
+                        <ul>
+                            <li><strong>Timeouts</strong> on HTTP clients</li>
+                            <li><strong>Retries with backoff</strong> (<code>cenkalti/backoff</code>)</li>
+                            <li><strong>Circuit breaker</strong> (<code>sony/gobreaker</code>)</li>
+                            <li><strong>Bulkhead:</strong> limit concurrent calls per upstream</li>
+                        </ul>
+
+                        <h2>gRPC Services</h2>
+
+                        <p>For gRPC, you can register the same way (just change health to <code>GRPC</code> check), or use Consul&rsquo;s service mesh (Envoy) with gRPC health probes. For example:</p>
+
+<pre><code class="language-go">reg.Check = &amp;api.AgentServiceCheck{
+    GRPC:     fmt.Sprintf("%s:%d/%s", svc.Address, svc.Port, "grpc.health.v1.Health"),
+    Interval: "10s",
+    Timeout:  "2s",
+}</code></pre>
+
+                        <h2>Manual Testing</h2>
+
+<pre><code class="language-bash"># Register and start service (run your Go app)
+go run ./cmd/my-service
+
+# Check catalog
+curl http://localhost:8500/v1/catalog/services | jq
+
+# Check health for a specific service
+curl "http://localhost:8500/v1/health/service/my-service?passing=true" | jq
+
+# Call the service directly
+curl http://127.0.0.1:8080/api/v1/hello</code></pre>
+
+                        <h2>Alternatives &amp; When to Use Them</h2>
+
+                        <ul>
+                            <li><strong>Consul + DNS</strong> &mdash; simplest operationally; language-agnostic</li>
+                            <li><strong>Consul HTTP API</strong> &mdash; full control; client-side LB logic in Go</li>
+                            <li><strong>Consul Service Mesh</strong> &mdash; built-in mTLS, L7 routing, retries, circuit breaking via Envoy sidecars</li>
+                            <li><strong>etcd / Eureka / Zookeeper</strong> &mdash; other registries (different ecosystems)</li>
+                            <li><strong>go-micro</strong> &mdash; a framework that includes registry abstractions (backend can be Consul)</li>
+                        </ul>
+
+                        <h2>Production Checklist</h2>
+
+                        <ul>
+                            <li>Run Consul as a <strong>cluster</strong> (3 or 5 servers)</li>
+                            <li>Enable <strong>ACLs</strong> + <strong>TLS</strong></li>
+                            <li>Set <strong>DeregisterCriticalServiceAfter</strong> on checks</li>
+                            <li>Use <strong>graceful shutdown</strong> to deregister</li>
+                            <li>Implement <strong>retries/backoff</strong> and <strong>circuit breakers</strong> in clients</li>
+                            <li>Use <strong>tags/meta</strong> for routing by version/region</li>
+                            <li>Monitor with Consul UI + logs + metrics</li>
+                        </ul>
+                    </div>
+                </div>
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="go-installation-data-types.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">GO Installation and Data Types</div>
+                            <span class="sidebar-link-meta">Sep 2025</span>
+                        </a>
+                        <a href="go-oop.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Object Oriented Programming in GO</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-cross-compiling-docker.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Cross-Compiling &amp; Docker</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-dsls-generics.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Building DSLs in Go Using Generics</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-arena-allocators.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Memory Optimization in Go: Arena Allocators</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+
+</body>
+</html>

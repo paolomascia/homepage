@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Functions &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="golang-tech-insights.html" class="back-link">&larr; Back to Go Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Jul 2023</span>
+                            <span class="post-reading">8 min read</span>
+                        </div>
+                        <h1>The Functions</h1>
+                        <div class="post-tags">
+                            <span>Go</span>
+                            <span>Functions</span>
+                            <span>Structs</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Functions are the building blocks of any Go program. From simple procedures to methods on types, Go offers a clean and expressive function model &mdash; including multiple return values, pointer-based parameter passing, structs, interfaces, and a powerful package system.</p>
+
+                        <h2>Function Declaration</h2>
+
+                        <h3>Function without Return Value</h3>
+<pre><code class="language-go">func functionName(parameter1 type1, parameter2 type2, ...) {
+    // function body
+}
+
+func add(a, b int) {
+    fmt.Println(a + b)
+}</code></pre>
+
+                        <h3>Function with Return Value</h3>
+<pre><code class="language-go">func functionName(parameter1 type1, parameter2 type2, ...) returnType {
+    // function body
+    return value
+}
+
+func add(a, b int) int {
+    return a + b
+}</code></pre>
+
+                        <h3>Multiple Return Values</h3>
+<pre><code class="language-go">func swap(a, b int) (int, int) {
+    return b, a
+}</code></pre>
+
+                        <h3>Methods on Types</h3>
+<pre><code class="language-go">type Rectangle struct {
+    width  float64
+    height float64
+}
+
+func (r Rectangle) Area() float64 {
+    return r.width * r.height
+}</code></pre>
+
+                        <h2>Parameter Passing</h2>
+                        <p>Functions receive arguments through value passing, meaning copies are transmitted rather than original references. Pointers enable modification of original values:</p>
+<pre><code class="language-go">func double(x *int) {
+    *x *= 2
+}
+
+func main() {
+    x := 42
+    double(&amp;x)
+    fmt.Println(x) // Prints 84
+}</code></pre>
+
+                        <h2>Function Visibility</h2>
+
+                        <h3>Public Functions</h3>
+                        <p>Functions with an uppercase first letter are exported and accessible from other packages:</p>
+<pre><code class="language-go">package mypackage
+
+func MyFunction() {
+    // do something
+}</code></pre>
+
+                        <h3>Private Functions</h3>
+                        <p>Functions with a lowercase first letter are unexported and only accessible within the same package:</p>
+<pre><code class="language-go">package mypackage
+
+func myFunction() {
+    // do something
+}</code></pre>
+
+                        <h2>Structs</h2>
+                        <p>Structs group related data fields into a single composite type. They can be nested and accessed via dot notation or through pointers:</p>
+<pre><code class="language-go">type Person struct {
+    Name    string
+    Age     int
+    Address Address
+}
+
+type Address struct {
+    Street  string
+    City    string
+    State   string
+    Zipcode string
+}
+
+// Creating and using structs
+person := Person{
+    Name: "Mario",
+    Age:  30,
+    Address: Address{
+        Street:  "123 Main St",
+        City:    "Milan",
+        State:   "MI",
+        Zipcode: "12345",
+    },
+}
+
+// Accessing fields
+fmt.Println(person.Name) // Prints "Mario"
+
+// Using pointers to structs
+personPtr := &amp;person
+fmt.Println(personPtr.Age) // Prints 30</code></pre>
+
+                        <h2>Interfaces</h2>
+                        <p>Interfaces define a set of method signatures. Any type that implements all methods of an interface implicitly satisfies it:</p>
+<pre><code class="language-go">type Shape interface {
+    Area() float64
+    Perimeter() float64
+}
+
+type Rectangle struct {
+    Width  float64
+    Height float64
+}
+
+func (r Rectangle) Area() float64 {
+    return r.Width * r.Height
+}
+
+func (r Rectangle) Perimeter() float64 {
+    return 2 * (r.Width + r.Height)
+}
+
+// Using the interface
+var s Shape = Rectangle{Width: 10, Height: 20}
+fmt.Println(s.Area())      // Prints 200
+fmt.Println(s.Perimeter()) // Prints 60</code></pre>
+
+                        <h2>Packages</h2>
+                        <p>Packages organize Go code into reusable units. The <code>import</code> statement brings external packages into scope:</p>
+<pre><code class="language-go">import "fmt"
+
+func main() {
+    fmt.Println("Hello, world!")
+}</code></pre>
+                        <p>Go modules allow you to easily and organizedly manage project package dependencies. The <code>go.mod</code> file contains dependency information and <code>go.sum</code> stores checksums for verification.</p>
+                    </div>
+                </div>
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="go-advanced-concurrency.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Advanced Concurrency Patterns in Go</div>
+                            <span class="sidebar-link-meta">Jun 2025</span>
+                        </a>
+                        <a href="go-performance-tuning.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Go Performance Tuning</div>
+                            <span class="sidebar-link-meta">Dec 2025</span>
+                        </a>
+                        <a href="go-rest-apis.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Calling REST APIs in Go</div>
+                            <span class="sidebar-link-meta">Nov 2023</span>
+                        </a>
+                        <a href="go-generic-data-structures.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Building Generic Data Structures in Go</div>
+                            <span class="sidebar-link-meta">Mar 2025</span>
+                        </a>
+                        <a href="go-memory-gc-internals.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Go Memory Model, GC &amp; Internals</div>
+                            <span class="sidebar-link-meta">May 2025</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+
+</body>
+</html>

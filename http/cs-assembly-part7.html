@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IA-32 and Intel 64 ISA Assembly Language (Part 7) &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="cybersecurity-tech-insights.html" class="back-link">&larr; Back to Cybersecurity</a>
+                        <div class="post-meta">
+                            <span class="post-date">Oct 2025</span>
+                            <span class="post-reading">15 min read</span>
+                        </div>
+                        <h1>IA-32 and Intel 64 ISA Assembly Language (Part 7)</h1>
+                        <div class="post-tags">
+                            <span>Assembly</span>
+                            <span>IA-32</span>
+                            <span>Instructions</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Part 7 covers the essential instruction categories every assembly programmer needs: arithmetic operations (INC, DEC, ADD, SUB, MUL, DIV), logical and bitwise instructions, conditional and unconditional jumps, stack operations, and subroutines with calling conventions for both Linux and Windows.</p>
+
+                        <!-- INC and DEC -->
+                        <h2>INC and DEC</h2>
+
+                        <p><code>INC</code> and <code>DEC</code> adjust an operand by &plusmn;1. The operand may be a register or memory location.</p>
+
+<pre><code class="language-nasm">INC destination    ; destination = destination + 1
+DEC destination    ; destination = destination - 1</code></pre>
+
+                        <ul>
+                            <li>Affects flags: <strong>OF</strong>, <strong>SF</strong>, <strong>ZF</strong>, <strong>AF</strong>, <strong>PF</strong>. Does <em>not</em> affect <strong>CF</strong>.</li>
+                            <li>Use <code>ADD reg, 1</code>/<code>SUB reg, 1</code> if you need <strong>CF</strong> updated.</li>
+                        </ul>
+
+                        <!-- ADD and SUB -->
+                        <h2>ADD and SUB</h2>
+
+                        <p>Basic integer addition and subtraction on 8/16/32/64-bit operands. Memory-to-memory is not allowed.</p>
+
+<pre><code class="language-nasm">ADD destination, source   ; destination += source
+SUB destination, source   ; destination -= source
+
+; Allowed pairs:
+; reg, reg | reg, mem | mem, reg | reg, imm | mem, imm</code></pre>
+
+                        <h3>Flags</h3>
+
+                        <ul>
+                            <li><strong>CF</strong> carry/borrow (unsigned overflow), <strong>OF</strong> signed overflow.</li>
+                            <li><strong>ZF</strong> zero result, <strong>SF</strong> sign, <strong>PF</strong> parity, <strong>AF</strong> BCD carry (bit 3).</li>
+                        </ul>
+
+                        <h3>Related Instructions</h3>
+
+                        <ul>
+                            <li><code>ADC</code> / <code>SBB</code>: add/subtract with carry/borrow (multi-precision arithmetic).</li>
+                            <li><code>NEG</code>: two&rsquo;s-complement negate (equivalent to <code>SUB 0, r/m</code>).</li>
+                            <li><code>INC/DEC</code>: &plusmn;1 without touching CF (see above).</li>
+                            <li><code>LEA</code>: compute addresses (adds/scales without affecting flags).</li>
+                        </ul>
+
+                        <!-- MUL and IMUL -->
+                        <h2>MUL and IMUL</h2>
+
+                        <p><code>MUL</code> multiplies <strong>unsigned</strong>, <code>IMUL</code> multiplies <strong>signed</strong>. The multiplicand is implicit in the accumulator.</p>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Operand Size</th>
+                                    <th>Multiplicand</th>
+                                    <th>Multiplier (operand)</th>
+                                    <th>Product</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>8-bit</td><td>AL</td><td>r/m8</td><td>AH:AL</td></tr>
+                                <tr><td>16-bit</td><td>AX</td><td>r/m16</td><td>DX:AX</td></tr>
+                                <tr><td>32-bit</td><td>EAX</td><td>r/m32</td><td>EDX:EAX</td></tr>
+                                <tr><td>64-bit</td><td>RAX</td><td>r/m64</td><td>RDX:RAX</td></tr>
+                            </tbody>
+                        </table>
+
+                        <p><code>IMUL</code> also has 2-operand and 3-operand forms that place the low product directly into a destination register:</p>
+
+<pre><code class="language-nasm">IMUL r16,  r/m16           ; r16 = r16 * r/m16
+IMUL r32,  r/m32           ; r32 = r32 * r/m32
+IMUL r64,  r/m64           ; r64 = r64 * r/m64
+IMUL r32,  r/m32, imm32    ; r32 = r/m32 * imm32 (sign-extended)
+IMUL r64,  r/m64, imm32    ; r64 = r/m64 * imm32 (sign-extended)</code></pre>
+
+                        <p>Flags after multiply: <strong>CF</strong> and <strong>OF</strong> are set if the high half is non-zero (unsigned) or not a sign extension (signed).</p>
+
+                        <!-- DIV and IDIV -->
+                        <h2>DIV and IDIV</h2>
+
+                        <p><code>DIV</code> divides <strong>unsigned</strong>, <code>IDIV</code> divides <strong>signed</strong>. The dividend is implicit in the accumulator pair.</p>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Divisor Size</th>
+                                    <th>Dividend</th>
+                                    <th>Quotient</th>
+                                    <th>Remainder</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>8-bit</td><td>AX</td><td>AL</td><td>AH</td></tr>
+                                <tr><td>16-bit</td><td>DX:AX</td><td>AX</td><td>DX</td></tr>
+                                <tr><td>32-bit</td><td>EDX:EAX</td><td>EAX</td><td>EDX</td></tr>
+                                <tr><td>64-bit</td><td>RDX:RAX</td><td>RAX</td><td>RDX</td></tr>
+                            </tbody>
+                        </table>
+
+                        <ul>
+                            <li>For unsigned <code>DIV</code>, ensure the high half is zero (e.g., <code>XOR EDX, EDX</code> before <code>DIV r/m32</code>).</li>
+                            <li>For signed <code>IDIV</code>, sign-extend into the high half using <code>CBW/CWDE/CDQE</code> or <code>CWD/CDQ/CQO</code>.</li>
+                            <li>On overflow or divide-by-zero, raises a divide error exception.</li>
+                        </ul>
+
+                        <!-- Logical and Bitwise Instructions -->
+                        <h2>Logical and Bitwise Instructions</h2>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Instruction</th>
+                                    <th>Syntax</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr><td><strong>AND</strong></td><td><code>AND dst, src</code></td><td>Bitwise AND</td></tr>
+                                <tr><td><strong>OR</strong></td><td><code>OR dst, src</code></td><td>Bitwise OR</td></tr>
+                                <tr><td><strong>XOR</strong></td><td><code>XOR dst, src</code></td><td>Bitwise XOR</td></tr>
+                                <tr><td><strong>TEST</strong></td><td><code>TEST op1, op2</code></td><td>AND for flags only; result not stored</td></tr>
+                                <tr><td><strong>NOT</strong></td><td><code>NOT op</code></td><td>Bitwise invert</td></tr>
+                            </tbody>
+                        </table>
+
+                        <ul>
+                            <li>Allowed forms: <code>reg,reg</code>, <code>reg,mem</code>, <code>mem,reg</code>, <code>r/m,imm</code>. Memory-to-memory is not allowed.</li>
+                            <li>These clear <strong>CF</strong> and <strong>OF</strong>; update <strong>SF</strong>, <strong>ZF</strong>, <strong>PF</strong> from the logical result (TEST does not store the result).</li>
+                        </ul>
+
+                        <h3>XOR Idioms</h3>
+
+<pre><code class="language-nasm">XOR RAX, RAX     ; zero a register efficiently (also clears flags)
+TEST EAX, EAX    ; set ZF/SF/OF/CF appropriately for comparisons to zero
+JZ  is_zero
+JNZ is_nonzero</code></pre>
+
+                        <!-- Number Formats for Immediates -->
+                        <h2>Number Formats for Immediates (NASM)</h2>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Literal</th>
+                                    <th>Meaning</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr><td><code>200</code></td><td>Decimal (default)</td></tr>
+                                <tr><td><code>0200</code></td><td>Decimal (leading 0 has no octal meaning in NASM)</td></tr>
+                                <tr><td><code>200d</code> / <code>0d200</code></td><td>Explicit decimal</td></tr>
+                                <tr><td><code>0xc8</code> / <code>0c8h</code></td><td>Hexadecimal</td></tr>
+                                <tr><td><code>310q</code> / <code>0q310</code></td><td>Octal</td></tr>
+                                <tr><td><code>11001000b</code> / <code>0b1100_1000</code></td><td>Binary (underscores allowed)</td></tr>
+                            </tbody>
+                        </table>
+
+                        <!-- Jumps -->
+                        <h2>Jumps (Control Transfer)</h2>
+
+                        <p>Assembly relies on jumps to implement conditionals, loops, and switches.</p>
+
+                        <h3>Unconditional</h3>
+
+<pre><code class="language-nasm">JMP label          ; to a label
+JMP reg            ; to address in register (indirect)
+JMP [mem]          ; to address in memory (indirect)</code></pre>
+
+                        <h3>Conditional (Jcc)</h3>
+
+                        <p><strong>Signed-compare oriented:</strong></p>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Instruction</th>
+                                    <th>Meaning</th>
+                                    <th>Flags</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr><td><code>JE/JZ</code></td><td>Equal / Zero</td><td>ZF=1</td></tr>
+                                <tr><td><code>JNE/JNZ</code></td><td>Not equal / Not zero</td><td>ZF=0</td></tr>
+                                <tr><td><code>JG/JNLE</code></td><td>Greater</td><td>ZF=0 and SF=OF</td></tr>
+                                <tr><td><code>JGE/JNL</code></td><td>Greater or equal</td><td>SF=OF</td></tr>
+                                <tr><td><code>JL/JNGE</code></td><td>Less</td><td>SF&ne;OF</td></tr>
+                                <tr><td><code>JLE/JNG</code></td><td>Less or equal</td><td>ZF=1 or SF&ne;OF</td></tr>
+                            </tbody>
+                        </table>
+
+                        <p><strong>Unsigned-compare oriented:</strong></p>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Instruction</th>
+                                    <th>Meaning</th>
+                                    <th>Flags</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr><td><code>JA/JNBE</code></td><td>Above</td><td>CF=0 and ZF=0</td></tr>
+                                <tr><td><code>JAE/JNB</code></td><td>Above or equal</td><td>CF=0</td></tr>
+                                <tr><td><code>JB/JNAE</code></td><td>Below</td><td>CF=1</td></tr>
+                                <tr><td><code>JBE/JNA</code></td><td>Below or equal</td><td>CF=1 or ZF=1</td></tr>
+                            </tbody>
+                        </table>
+
+                        <h3>Compare and Branch Pattern</h3>
+
+<pre><code class="language-nasm">CMP  EAX, EBX      ; sets flags based on EAX-EBX
+JL   less_than      ; signed comparison
+JA   strictly_above ; unsigned comparison</code></pre>
+
+                        <h3>Short vs Near Jumps</h3>
+
+                        <ul>
+                            <li><strong>Short:</strong> 8-bit displacement (&plusmn;128). Smaller encoding.</li>
+                            <li><strong>Near:</strong> 16/32-bit displacement (mode-dependent).</li>
+                        </ul>
+
+                        <h3>Flagless Conditional Moves and Sets</h3>
+
+<pre><code class="language-nasm">CMOVL  r32, r/m32   ; move if signed less
+SETZ   r/m8         ; set byte to 1 if ZF=1</code></pre>
+
+                        <!-- Stack Usage -->
+                        <h2>Stack Usage</h2>
+
+                        <p>The stack is LIFO. <code>PUSH</code> decrements the stack pointer and stores a value; <code>POP</code> loads a value and increments the pointer.</p>
+
+<pre><code class="language-nasm">PUSH operand
+POP  destination</code></pre>
+
+                        <ul>
+                            <li>Stack pointer: <code>SP/ESP/RSP</code> within segment <code>SS</code>.</li>
+                            <li>Legacy x86 pushes words/dwords; x86-64 pushes/pops quadwords (64-bit). You cannot push only 32 bits in 64-bit mode.</li>
+                            <li>In 64-bit ABIs, maintain <strong>16-byte stack alignment</strong> before executing <code>CALL</code>.</li>
+                        </ul>
+
+                        <h3>Prologue/Epilogue Idiom</h3>
+
+<pre><code class="language-nasm">push rbp
+mov  rbp, rsp
+sub  rsp, 32         ; local space (align to 16)
+; ... body ...
+leave                ; mov rsp, rbp / pop rbp
+ret</code></pre>
+
+                        <!-- Subroutines -->
+                        <h2>Subroutines</h2>
+
+                        <p>A subroutine is a labeled block ending with <code>RET</code>. <code>CALL</code> pushes the return address and jumps; <code>RET</code> pops it.</p>
+
+<pre><code class="language-nasm">subroutine_name:
+    ; ... work ...
+    RET
+
+; call site
+CALL subroutine_name</code></pre>
+
+                        <h3>Parameter Passing</h3>
+
+                        <ul>
+                            <li><strong>System V AMD64 (Linux/BSD/macOS):</strong> integer/pointer args in <code>RDI, RSI, RDX, RCX, R8, R9</code>; return in <code>RAX</code>.</li>
+                            <li><strong>Windows x64:</strong> integer/pointer args in <code>RCX, RDX, R8, R9</code> with 32-byte shadow space; return in <code>RAX</code>.</li>
+                            <li>Extra args and varargs go on the stack per ABI. Callee-saved vs caller-saved registers differ by ABI.</li>
+                        </ul>
+
+                        <h3>Example: Sum of Array (SysV AMD64)</h3>
+
+<pre><code class="language-nasm">; uint64_t sum(uint64_t* p, uint64_t n)
+; RDI = p, RSI = n
+global sum
+sum:
+    push rbp
+    mov  rbp, rsp
+    xor  rax, rax          ; acc = 0
+    xor  rdx, rdx          ; i   = 0
+.loop:
+    cmp  rdx, rsi
+    jge  .done
+    add  rax, [rdi + rdx*8]
+    inc  rdx
+    jmp  .loop
+.done:
+    pop  rbp
+    ret</code></pre>
+
+                        <!-- Worked Examples -->
+                        <h2>Worked Examples</h2>
+
+                        <h3>Immediate, Register, Memory</h3>
+
+<pre><code class="language-nasm">section .data
+counter   dd  0
+
+section .text
+global main
+main:
+; register &larr; immediate
+mov   eax, 100
+; memory   &larr; register
+mov   [counter], eax
+; register &larr; memory
+mov   ecx, [counter]
+; arithmetic with flags
+add   ecx, 1
+; compare and jump
+cmp   ecx, 128
+jl    below_128
+jmp   done
+below_128:
+; zero a register
+xor   edx, edx
+done:
+xor   eax, eax
+ret</code></pre>
+
+                        <h3>Division (Unsigned)</h3>
+
+<pre><code class="language-nasm">; EAX: dividend low, EDX must be zero for unsigned 32-bit divide
+mov  eax, 1000
+xor  edx, edx
+mov  ecx, 64
+div  ecx            ; quotient=EAX (15), remainder=EDX (40)</code></pre>
+
+                        <h3>Signed Divide Preparation</h3>
+
+<pre><code class="language-nasm">mov  eax, -1000
+cdq                 ; sign-extend EAX -> EDX:EAX
+mov  ecx, 64
+idiv ecx</code></pre>
+
+                        <!-- Summary -->
+                        <h2>Summary</h2>
+
+                        <ul>
+                            <li><code>INC/DEC</code> adjust by &plusmn;1 without touching CF; <code>ADD/SUB</code> update CF/OF and support more forms.</li>
+                            <li><code>MUL/IMUL</code> and <code>DIV/IDIV</code> use implicit accumulator pairs and require proper preparation of high halves.</li>
+                            <li>Logical ops clear CF/OF and set ZF/SF/PF from results; <code>TEST</code> is an AND that writes flags only.</li>
+                            <li>Jcc uses flags; choose signed vs unsigned variants appropriately after <code>CMP</code>/<code>SUB</code>.</li>
+                            <li>Stack operations are in word/dword/qword units; maintain 16-byte alignment at calls in 64-bit ABIs.</li>
+                            <li>Subroutines use <code>CALL</code>/<code>RET</code>, follow the platform calling convention for parameters and saved registers.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing large-scale distributed systems. Specialized in Generative AI, AI Agents, and cloud-native architectures.</p>
+                        <div class="sidebar-author-links">
+                            <a href="https://www.linkedin.com/in/paolo-mascia-italy" target="_blank" aria-label="LinkedIn"><svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg></a>
+                            <a href="https://github.com/paolomascia" target="_blank" aria-label="GitHub"><svg viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg></a>
+                            <a href="https://www.kaggle.com/paolomascia" target="_blank" aria-label="Kaggle"><svg viewBox="0 0 24 24"><path d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.233-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.075.378z"/></svg></a>
+                        </div>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="cs-assembly-part6.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Assembly</span>
+                            <div class="sidebar-link-title">IA-32 and Intel 64 ISA Assembly Language (Part 6)</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="cs-assembly-part8.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Assembly</span>
+                            <div class="sidebar-link-title">IA-32 and Intel 64 ISA Assembly Language (Part 8)</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="cs-assembly-part9.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Assembly</span>
+                            <div class="sidebar-link-title">IA-32 and Intel 64 ISA Assembly Language (Part 9)</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="cs-reverse-engineering.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cybersecurity</span>
+                            <div class="sidebar-link-title">Reverse Engineering</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="cs-buffer-overflow.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cybersecurity</span>
+                            <div class="sidebar-link-title">Buffer Overflow</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-nasm.min.js"></script>
+</body>
+</html>

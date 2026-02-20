@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AES (Advanced Encryption Standard) &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="cybersecurity-tech-insights.html" class="back-link">&larr; Back to Cybersecurity</a>
+                        <div class="post-meta">
+                            <span class="post-date">Jan 2025</span>
+                            <span class="post-reading">14 min read</span>
+                        </div>
+                        <h1>AES (Advanced Encryption Standard)</h1>
+                        <div class="post-tags">
+                            <span>Cryptography</span>
+                            <span>Block Ciphers</span>
+                            <span>AES</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">In 1999, NIST recommended reserving DES for legacy systems and suggested Triple DES elsewhere. While 3DES provides better resistance to brute force than DES, it operates slowly in software and offers limited effective key sizes. NIST launched a public competition in 1997 to select a new block cipher, anticipating future threats.</p>
+
+                        <h2>History of AES</h2>
+
+                        <p>Requirements included a 128-bit block cipher supporting 128-, 192-, and 256-bit keys with efficient implementations. In 2000, NIST selected <strong>Rijndael</strong>, designed by Belgian cryptographers, as the winner, becoming the <strong>Advanced Encryption Standard (AES)</strong>. AES is now the dominant symmetric cipher in commercial applications. In 2003, the U.S. NSA announced AES approval for protecting classified information up to SECRET at all key sizes and up to TOP SECRET at 192- and 256-bit keys.</p>
+
+                        <h2>Internal Structure of AES</h2>
+
+                        <p>Unlike DES&rsquo;s bit-level design, AES operates on bytes using a 4&times;4 byte matrix called the <em>state</em>. AES fixes the block size at <strong>128 bits</strong> (though Rijndael allows larger blocks). The number of rounds depends on key length:</p>
+
+                        <ul>
+                            <li>Key size 128 bits &rarr; 10 rounds</li>
+                            <li>Key size 192 bits &rarr; 12 rounds</li>
+                            <li>Key size 256 bits &rarr; 14 rounds</li>
+                        </ul>
+
+                        <p>Each non-final round consists of four steps:</p>
+
+                        <ol>
+                            <li><strong>SubBytes (Substitution layer)</strong> &mdash; nonlinear byte-wise substitution via the AES S-box.</li>
+                            <li><strong>ShiftRows</strong> &mdash; cyclic left shifts on each state row (diffusion layer 1).</li>
+                            <li><strong>MixColumns</strong> &mdash; linear mixing per column in GF(2<sup>8</sup>) (diffusion layer 2).</li>
+                            <li><strong>AddRoundKey</strong> &mdash; XOR the state with the round subkey from the key schedule.</li>
+                        </ol>
+
+                        <p>The final round omits MixColumns.</p>
+
+                        <h2>SubBytes (S-box)</h2>
+
+                        <p>SubBytes applies the same <strong>8&rarr;8</strong> S-box to each of the 16 state bytes:</p>
+
+<pre><code class="language-c">// SubBytes transformation
+S(A_i) = B_i  // bijective mapping over 256 elements</code></pre>
+
+                        <p>The AES S-box is the only nonlinear component in AES. It is designed to be bijective (invertible), with no fixed points (S(x) &ne; x for all x), and demonstrates strong resistance to linear and differential cryptanalysis. Software implementations typically realize SubBytes using a 256-entry lookup table.</p>
+
+                        <h2>ShiftRows</h2>
+
+                        <p>ShiftRows cyclically shifts the second state row by 1 byte, the third by 2 bytes, and the fourth by 3 bytes to the left; the first row remains unchanged. This dispersion ensures bytes influence different columns before MixColumns.</p>
+
+                        <h2>MixColumns</h2>
+
+                        <p>MixColumns treats each 4-byte column as a polynomial over GF(2<sup>8</sup>) and multiplies it by a fixed 4&times;4 matrix. Each input byte affects four output bytes, providing strong diffusion. Together, ShiftRows and MixColumns ensure that after only a few rounds, each output byte depends on all 16 input bytes.</p>
+
+<pre><code class="language-c">// MixColumns effect (qualitative)
+// After a few rounds, each output byte depends
+// on all 16 input bytes (strong diffusion).</code></pre>
+
+                        <h2>AddRoundKey</h2>
+
+                        <p>AddRoundKey XORs the state with a 128-bit round key. These round keys are produced by the <strong>key schedule</strong>.</p>
+
+                        <h2>Key Schedule</h2>
+
+                        <p>The key schedule expands the original key (128/192/256 bits) into <em>Nr+1</em> subkeys (one per round plus the initial AddRoundKey). For AES-128, this yields 11 subkeys of 128 bits each. Expansion uses byte rotations, the S-box, and round constants (Rcon):</p>
+
+<pre><code class="language-c">// AES-128 Key Expansion (conceptual)
+W[0..3]   = initial 4 words (32-bit each)
+for (i = 4; i &lt; 44; i++) {
+    temp = W[i-1];
+    if (i % 4 == 0)
+        temp = SubWord(RotWord(temp)) ^ Rcon[i/4];
+    W[i] = W[i-4] ^ temp;
+}
+// RoundKey_j = (W[4j], W[4j+1], W[4j+2], W[4j+3])</code></pre>
+
+                        <h2>AES Round Structure</h2>
+
+<pre><code class="language-c">// Round structure (AES-128, conceptual)
+State = AddRoundKey(State, RoundKey_0);
+for (r = 1; r &lt;= 9; r++) {
+    State = SubBytes(State);
+    State = ShiftRows(State);
+    State = MixColumns(State);
+    State = AddRoundKey(State, RoundKey_r);
+}
+// Final round (no MixColumns)
+State = SubBytes(State);
+State = ShiftRows(State);
+State = AddRoundKey(State, RoundKey_10);</code></pre>
+
+                        <h2>Block Cipher Modes of Operation</h2>
+
+                        <p>In practice, multi-block messages require defined modes. NIST standardized several modes (FIPS 81; later NIST SP 800-38A). The following modes apply to both DES and AES.</p>
+
+                        <h3>Electronic Codebook (ECB)</h3>
+
+                        <p>ECB splits plaintext into fixed-size blocks and encrypts each independently (padding the last block if needed). It is deterministic: equal plaintext blocks under the same key produce equal ciphertext blocks, which leaks patterns.</p>
+
+<pre><code class="language-c">// ECB mode (conceptual)
+for each block P_i:
+    C_i = E_K(P_i);      // independent per block</code></pre>
+
+                        <p><strong>Pros:</strong> no synchronization; bit errors affect only their block; easy to parallelize. <strong>Cons:</strong> pattern leakage &rarr; not recommended except for very small, random inputs (e.g., encrypting keys).</p>
+
+                        <h3>Cipher Block Chaining (CBC)</h3>
+
+                        <p>CBC randomizes each block by XORing the plaintext block with the previous ciphertext block before encryption. The first block uses an Initialization Vector (IV).</p>
+
+<pre><code class="language-c">// CBC Encryption
+C_0 = IV;
+for (i = 1; i &lt;= N; i++) {
+    C_i = E_K(P_i ^ C_{i-1});
+}
+
+// CBC Decryption
+for (i = 1; i &lt;= N; i++) {
+    P_i = D_K(C_i) ^ C_{i-1};
+}</code></pre>
+
+                        <p>Use a fresh, unpredictable IV per message to prevent replay and pattern leakage. Errors propagate one block forward during decryption.</p>
+
+                        <h3>Output Feedback (OFB)</h3>
+
+                        <p>OFB turns a block cipher into a <strong>synchronous stream cipher</strong>. It generates a keystream by repeatedly encrypting the previous output (starting from the IV); encryption/decryption use XOR.</p>
+
+<pre><code class="language-c">// OFB mode
+// Keystream generation
+S_1 = E_K(IV);
+S_i = E_K(S_{i-1});
+
+// Encryption / Decryption
+C_i = P_i ^ S_i;
+P_i = C_i ^ S_i;</code></pre>
+
+                        <p>Same operation for encryption/decryption; bit errors do not propagate beyond the flipped bits. IV must never repeat under the same key.</p>
+
+                        <h3>Cipher Feedback (CFB)</h3>
+
+                        <p>CFB also yields a stream-like mode but feeds back the <strong>ciphertext</strong> into the block cipher input.</p>
+
+<pre><code class="language-c">// CFB mode
+// Encryption
+S_1 = E_K(IV);           C_1 = P_1 ^ S_1;
+S_2 = E_K(C_1);          C_2 = P_2 ^ S_2;
+// ...
+
+// Decryption (uses same E_K, not D_K)
+P_1 = C_1 ^ E_K(IV);
+P_2 = C_2 ^ E_K(C_1);</code></pre>
+
+                        <p>CFB is an <strong>asynchronous</strong> stream mode because the keystream depends on previous ciphertext. A transmission error in one ciphertext block corrupts only the matching plaintext block and a small portion of the next.</p>
+
+                        <h3>Counter (CTR) Mode</h3>
+
+                        <p>CTR mode encrypts a counter value (often IV || counter) and XORs the result with the plaintext, producing a parallelizable, stream-like construction. No feedback is required.</p>
+
+<pre><code class="language-c">// CTR mode
+// For block index i
+S_i = E_K( nonce || counter + i );
+C_i = P_i ^ S_i;
+P_i = C_i ^ S_i;</code></pre>
+
+                        <p>The nonce/IV and counter need not be secret, but <strong>must never repeat</strong> for a given key. CTR is highly parallelizable and well-suited to high-throughput implementations (e.g., IPsec, TLS record protection with AEAD variants like GCM).</p>
+
+                    </div>
+                </div>
+
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing large-scale distributed systems. Specialized in Generative AI, AI Agents, and cloud-native architectures.</p>
+                        <div class="sidebar-author-links">
+                            <a href="https://www.linkedin.com/in/paolo-mascia-italy" target="_blank" aria-label="LinkedIn"><svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg></a>
+                            <a href="https://github.com/paolomascia" target="_blank" aria-label="GitHub"><svg viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg></a>
+                            <a href="https://www.kaggle.com/paolomascia" target="_blank" aria-label="Kaggle"><svg viewBox="0 0 24 24"><path d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.233-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.075.378z"/></svg></a>
+                        </div>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="cs-symmetric-key.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cryptography</span>
+                            <div class="sidebar-link-title">Symmetric-Key Cryptography</div>
+                            <span class="sidebar-link-meta">Mar 2025</span>
+                        </a>
+                        <a href="cs-des.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cryptography</span>
+                            <div class="sidebar-link-title">DES (Data Encryption Standard)</div>
+                            <span class="sidebar-link-meta">Jun 2025</span>
+                        </a>
+                        <a href="cs-asymmetric-cryptography.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cryptography</span>
+                            <div class="sidebar-link-title">Asymmetric (Public-Key) Cryptography</div>
+                            <span class="sidebar-link-meta">May 2025</span>
+                        </a>
+                        <a href="cs-digital-certificates.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cryptography</span>
+                            <div class="sidebar-link-title">Digital Certificates</div>
+                            <span class="sidebar-link-meta">Aug 2025</span>
+                        </a>
+                        <a href="cs-hash-functions.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cryptography</span>
+                            <div class="sidebar-link-title">Hash Functions</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-nasm.min.js"></script>
+</body>
+</html>

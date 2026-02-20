@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SQL in Go (MySQL) &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="golang-tech-insights.html" class="back-link">&larr; Back to Go Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Jul 2024</span>
+                            <span class="post-reading">20 min read</span>
+                        </div>
+                        <h1>SQL in Go (MySQL) &mdash; Complete Guide</h1>
+                        <div class="post-tags">
+                            <span>Go</span>
+                            <span>MySQL</span>
+                            <span>Database</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">This comprehensive guide covers working with MySQL databases in Go using the standard <code>database/sql</code> package and the <code>github.com/go-sql-driver/mysql</code> driver. You&rsquo;ll learn connection management, CRUD operations, prepared statements, transactions, pagination, TLS, error handling, and production best practices.</p>
+
+                        <h2>Prerequisites</h2>
+
+                        <p>Go 1.18+ (recommended 1.20+), a running MySQL or MariaDB instance (e.g., <code>127.0.0.1:3306</code>), and a database with user account permissions.</p>
+
+                        <h2>Installing the MySQL Driver</h2>
+
+                        <p>The most widely used MySQL driver for Go is <code>github.com/go-sql-driver/mysql</code>.</p>
+
+<pre><code class="language-bash">go mod init example.com/app
+go get github.com/go-sql-driver/mysql</code></pre>
+
+                        <h2>Connecting to MySQL (DSN Format)</h2>
+
+                        <p>DSN format: <code>user:password@tcp(host:port)/dbname?param1=value1&amp;param2=value2</code></p>
+
+                        <p>Key parameters include <code>parseTime=true</code>, <code>charset=utf8mb4</code>, <code>loc=Local</code>, timeout settings, and <code>tls=true</code> for security.</p>
+
+<pre><code class="language-go">package main
+
+import (
+    "context"
+    "database/sql"
+    "fmt"
+    "log"
+    "time"
+
+    _ "github.com/go-sql-driver/mysql"
+)
+
+func main() {
+    dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true&amp;charset=utf8mb4&amp;loc=Local&amp;timeout=3s&amp;readTimeout=5s&amp;writeTimeout=5s",
+        "username", "password", "127.0.0.1", 3306, "test_db")
+
+    db, err := sql.Open("mysql", dsn)
+    if err != nil {
+        log.Fatal("open:", err)
+    }
+    defer db.Close()
+
+    db.SetMaxOpenConns(20)
+    db.SetMaxIdleConns(10)
+    db.SetConnMaxIdleTime(5 * time.Minute)
+    db.SetConnMaxLifetime(30 * time.Minute)
+
+    ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+    defer cancel()
+    if err := db.PingContext(ctx); err != nil {
+        log.Fatal("ping:", err)
+    }
+
+    log.Println("Database connection successful")
+}</code></pre>
+
+                        <h2>Creating the Example Schema</h2>
+
+<pre><code class="language-bash">CREATE TABLE IF NOT EXISTS people (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  first_name VARCHAR(100) NOT NULL,
+  last_name  VARCHAR(100) NOT NULL,
+  email      VARCHAR(255) UNIQUE NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;</code></pre>
+
+                        <h2>Querying Data</h2>
+
+<pre><code class="language-go">package main
+
+import (
+    "context"
+    "database/sql"
+    "fmt"
+    "log"
+    "time"
+
+    _ "github.com/go-sql-driver/mysql"
+)
+
+type Person struct {
+    ID        int
+    FirstName string
+    LastName  string
+    Email     string
+    CreatedAt time.Time
+}
+
+func main() {
+    db := mustOpen()
+    defer db.Close()
+
+    ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+    defer cancel()
+
+    rows, err := db.QueryContext(ctx, "SELECT id, first_name, last_name, email, created_at FROM people")
+    if err != nil {
+        log.Fatal("query:", err)
+    }
+    defer rows.Close()
+
+    for rows.Next() {
+        var p Person
+        if err := rows.Scan(&amp;p.ID, &amp;p.FirstName, &amp;p.LastName, &amp;p.Email, &amp;p.CreatedAt); err != nil {
+            log.Fatal("scan:", err)
+        }
+        fmt.Printf("%d %s %s &lt;%s&gt; %s\n", p.ID, p.FirstName, p.LastName, p.Email, p.CreatedAt.Format(time.RFC3339))
+    }
+    if err := rows.Err(); err != nil {
+        log.Fatal("rows:", err)
+    }
+}
+
+func mustOpen() *sql.DB {
+    dsn := "username:password@tcp(127.0.0.1:3306)/test_db?parseTime=true&amp;charset=utf8mb4"
+    db, err := sql.Open("mysql", dsn)
+    if err != nil {
+        log.Fatal(err)
+    }
+    return db
+}</code></pre>
+
+                        <h2>Prepared Statements and SQL Injection Safety</h2>
+
+                        <p>Always use placeholders (<code>?</code>) and pass parameters separately &mdash; never concatenate user input into SQL strings.</p>
+
+<pre><code class="language-go">func getByEmail(ctx context.Context, db *sql.DB, email string) (*Person, error) {
+    var p Person
+    err := db.QueryRowContext(ctx,
+        "SELECT id, first_name, last_name, email, created_at FROM people WHERE email = ?",
+        email,
+    ).Scan(&amp;p.ID, &amp;p.FirstName, &amp;p.LastName, &amp;p.Email, &amp;p.CreatedAt)
+
+    if err == sql.ErrNoRows {
+        return nil, nil
+    }
+    return &amp;p, err
+}</code></pre>
+
+                        <h2>Full CRUD Example</h2>
+
+<pre><code class="language-go">package main
+
+import (
+    "context"
+    "database/sql"
+    "errors"
+    "fmt"
+    "log"
+    "time"
+
+    _ "github.com/go-sql-driver/mysql"
+)
+
+type Person struct {
+    ID        int       `json:"id"`
+    FirstName string    `json:"firstname"`
+    LastName  string    `json:"lastname"`
+    Email     string    `json:"email"`
+    CreatedAt time.Time `json:"created_at"`
+}
+
+func main() {
+    db := mustOpen()
+    defer db.Close()
+
+    ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+    defer cancel()
+
+    p := Person{FirstName: "John", LastName: "Doe", Email: "johndoe@example.com"}
+    id, err := createPerson(ctx, db, p)
+    if err != nil {
+        log.Fatal("create:", err)
+    }
+    fmt.Println("New record ID:", id)
+
+    people, err := listPeople(ctx, db)
+    if err != nil {
+        log.Fatal("list:", err)
+    }
+    fmt.Println("People:", people)
+
+    p2 := Person{ID: id, FirstName: "Jane", LastName: "Doe", Email: "janedoe@example.com"}
+    if err := updatePerson(ctx, db, p2); err != nil {
+        log.Fatal("update:", err)
+    }
+    fmt.Println("Record updated")
+
+    if err := deletePerson(ctx, db, id); err != nil {
+        log.Fatal("delete:", err)
+    }
+    fmt.Println("Record deleted")
+}
+
+func mustOpen() *sql.DB {
+    dsn := "username:password@tcp(127.0.0.1:3306)/test_db?parseTime=true&amp;charset=utf8mb4"
+    db, err := sql.Open("mysql", dsn)
+    if err != nil {
+        log.Fatal(err)
+    }
+    db.SetMaxOpenConns(10)
+    db.SetMaxIdleConns(5)
+    db.SetConnMaxLifetime(30 * time.Minute)
+    return db
+}
+
+func createPerson(ctx context.Context, db *sql.DB, p Person) (int, error) {
+    res, err := db.ExecContext(ctx,
+        "INSERT INTO people (first_name, last_name, email) VALUES (?, ?, ?)",
+        p.FirstName, p.LastName, p.Email)
+    if err != nil {
+        return 0, err
+    }
+    lastID, err := res.LastInsertId()
+    return int(lastID), err
+}
+
+func listPeople(ctx context.Context, db *sql.DB) ([]Person, error) {
+    rows, err := db.QueryContext(ctx,
+        "SELECT id, first_name, last_name, email, created_at FROM people ORDER BY id")
+    if err != nil {
+        return nil, err
+    }
+    defer rows.Close()
+
+    var out []Person
+    for rows.Next() {
+        var p Person
+        if err := rows.Scan(&amp;p.ID, &amp;p.FirstName, &amp;p.LastName, &amp;p.Email, &amp;p.CreatedAt); err != nil {
+            return nil, err
+        }
+        out = append(out, p)
+    }
+    return out, rows.Err()
+}
+
+func getPerson(ctx context.Context, db *sql.DB, id int) (*Person, error) {
+    var p Person
+    err := db.QueryRowContext(ctx,
+        "SELECT id, first_name, last_name, email, created_at FROM people WHERE id = ?",
+        id,
+    ).Scan(&amp;p.ID, &amp;p.FirstName, &amp;p.LastName, &amp;p.Email, &amp;p.CreatedAt)
+
+    if errors.Is(err, sql.ErrNoRows) {
+        return nil, nil
+    }
+    return &amp;p, err
+}
+
+func updatePerson(ctx context.Context, db *sql.DB, p Person) error {
+    _, err := db.ExecContext(ctx,
+        "UPDATE people SET first_name = ?, last_name = ?, email = ? WHERE id = ?",
+        p.FirstName, p.LastName, p.Email, p.ID)
+    return err
+}
+
+func deletePerson(ctx context.Context, db *sql.DB, id int) error {
+    _, err := db.ExecContext(ctx, "DELETE FROM people WHERE id = ?", id)
+    return err
+}</code></pre>
+
+                        <h2>Handling NULL Values</h2>
+
+                        <p>For nullable columns, use <code>sql.NullString</code> and related types from Go&rsquo;s standard library.</p>
+
+<pre><code class="language-go">type PersonNullable struct {
+    ID        int
+    FirstName sql.NullString
+    LastName  sql.NullString
+    Email     sql.NullString
+}
+
+func readNullable(ctx context.Context, db *sql.DB, id int) (PersonNullable, error) {
+    var p PersonNullable
+    err := db.QueryRowContext(ctx,
+        "SELECT id, first_name, last_name, email FROM people WHERE id = ?", id,
+    ).Scan(&amp;p.ID, &amp;p.FirstName, &amp;p.LastName, &amp;p.Email)
+    return p, err
+}</code></pre>
+
+                        <h2>Transactions</h2>
+
+<pre><code class="language-go">func transferEmail(ctx context.Context, db *sql.DB, fromID, toID int) error {
+    tx, err := db.BeginTx(ctx, &amp;sql.TxOptions{
+        Isolation: sql.LevelRepeatableRead,
+        ReadOnly:  false,
+    })
+    if err != nil {
+        return err
+    }
+    defer func() {
+        if err != nil {
+            _ = tx.Rollback()
+        }
+    }()
+
+    var email string
+    if err = tx.QueryRowContext(ctx, "SELECT email FROM people WHERE id = ? FOR UPDATE", fromID).Scan(&amp;email); err != nil {
+        return err
+    }
+
+    if _, err = tx.ExecContext(ctx, "UPDATE people SET email = NULL WHERE id = ?", fromID); err != nil {
+        return err
+    }
+    if _, err = tx.ExecContext(ctx, "UPDATE people SET email = ? WHERE id = ?", email, toID); err != nil {
+        return err
+    }
+
+    return tx.Commit()
+}</code></pre>
+
+                        <h2>Connection Pool Best Practices</h2>
+
+                        <p>Configure your connection pool for production with <code>SetMaxOpenConns</code>, <code>SetMaxIdleConns</code>, <code>SetConnMaxLifetime</code>, and <code>PingContext</code> health checks. Tune these values based on your workload and MySQL&rsquo;s <code>max_connections</code> setting.</p>
+
+                        <h2>Timeouts and Context</h2>
+
+                        <p>All database operations should use <code>QueryContext()</code> and <code>ExecContext()</code> with timeouts to prevent blocked connections.</p>
+
+<pre><code class="language-go">ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+defer cancel()
+
+if _, err := db.ExecContext(ctx, "UPDATE people SET last_name = ? WHERE id = ?", "Smith", 10); err != nil {
+    log.Println("Timeout or DB error:", err)
+}</code></pre>
+
+                        <h2>Pagination and Filtering</h2>
+
+<pre><code class="language-go">func listPage(ctx context.Context, db *sql.DB, limit, offset int, orderBy string) ([]Person, error) {
+    switch orderBy {
+    case "id", "first_name", "last_name", "created_at":
+    default:
+        orderBy = "id"
+    }
+
+    q := fmt.Sprintf("SELECT id, first_name, last_name, email, created_at FROM people ORDER BY %s LIMIT ? OFFSET ?", orderBy)
+    rows, err := db.QueryContext(ctx, q, limit, offset)
+    if err != nil {
+        return nil, err
+    }
+    defer rows.Close()
+
+    var out []Person
+    for rows.Next() {
+        var p Person
+        if err := rows.Scan(&amp;p.ID, &amp;p.FirstName, &amp;p.LastName, &amp;p.Email, &amp;p.CreatedAt); err != nil {
+            return nil, err
+        }
+        out = append(out, p)
+    }
+    return out, rows.Err()
+}</code></pre>
+
+                        <h2>TLS Connections</h2>
+
+<pre><code class="language-go">import (
+    "crypto/tls"
+    "crypto/x509"
+    "os"
+
+    "github.com/go-sql-driver/mysql"
+)
+
+func tlsDSN() string {
+    rootCertPool := x509.NewCertPool()
+    pem, _ := os.ReadFile("ca.pem")
+    rootCertPool.AppendCertsFromPEM(pem)
+
+    mysql.RegisterTLSConfig("custom", &amp;tls.Config{
+        RootCAs:    rootCertPool,
+        MinVersion: tls.VersionTLS12,
+    })
+
+    return "user:pass@tcp(host:3306)/db?parseTime=true&amp;charset=utf8mb4&amp;tls=custom"
+}</code></pre>
+
+                        <h2>Error Handling</h2>
+
+<pre><code class="language-go">import "github.com/go-sql-driver/mysql"
+
+func createUniqueEmail(ctx context.Context, db *sql.DB, email string) error {
+    _, err := db.ExecContext(ctx, "INSERT INTO people (first_name, last_name, email) VALUES ('A','B',?)", email)
+    if err != nil {
+        if me, ok := err.(*mysql.MySQLError); ok &amp;&amp; me.Number == 1062 {
+            return fmt.Errorf("email already exists")
+        }
+        return err
+    }
+    return nil
+}</code></pre>
+
+                        <h2>Production Best Practices</h2>
+
+                        <ul>
+                            <li>Use <code>utf8mb4</code> consistently for full Unicode support.</li>
+                            <li>Enable <code>parseTime=true</code> to scan <code>DATETIME</code>/<code>TIMESTAMP</code> into <code>time.Time</code>.</li>
+                            <li>Employ placeholders (<code>?</code>) &mdash; never concatenate user input.</li>
+                            <li>Wrap queries with context timeouts.</li>
+                            <li>Tune connection pools based on workload.</li>
+                            <li>Use transactions for multi-step operations.</li>
+                            <li>Manage migrations with version control (e.g., <code>golang-migrate</code>).</li>
+                            <li>Secure passwords via environment variables.</li>
+                            <li>Implement observability: structured logging and metrics.</li>
+                        </ul>
+
+                        <h2>Quick Start (Minimal Example)</h2>
+
+<pre><code class="language-go">package main
+
+import (
+    "database/sql"
+    "fmt"
+    _ "github.com/go-sql-driver/mysql"
+)
+
+func main() {
+    db, err := sql.Open("mysql", "username:password@tcp(127.0.0.1:3306)/database_name?parseTime=true&amp;charset=utf8mb4")
+    if err != nil { panic(err) }
+    defer db.Close()
+
+    rows, err := db.Query("SELECT id, first_name FROM people")
+    if err != nil { panic(err) }
+    defer rows.Close()
+
+    for rows.Next() {
+        var id int
+        var name string
+        if err := rows.Scan(&amp;id, &amp;name); err != nil { panic(err) }
+        fmt.Println(id, name)
+    }
+}</code></pre>
+                    </div>
+                </div>
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="go-installation-data-types.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">GO Installation and Data Types</div>
+                            <span class="sidebar-link-meta">Feb 2023</span>
+                        </a>
+                        <a href="go-oop.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Object Oriented Programming in GO</div>
+                            <span class="sidebar-link-meta">Oct 2023</span>
+                        </a>
+                        <a href="go-cross-compiling-docker.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Cross-Compiling &amp; Docker</div>
+                            <span class="sidebar-link-meta">Nov 2024</span>
+                        </a>
+                        <a href="go-dsls-generics.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Building DSLs in Go Using Generics</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-arena-allocators.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Memory Optimization in Go: Arena Allocators</div>
+                            <span class="sidebar-link-meta">Nov 2025</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+
+</body>
+</html>

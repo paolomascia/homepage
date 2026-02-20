@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recurrent Neural Networks (RNNs): Learning from Sequences — Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="ai-tech-insights.html" class="back-link">&larr; Back to Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Apr 2025</span>
+                            <span class="post-reading">5 min read</span>
+                        </div>
+                        <h1>Recurrent Neural Networks (RNNs): Learning from Sequences</h1>
+                        <div class="post-tags">
+                            <span>RNN</span>
+                            <span>LSTM</span>
+                            <span>Sequence Modeling</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">While Convolutional Neural Networks (CNNs) excel at spatial data like images, Recurrent Neural Networks (RNNs) are designed for sequential data — such as text, speech, and time series. They introduce the concept of memory, allowing the network to retain information from previous inputs and use it to influence future outputs.</p>
+
+                        <h2>Why RNNs?</h2>
+                        <p>Standard neural networks process each input independently. But many problems involve sequences where order matters:</p>
+                        <ul>
+                            <li>Language modeling: predicting the next word in a sentence.</li>
+                            <li>Speech recognition: converting spoken words into text.</li>
+                            <li>Stock prediction: forecasting based on previous time steps.</li>
+                        </ul>
+                        <p>RNNs handle these by maintaining a hidden state that evolves over time, capturing dependencies between sequence elements.</p>
+
+                        <h2>The Recurrent Loop</h2>
+                        <p>At each time step <code>t</code>, an RNN cell takes two inputs:</p>
+                        <ul>
+                            <li><code>x_t</code> — the current input</li>
+                            <li><code>h_(t-1)</code> — the hidden state from the previous time step</li>
+                        </ul>
+                        <p>and computes:</p>
+                        <pre><code class="language-python">h_t = f(W_hx * x_t + W_hh * h_(t-1) + b)</code></pre>
+                        <p>where <code>f</code> is a nonlinear activation function (typically <code>tanh</code> or <code>ReLU</code>).</p>
+
+                        <h2>Building a Simple RNN in Keras</h2>
+                        <pre><code class="language-python">from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import SimpleRNN, Dense
+import numpy as np
+
+# Generate toy sequential data
+X = np.random.random((1000, 10, 5))
+y = np.random.randint(2, size=(1000, 1))
+
+# Build RNN
+model = Sequential([
+    SimpleRNN(32, activation='tanh', input_shape=(10, 5)),
+    Dense(1, activation='sigmoid')
+])
+
+model.compile(optimizer='adam',
+    loss='binary_crossentropy', metrics=['accuracy'])
+model.summary()</code></pre>
+                        <p>The <code>SimpleRNN</code> layer processes sequential data step-by-step, passing hidden states forward to remember context.</p>
+
+                        <h2>Limitations of Simple RNNs</h2>
+                        <p>While RNNs can handle short-term dependencies, they struggle with <strong>long-term dependencies</strong> — when relevant information appears many steps before it's needed. This is due to <strong>vanishing or exploding gradients</strong> during training.</p>
+                        <p>To overcome this, researchers developed improved variants: <strong>LSTM</strong> (Long Short-Term Memory) and <strong>GRU</strong> (Gated Recurrent Unit).</p>
+
+                        <h2>Long Short-Term Memory (LSTM)</h2>
+                        <p>LSTMs introduce <strong>gates</strong> that control the flow of information — deciding what to keep, what to forget, and what to output at each step.</p>
+                        <pre><code class="language-python">from tensorflow.keras.layers import LSTM
+
+lstm_model = Sequential([
+    LSTM(64, input_shape=(10, 5)),
+    Dense(1, activation='sigmoid')
+])
+
+lstm_model.compile(optimizer='adam',
+    loss='binary_crossentropy', metrics=['accuracy'])
+lstm_model.summary()</code></pre>
+                        <p>LSTMs handle long-term dependencies far better than standard RNNs and are the go-to architecture for most sequence problems.</p>
+
+                        <h2>Gated Recurrent Units (GRUs)</h2>
+                        <p>GRUs simplify LSTMs by merging the forget and input gates into a single update gate. They're faster to train and often perform just as well.</p>
+                        <pre><code class="language-python">from tensorflow.keras.layers import GRU
+
+gru_model = Sequential([
+    GRU(64, input_shape=(10, 5)),
+    Dense(1, activation='sigmoid')
+])
+
+gru_model.compile(optimizer='adam',
+    loss='binary_crossentropy', metrics=['accuracy'])
+gru_model.summary()</code></pre>
+
+                        <h2>Applications of RNNs</h2>
+                        <ul>
+                            <li><strong>Language modeling</strong> — predicting the next word or character.</li>
+                            <li><strong>Text generation</strong> — generating realistic sentences or poetry.</li>
+                            <li><strong>Speech recognition</strong> — mapping audio sequences to words.</li>
+                            <li><strong>Machine translation</strong> — converting sentences between languages.</li>
+                            <li><strong>Time series forecasting</strong> — predicting stock prices or sensor readings.</li>
+                        </ul>
+
+                        <h2>Bidirectional RNNs</h2>
+                        <p>Bidirectional RNNs process sequences both forward and backward, capturing context from past and future steps simultaneously.</p>
+                        <pre><code class="language-python">from tensorflow.keras.layers import Bidirectional
+
+bidir_model = Sequential([
+    Bidirectional(LSTM(64), input_shape=(10, 5)),
+    Dense(1, activation='sigmoid')
+])
+bidir_model.compile(optimizer='adam',
+    loss='binary_crossentropy', metrics=['accuracy'])
+bidir_model.summary()</code></pre>
+                        <p>Bidirectional architectures are especially effective in NLP, where context from both directions improves comprehension.</p>
+
+                        <h2>Key Takeaways</h2>
+                        <ul>
+                            <li><strong>RNNs</strong> are ideal for sequential data, capturing dependencies over time.</li>
+                            <li><strong>LSTM</strong> and <strong>GRU</strong> overcome the main weaknesses of basic RNNs.</li>
+                            <li><strong>Bidirectional RNNs</strong> enhance understanding by processing input in both directions.</li>
+                            <li>Modern architectures like <strong>Transformers</strong> extend these concepts with attention mechanisms, enabling even better performance on long sequences.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI & Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing large-scale distributed systems. Specialized in Generative AI, AI Agents, and cloud-native architectures.</p>
+                        <div class="sidebar-author-links">
+                            <a href="https://www.linkedin.com/in/paolo-mascia-italy" target="_blank" aria-label="LinkedIn">
+                                <svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                            </a>
+                            <a href="https://github.com/paolomascia" target="_blank" aria-label="GitHub">
+                                <svg viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+                            </a>
+                            <a href="https://www.kaggle.com/paolomascia" target="_blank" aria-label="Kaggle">
+                                <svg viewBox="0 0 24 24"><path d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.233-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.075.378z"/></svg>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="post-transformers.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Transformers</span>
+                            <div class="sidebar-link-title">Transformers: The Architecture That Revolutionized Deep Learning</div>
+                            <span class="sidebar-link-meta">Mar 2025</span>
+                        </a>
+                        <a href="post-cnn.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">CNN</span>
+                            <div class="sidebar-link-title">Convolutional Neural Networks (CNNs): The Brains Behind Computer Vision</div>
+                            <span class="sidebar-link-meta">Jan 2025</span>
+                        </a>
+                        <a href="post-autoencoders.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Autoencoders</span>
+                            <div class="sidebar-link-title">Autoencoders: Learning Efficient Data Representations</div>
+                            <span class="sidebar-link-meta">Dec 2024</span>
+                        </a>
+                        <a href="post-shallow-vs-deep.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Neural Networks</span>
+                            <div class="sidebar-link-title">Shallow vs Deep Neural Networks</div>
+                            <span class="sidebar-link-meta">Aug 2024</span>
+                        </a>
+                        <a href="post-numpy.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">NumPy</span>
+                            <div class="sidebar-link-title">Mastering NumPy: The Foundation of Scientific Computing in Python</div>
+                            <span class="sidebar-link-meta">Mar 2023</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+</body>
+</html>

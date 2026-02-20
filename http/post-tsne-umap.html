@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>t-SNE and UMAP in Python &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="ai-tech-insights.html" class="back-link">&larr; Back to Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Jul 2024</span>
+                            <span class="post-reading">12 min read</span>
+                        </div>
+                        <h1>t-SNE and UMAP in Python</h1>
+                        <div class="post-tags">
+                            <span>t-SNE</span>
+                            <span>UMAP</span>
+                            <span>Dimension Reduction</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Linear techniques like PCA preserve global variance but struggle with nonlinear structures. t-SNE and UMAP are nonlinear dimension reduction algorithms that excel at uncovering local structure &mdash; ideal for visualizing high-dimensional datasets such as embeddings, image features, and genomics data.</p>
+
+                        <h2>Why Nonlinear Reduction?</h2>
+                        <p>Many real-world datasets lie on curved manifolds embedded in high-dimensional space. PCA projects data onto flat planes and cannot capture these curved relationships. Consider a Swiss roll &mdash; points that are close in 3D Euclidean distance may be far apart along the manifold surface. Nonlinear methods preserve these <strong>local neighborhood</strong> relationships, revealing clusters and continuity that linear methods miss entirely.</p>
+                        <p>Common use cases for nonlinear reduction include:</p>
+                        <ul>
+                            <li>Visualizing word or sentence embeddings from transformer models</li>
+                            <li>Exploring clusters in single-cell RNA sequencing data</li>
+                            <li>Inspecting latent spaces of autoencoders and GANs</li>
+                            <li>Quality-checking feature representations before training classifiers</li>
+                        </ul>
+
+                        <h2>t-SNE Basics</h2>
+                        <p><strong>t-Distributed Stochastic Neighbor Embedding (t-SNE)</strong> converts pairwise distances in high-dimensional space into conditional probabilities, then minimizes the KL divergence between those probabilities and their low-dimensional counterparts. Key parameters:</p>
+                        <ul>
+                            <li><strong>perplexity</strong> (default 30) &mdash; Controls the effective number of neighbors. Low values emphasize very local structure; high values capture broader patterns. Typical range: 5&ndash;50.</li>
+                            <li><strong>learning_rate</strong> (default &ldquo;auto&rdquo;) &mdash; Step size for gradient descent. Too low causes points to clump; too high causes divergence.</li>
+                            <li><strong>n_iter</strong> (default 1000) &mdash; Number of optimization iterations. More iterations allow better convergence but increase runtime.</li>
+                            <li><strong>metric</strong> &mdash; Distance function (euclidean, cosine, etc.).</li>
+                        </ul>
+                        <p>t-SNE is stochastic: different random seeds produce different layouts. Always run multiple times to confirm that observed clusters are real.</p>
+
+                        <h2>t-SNE Example on Synthetic Data</h2>
+                        <p>We generate a Swiss roll &mdash; a classic nonlinear manifold &mdash; and project it to 2D with t-SNE.</p>
+                        <pre><code class="language-python">from sklearn.datasets import make_swiss_roll
+from sklearn.manifold import TSNE
+import matplotlib.pyplot as plt
+
+X, color = make_swiss_roll(n_samples=2000, noise=0.5, random_state=0)
+
+tsne = TSNE(n_components=2, perplexity=30, learning_rate="auto", random_state=0)
+X_tsne = tsne.fit_transform(X)
+
+plt.figure(figsize=(8, 6))
+plt.scatter(X_tsne[:, 0], X_tsne[:, 1], c=color, cmap="Spectral", s=5, alpha=0.8)
+plt.colorbar(label="Position along manifold")
+plt.title("t-SNE &mdash; Swiss Roll")
+plt.xlabel("t-SNE 1")
+plt.ylabel("t-SNE 2")
+plt.tight_layout()
+plt.show()</code></pre>
+                        <p>The color gradient should unroll smoothly, showing that t-SNE preserves the local ordering along the manifold surface.</p>
+
+                        <h2>UMAP Basics</h2>
+                        <p><strong>Uniform Manifold Approximation and Projection (UMAP)</strong> builds a fuzzy topological representation of the high-dimensional data and optimizes a low-dimensional layout to match it. Key parameters:</p>
+                        <ul>
+                            <li><strong>n_neighbors</strong> (default 15) &mdash; Size of the local neighborhood. Small values preserve fine detail; large values capture more global structure.</li>
+                            <li><strong>min_dist</strong> (default 0.1) &mdash; Minimum distance between points in the embedding. Lower values produce tighter clusters; higher values spread points out.</li>
+                            <li><strong>metric</strong> &mdash; Distance function (euclidean, cosine, manhattan, etc.).</li>
+                            <li><strong>n_components</strong> &mdash; Target dimensionality (2 for visualization, higher for downstream ML).</li>
+                        </ul>
+                        <p>UMAP is generally faster than t-SNE, better preserves global structure, and supports transforming new data via <code>.transform()</code>.</p>
+
+                        <h2>UMAP Example</h2>
+                        <p>We apply UMAP to the same Swiss roll dataset for a direct comparison with t-SNE.</p>
+                        <pre><code class="language-python">import umap
+
+reducer = umap.UMAP(n_neighbors=15, min_dist=0.1, random_state=0)
+X_umap = reducer.fit_transform(X)
+
+plt.figure(figsize=(8, 6))
+plt.scatter(X_umap[:, 0], X_umap[:, 1], c=color, cmap="Spectral", s=5, alpha=0.8)
+plt.colorbar(label="Position along manifold")
+plt.title("UMAP &mdash; Swiss Roll")
+plt.xlabel("UMAP 1")
+plt.ylabel("UMAP 2")
+plt.tight_layout()
+plt.show()</code></pre>
+                        <p>UMAP typically produces a cleaner unrolling of the manifold while also preserving some of the global relationships between distant regions.</p>
+
+                        <h2>t-SNE vs UMAP Comparison</h2>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Aspect</th>
+                                    <th>t-SNE</th>
+                                    <th>UMAP</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Speed</td>
+                                    <td>Slower, especially on large datasets</td>
+                                    <td>Significantly faster</td>
+                                </tr>
+                                <tr>
+                                    <td>Global structure</td>
+                                    <td>Primarily local &mdash; inter-cluster distances are unreliable</td>
+                                    <td>Better preservation of global relationships</td>
+                                </tr>
+                                <tr>
+                                    <td>Reproducibility</td>
+                                    <td>Stochastic; layouts vary across runs</td>
+                                    <td>More stable with fixed seed</td>
+                                </tr>
+                                <tr>
+                                    <td>New data</td>
+                                    <td>No native <code>.transform()</code></td>
+                                    <td>Supports <code>.transform()</code> for unseen points</td>
+                                </tr>
+                                <tr>
+                                    <td>Key parameter</td>
+                                    <td><code>perplexity</code></td>
+                                    <td><code>n_neighbors</code>, <code>min_dist</code></td>
+                                </tr>
+                                <tr>
+                                    <td>Best for</td>
+                                    <td>Publication-quality 2D cluster plots</td>
+                                    <td>Exploration, pipelines, larger datasets</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <h2>Practical Workflow: PCA + UMAP/t-SNE</h2>
+                        <p>For high-dimensional data (hundreds or thousands of features), applying PCA first to reduce to 50&ndash;100 components dramatically speeds up t-SNE and UMAP while removing noise.</p>
+                        <pre><code class="language-python">from sklearn.datasets import load_digits
+from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
+import umap
+import matplotlib.pyplot as plt
+
+X, y = load_digits(return_X_y=True)
+
+# Step 1: PCA to 50 components
+X_pca = PCA(n_components=50, random_state=0).fit_transform(X)
+
+# Step 2a: t-SNE on PCA output
+X_tsne = TSNE(n_components=2, perplexity=30, random_state=0).fit_transform(X_pca)
+
+# Step 2b: UMAP on PCA output
+X_umap = umap.UMAP(n_neighbors=15, min_dist=0.1, random_state=0).fit_transform(X_pca)
+
+fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+for ax, emb, title in zip(axes, [X_tsne, X_umap], ["PCA + t-SNE", "PCA + UMAP"]):
+    scatter = ax.scatter(emb[:, 0], emb[:, 1], c=y, cmap="tab10", s=5, alpha=0.8)
+    ax.set_title(title)
+    ax.set_xlabel("Component 1")
+    ax.set_ylabel("Component 2")
+plt.colorbar(scatter, ax=axes, label="Digit class")
+plt.tight_layout()
+plt.show()</code></pre>
+                        <p>This two-stage pipeline is the recommended approach for most real-world datasets. PCA handles linear redundancy; the nonlinear method handles manifold structure.</p>
+
+                        <h2>UMAP for Clustering Pre-processing</h2>
+                        <p>UMAP embeddings can serve as input to density-based clustering algorithms like HDBSCAN, which struggle in high dimensions due to the curse of dimensionality.</p>
+                        <pre><code class="language-python">import umap
+import hdbscan
+from sklearn.datasets import load_digits
+from sklearn.decomposition import PCA
+import matplotlib.pyplot as plt
+
+X, y = load_digits(return_X_y=True)
+X_pca = PCA(n_components=50, random_state=0).fit_transform(X)
+
+reducer = umap.UMAP(n_neighbors=15, min_dist=0.0, n_components=10, random_state=0)
+X_emb = reducer.fit_transform(X_pca)
+
+clusterer = hdbscan.HDBSCAN(min_cluster_size=15)
+labels = clusterer.fit_predict(X_emb)
+print(f"Clusters found: {len(set(labels)) - (1 if -1 in labels else 0)}")
+print(f"Noise points:   {(labels == -1).sum()}")
+
+# Visualize with 2D UMAP
+X_vis = umap.UMAP(n_neighbors=15, min_dist=0.1, n_components=2, random_state=0).fit_transform(X_pca)
+plt.figure(figsize=(8, 6))
+plt.scatter(X_vis[:, 0], X_vis[:, 1], c=labels, cmap="tab20", s=5, alpha=0.8)
+plt.title("UMAP + HDBSCAN Clustering")
+plt.xlabel("UMAP 1")
+plt.ylabel("UMAP 2")
+plt.colorbar(label="Cluster")
+plt.tight_layout()
+plt.show()</code></pre>
+                        <p>Setting <code>min_dist=0.0</code> produces tighter clusters in the embedding, which helps HDBSCAN identify meaningful groups. Use a higher <code>n_components</code> (e.g., 10) for clustering input rather than 2, as 2D discards too much information.</p>
+
+                        <h2>3D Embeddings</h2>
+                        <p>Both t-SNE and UMAP support 3D embeddings for interactive exploration. This is useful when 2D projections merge distinct clusters.</p>
+                        <pre><code class="language-python">import umap
+from sklearn.datasets import load_digits
+from sklearn.decomposition import PCA
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+
+X, y = load_digits(return_X_y=True)
+X_pca = PCA(n_components=50, random_state=0).fit_transform(X)
+
+reducer_3d = umap.UMAP(n_components=3, n_neighbors=15, min_dist=0.1, random_state=0)
+X_3d = reducer_3d.fit_transform(X_pca)
+
+fig = plt.figure(figsize=(10, 8))
+ax = fig.add_subplot(111, projection="3d")
+scatter = ax.scatter(X_3d[:, 0], X_3d[:, 1], X_3d[:, 2], c=y, cmap="tab10", s=3, alpha=0.7)
+ax.set_title("3D UMAP &mdash; Digits")
+ax.set_xlabel("UMAP 1")
+ax.set_ylabel("UMAP 2")
+ax.set_zlabel("UMAP 3")
+plt.colorbar(scatter, label="Digit class", shrink=0.6)
+plt.tight_layout()
+plt.show()</code></pre>
+                        <p>For truly interactive 3D exploration, consider using <code>plotly</code> instead of Matplotlib &mdash; it allows rotation and zooming in the browser.</p>
+
+                        <h2>Parameter Tuning Tips</h2>
+                        <p>Both algorithms are sensitive to their hyperparameters. Here are practical guidelines:</p>
+                        <ul>
+                            <li><strong>t-SNE perplexity:</strong> Start at 30. For small datasets (&lt;300 points), try 5&ndash;15. For large datasets (&gt;10k), try 50&ndash;100. Always compare multiple values.</li>
+                            <li><strong>UMAP n_neighbors:</strong> Start at 15. Lower values (5&ndash;10) emphasize micro-clusters; higher values (30&ndash;50) smooth out local noise and reveal macro-structure.</li>
+                            <li><strong>UMAP min_dist:</strong> Use 0.0&ndash;0.05 for clustering pre-processing (tight groups). Use 0.1&ndash;0.5 for visualization (more spread).</li>
+                            <li><strong>Always scale features first</strong> with <code>StandardScaler</code> unless the raw scale is meaningful (e.g., pixel values).</li>
+                            <li><strong>Apply PCA first</strong> when the original dimensionality exceeds ~100 to reduce noise and speed up computation.</li>
+                            <li><strong>Use cosine distance</strong> for text embeddings and other directional data rather than Euclidean distance.</li>
+                        </ul>
+
+                        <h2>Reusable Visualization Function</h2>
+                        <p>A utility function that works with any 2D embedding makes experimentation faster.</p>
+                        <pre><code class="language-python">import matplotlib.pyplot as plt
+import numpy as np
+
+def plot_embedding(X_2d, labels=None, title="Embedding", figsize=(8, 6), cmap="tab10", s=5):
+    """Plot a 2D embedding with optional color labels."""
+    plt.figure(figsize=figsize)
+    scatter = plt.scatter(
+        X_2d[:, 0], X_2d[:, 1],
+        c=labels, cmap=cmap, s=s, alpha=0.8, edgecolors="none"
+    )
+    if labels is not None:
+        plt.colorbar(scatter, label="Label")
+    plt.title(title)
+    plt.xlabel("Dim 1")
+    plt.ylabel("Dim 2")
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.show()
+
+# Usage
+# plot_embedding(X_tsne, y, title="t-SNE of Digits")
+# plot_embedding(X_umap, y, title="UMAP of Digits")</code></pre>
+
+                        <h2>Common Pitfalls</h2>
+                        <ul>
+                            <li><strong>Over-interpreting cluster sizes and distances.</strong> In t-SNE, the relative distances between clusters and their sizes are not meaningful. UMAP is somewhat better but still approximate.</li>
+                            <li><strong>Running on raw high-dimensional data.</strong> Both algorithms suffer from the curse of dimensionality. Always pre-reduce with PCA when features exceed ~100.</li>
+                            <li><strong>Forgetting to scale.</strong> Features on different scales will distort distance calculations and produce misleading embeddings.</li>
+                            <li><strong>Using a single perplexity / n_neighbors value.</strong> Always explore a range. A single parameter choice can hide or exaggerate structure.</li>
+                            <li><strong>Treating the embedding as ground truth.</strong> These are visualization tools, not definitive clustering methods. Always validate findings with quantitative metrics.</li>
+                            <li><strong>Ignoring runtime.</strong> t-SNE on 100k+ points can take minutes to hours. Use UMAP or subsample the data for interactive exploration.</li>
+                        </ul>
+
+                        <h2>Key Takeaways</h2>
+                        <ul>
+                            <li><strong>t-SNE excels at revealing local clusters</strong> but is slow, stochastic, and does not preserve global structure. Best for small-to-medium datasets and final publication plots.</li>
+                            <li><strong>UMAP is faster, more scalable, and better preserves global layout.</strong> It supports <code>.transform()</code> for new data, making it suitable for production pipelines.</li>
+                            <li><strong>Always pre-reduce with PCA</strong> when the input dimensionality is high. This removes noise and dramatically improves speed.</li>
+                            <li><strong>Tune parameters deliberately.</strong> <code>perplexity</code> (t-SNE) and <code>n_neighbors</code> / <code>min_dist</code> (UMAP) control the local-vs-global trade-off. Explore multiple values.</li>
+                            <li><strong>UMAP + HDBSCAN</strong> is a powerful combination for discovering clusters in high-dimensional data without specifying the number of clusters in advance.</li>
+                            <li><strong>Never draw quantitative conclusions</strong> from 2D embeddings alone. Use them for exploration and hypothesis generation, then validate with proper metrics.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing large-scale distributed systems. Specialized in Generative AI, AI Agents, and cloud-native architectures.</p>
+                        <div class="sidebar-author-links">
+                            <a href="https://www.linkedin.com/in/paolo-mascia-italy" target="_blank" aria-label="LinkedIn">
+                                <svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                            </a>
+                            <a href="https://github.com/paolomascia" target="_blank" aria-label="GitHub">
+                                <svg viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+                            </a>
+                            <a href="https://www.kaggle.com/paolomascia" target="_blank" aria-label="Kaggle">
+                                <svg viewBox="0 0 24 24"><path d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.233-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.075.378z"/></svg>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="post-pca.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">PCA</span>
+                            <div class="sidebar-link-title">Principal Component Analysis (PCA) in Python</div>
+                            <span class="sidebar-link-meta">May 2024</span>
+                        </a>
+                        <a href="post-kmeans.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">K-Means</span>
+                            <div class="sidebar-link-title">K-Means Clustering Evaluation</div>
+                            <span class="sidebar-link-meta">Feb 2024</span>
+                        </a>
+                        <a href="post-random-forest.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Model Evaluation</span>
+                            <div class="sidebar-link-title">Random Forest Model Evaluation</div>
+                            <span class="sidebar-link-meta">Dec 2023</span>
+                        </a>
+                        <a href="post-numpy.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">NumPy</span>
+                            <div class="sidebar-link-title">Mastering NumPy</div>
+                            <span class="sidebar-link-meta">Mar 2023</span>
+                        </a>
+                        <a href="post-dbscan.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Clustering</span>
+                            <div class="sidebar-link-title">DBSCAN and HDBSCAN in Python</div>
+                            <span class="sidebar-link-meta">Nov 2024</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+</body>
+</html>

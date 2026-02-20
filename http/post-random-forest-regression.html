@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Random Forest Regression in Python &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="ai-tech-insights.html" class="back-link">&larr; Back to Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Mar 2024</span>
+                            <span class="post-reading">14 min read</span>
+                        </div>
+                        <h1>Random Forest Regression in Python</h1>
+                        <div class="post-tags">
+                            <span>Random Forest</span>
+                            <span>Regression</span>
+                            <span>Ensemble</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+
+                        <p class="lead">A Random Forest is an ensemble of decision trees that combines bootstrap sampling and random feature selection to produce predictions with substantially lower variance than any single tree. For regression tasks, the forest averages the predictions of its constituent trees, yielding a smooth, robust, and highly competitive model with very little tuning required.</p>
+
+                        <h2>How a Random Forest Works</h2>
+
+                        <p>The Random Forest algorithm rests on three ideas that work together to reduce the variance of decision trees while keeping their low bias:</p>
+
+                        <h3>1. Bootstrap Aggregation (Bagging)</h3>
+                        <p>Each tree in the forest is trained on a <strong>bootstrap sample</strong>&mdash;a random sample of size <em>n</em> drawn <em>with replacement</em> from the original training set. On average, each bootstrap sample contains roughly 63% of the unique training observations; the remaining ~37% are called <strong>out-of-bag (OOB)</strong> samples and can be used for validation without a separate hold-out set.</p>
+
+                        <h3>2. Random Feature Subsets</h3>
+                        <p>At every split in every tree, only a random subset of features is considered as candidates. For regression the default is <code>max_features=1.0</code> (all features), but setting it to <code>"sqrt"</code> or <code>"log2"</code> or a fraction like <code>0.5</code> <strong>decorrelates</strong> the trees, which is the key to variance reduction. When trees are less correlated, their average is more stable.</p>
+
+                        <h3>3. Aggregation</h3>
+                        <p>The final prediction is the <strong>arithmetic mean</strong> of all individual tree predictions. Because the trees are diversified by bagging and feature randomness, the mean converges to a lower-variance estimate than any single tree could achieve.</p>
+
+                        <blockquote>
+                            <strong>Intuition:</strong> Imagine polling 100 imperfect but diverse experts and averaging their answers. Even if each expert is noisy, the average tends to be much more accurate than any individual opinion&mdash;as long as their errors are not all in the same direction.
+                        </blockquote>
+
+                        <h2>Key Hyperparameters</h2>
+
+                        <p>The most important hyperparameters to tune for <code>RandomForestRegressor</code> are:</p>
+
+                        <ul>
+                            <li><strong><code>n_estimators</code></strong> &ndash; the number of trees. More trees rarely hurt (except for compute time). Start with 100&ndash;500.</li>
+                            <li><strong><code>max_depth</code></strong> &ndash; maximum depth of each tree. <code>None</code> (default) lets trees grow fully, which is usually fine for forests since averaging mitigates overfitting. Can be restricted for speed or when data is very noisy.</li>
+                            <li><strong><code>max_features</code></strong> &ndash; the number of features considered at each split. Lower values increase diversity. Try <code>"sqrt"</code>, <code>0.33</code>, or <code>0.5</code>.</li>
+                            <li><strong><code>min_samples_leaf</code></strong> &ndash; minimum samples per leaf. Increasing this smooths predictions and speeds training.</li>
+                            <li><strong><code>max_samples</code></strong> &ndash; the fraction of the dataset to draw for each bootstrap sample. Default is 1.0 (draw <em>n</em> samples with replacement). Setting to 0.8 can speed training and slightly reduce overfitting.</li>
+                            <li><strong><code>oob_score</code></strong> &ndash; whether to compute out-of-bag R&sup2; score. Useful for quick validation without a separate split.</li>
+                            <li><strong><code>n_jobs</code></strong> &ndash; number of parallel jobs. Set to <code>-1</code> to use all CPU cores.</li>
+                        </ul>
+
+                        <h2>Minimal Example on a Nonlinear Target</h2>
+
+                        <p>Let&rsquo;s fit a Random Forest to a synthetic nonlinear function and compare it to a single decision tree:</p>
+
+<pre><code class="language-python">import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.tree import DecisionTreeRegressor
+
+# Generate nonlinear data
+rng = np.random.RandomState(42)
+X = np.sort(5 * rng.rand(300, 1), axis=0)
+y = np.sin(X).ravel() + 0.5 * np.cos(3 * X).ravel() + 0.2 * rng.randn(300)
+
+# Fit models
+tree = DecisionTreeRegressor(max_depth=6, random_state=42)
+forest = RandomForestRegressor(
+    n_estimators=200, max_depth=6, random_state=42, n_jobs=-1
+)
+
+tree.fit(X, y)
+forest.fit(X, y)
+
+# Predict on a fine grid
+X_grid = np.linspace(0, 5, 500).reshape(-1, 1)
+y_tree = tree.predict(X_grid)
+y_forest = forest.predict(X_grid)
+
+# Plot comparison
+fig, axes = plt.subplots(1, 2, figsize=(14, 5), sharey=True)
+
+axes[0].scatter(X, y, s=10, alpha=0.4, label="Data")
+axes[0].plot(X_grid, y_tree, color="red", lw=2, label="Decision Tree")
+axes[0].set_title("Single Decision Tree (depth=6)")
+axes[0].legend()
+
+axes[1].scatter(X, y, s=10, alpha=0.4, label="Data")
+axes[1].plot(X_grid, y_forest, color="green", lw=2, label="Random Forest")
+axes[1].set_title("Random Forest (200 trees, depth=6)")
+axes[1].legend()
+
+plt.tight_layout()
+plt.show()</code></pre>
+
+                        <p>The single tree produces a jagged, piecewise-constant prediction. The Random Forest averages 200 such trees, producing a much smoother curve that better approximates the underlying signal.</p>
+
+                        <h2>Out-of-Bag (OOB) Scoring</h2>
+
+                        <p>One of the most convenient features of Random Forests is the built-in OOB score. Because each tree is trained on a bootstrap sample, the samples it <em>did not</em> see can serve as a validation set. The OOB score aggregates predictions for each training sample from only the trees that did not include it:</p>
+
+<pre><code class="language-python">from sklearn.datasets import fetch_california_housing
+from sklearn.model_selection import train_test_split
+
+data = fetch_california_housing()
+X_cal, y_cal = data.data, data.target
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X_cal, y_cal, test_size=0.2, random_state=42
+)
+
+rf = RandomForestRegressor(
+    n_estimators=300,
+    max_features=0.5,
+    oob_score=True,
+    random_state=42,
+    n_jobs=-1,
+)
+rf.fit(X_train, y_train)
+
+print(f"OOB R² score:  {rf.oob_score_:.4f}")
+print(f"Test R² score: {rf.score(X_test, y_test):.4f}")</code></pre>
+
+                        <p>The OOB score closely approximates the hold-out score, giving you a free validation metric without sacrificing any training data. This is especially valuable when you have limited data.</p>
+
+                        <h2>Visualising the Fit</h2>
+
+                        <p>For multi-feature datasets, the predicted-vs-actual plot is the go-to diagnostic:</p>
+
+<pre><code class="language-python">from sklearn.metrics import mean_squared_error, r2_score
+
+y_pred = rf.predict(X_test)
+
+plt.figure(figsize=(6, 6))
+plt.scatter(y_test, y_pred, s=8, alpha=0.3)
+plt.plot([y_test.min(), y_test.max()],
+         [y_test.min(), y_test.max()], "r--", lw=2, label="Perfect")
+plt.xlabel("Actual")
+plt.ylabel("Predicted")
+plt.title("Random Forest: Predictions vs Ground Truth")
+plt.legend()
+plt.tight_layout()
+plt.show()
+
+print(f"RMSE: {mean_squared_error(y_test, y_pred, squared=False):.4f}")
+print(f"R²:   {r2_score(y_test, y_pred):.4f}")</code></pre>
+
+                        <p>Also visualise the residuals to check for systematic patterns:</p>
+
+<pre><code class="language-python">residuals = y_test - y_pred
+
+plt.figure(figsize=(10, 4))
+plt.scatter(y_pred, residuals, s=8, alpha=0.3)
+plt.axhline(0, color="red", linestyle="--", lw=1)
+plt.xlabel("Predicted")
+plt.ylabel("Residual")
+plt.title("Residual Plot")
+plt.tight_layout()
+plt.show()</code></pre>
+
+                        <h2>Feature Importance and Permutation Importance</h2>
+
+                        <p>Random Forests offer two complementary approaches to measuring feature relevance:</p>
+
+                        <h3>Impurity-Based Importance</h3>
+
+<pre><code class="language-python">feature_names = data.feature_names
+importances = rf.feature_importances_
+sorted_idx = np.argsort(importances)
+
+plt.figure(figsize=(8, 5))
+plt.barh(range(len(sorted_idx)), importances[sorted_idx])
+plt.yticks(range(len(sorted_idx)), [feature_names[i] for i in sorted_idx])
+plt.xlabel("Mean Impurity Decrease")
+plt.title("Impurity-Based Feature Importance")
+plt.tight_layout()
+plt.show()</code></pre>
+
+                        <p>Impurity-based importance is fast but can be biased toward high-cardinality and noisy features.</p>
+
+                        <h3>Permutation Importance</h3>
+
+<pre><code class="language-python">from sklearn.inspection import permutation_importance
+
+perm_result = permutation_importance(
+    rf, X_test, y_test, n_repeats=10, random_state=42, n_jobs=-1
+)
+
+sorted_idx_p = perm_result.importances_mean.argsort()
+plt.figure(figsize=(8, 5))
+plt.boxplot(
+    perm_result.importances[sorted_idx_p].T, vert=False,
+    labels=[feature_names[i] for i in sorted_idx_p]
+)
+plt.xlabel("Decrease in R² when Permuted")
+plt.title("Permutation Importance (test set)")
+plt.tight_layout()
+plt.show()</code></pre>
+
+                        <p>Permutation importance measures the drop in model performance when a feature&rsquo;s values are randomly shuffled. It is model-agnostic, works on any scoring metric, and is less biased than impurity-based importance.</p>
+
+                        <h2>Pipelines with Categorical Data</h2>
+
+                        <p>Real-world datasets often include categorical features. Here is a complete pipeline that handles mixed types:</p>
+
+<pre><code class="language-python">import pandas as pd
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import OrdinalEncoder, StandardScaler
+
+# Load data as DataFrame
+data = fetch_california_housing(as_frame=True)
+df = data.frame
+
+# Create a synthetic categorical feature for demonstration
+df["Region"] = pd.cut(
+    df["Latitude"], bins=5,
+    labels=["South", "MidSouth", "Central", "MidNorth", "North"]
+)
+
+target = "MedHouseVal"
+features = [c for c in df.columns if c != target]
+
+cat_cols = df[features].select_dtypes(include="category").columns.tolist()
+num_cols = [c for c in features if c not in cat_cols]
+
+preprocessor = ColumnTransformer([
+    ("cat", OrdinalEncoder(), cat_cols),
+], remainder="passthrough")
+
+pipe = Pipeline([
+    ("prep", preprocessor),
+    ("rf", RandomForestRegressor(
+        n_estimators=300, max_features=0.5,
+        random_state=42, n_jobs=-1
+    )),
+])
+
+X_train_df, X_test_df, y_train_df, y_test_df = train_test_split(
+    df[features], df[target], test_size=0.2, random_state=42
+)
+
+pipe.fit(X_train_df, y_train_df)
+y_pred_pipe = pipe.predict(X_test_df)
+
+print(f"Pipeline RMSE: {mean_squared_error(y_test_df, y_pred_pipe, squared=False):.4f}")
+print(f"Pipeline R²:   {r2_score(y_test_df, y_pred_pipe):.4f}")</code></pre>
+
+                        <blockquote>
+                            <strong>Note:</strong> Tree-based models work well with ordinal encoding for categoricals. Unlike linear models, they do not require one-hot encoding because they can create multiple splits on the same ordinal feature.
+                        </blockquote>
+
+                        <h2>Hyperparameter Tuning with Cross-Validation</h2>
+
+                        <p>Use <code>RandomizedSearchCV</code> for efficient exploration of the hyperparameter space:</p>
+
+<pre><code class="language-python">from sklearn.model_selection import RandomizedSearchCV
+from scipy.stats import randint, uniform
+
+param_dist = {
+    "rf__n_estimators": randint(100, 500),
+    "rf__max_depth": [None, 10, 20, 30],
+    "rf__max_features": uniform(0.2, 0.8),
+    "rf__min_samples_leaf": randint(1, 20),
+    "rf__max_samples": uniform(0.6, 0.4),
+}
+
+search = RandomizedSearchCV(
+    pipe,
+    param_distributions=param_dist,
+    n_iter=50,
+    cv=5,
+    scoring="neg_root_mean_squared_error",
+    random_state=42,
+    n_jobs=-1,
+    verbose=1,
+)
+
+search.fit(X_train_df, y_train_df)
+
+print(f"Best CV RMSE: {-search.best_score_:.4f}")
+print(f"Best params:  {search.best_params_}")
+
+y_pred_tuned = search.predict(X_test_df)
+print(f"Test RMSE:    {mean_squared_error(y_test_df, y_pred_tuned, squared=False):.4f}")
+print(f"Test R²:      {r2_score(y_test_df, y_pred_tuned):.4f}")</code></pre>
+
+                        <p>With 50 iterations, <code>RandomizedSearchCV</code> samples 50 random combinations from the parameter distributions, which is often more efficient than an exhaustive grid search when the hyperparameter space is large.</p>
+
+                        <h2>Partial Dependence</h2>
+
+                        <p>Partial dependence plots show the marginal effect of a feature on the predicted outcome, averaging over the values of all other features:</p>
+
+<pre><code class="language-python">from sklearn.inspection import PartialDependenceDisplay
+
+fig, ax = plt.subplots(figsize=(12, 4))
+PartialDependenceDisplay.from_estimator(
+    rf, X_test, features=[0, 5, 7],
+    feature_names=data.feature_names,
+    ax=ax, n_jobs=-1,
+)
+plt.suptitle("Partial Dependence Plots")
+plt.tight_layout()
+plt.show()</code></pre>
+
+                        <p>Partial dependence is particularly useful for understanding non-linear relationships that the forest has captured. Unlike feature importances, which tell you <em>how much</em> a feature matters, partial dependence tells you <em>how</em> it matters&mdash;whether the relationship is positive, negative, monotone, or U-shaped.</p>
+
+                        <h2>Prediction Intervals via Tree Quantiles</h2>
+
+                        <p>Unlike most models, a Random Forest provides a natural mechanism for estimating <strong>prediction intervals</strong>. Instead of averaging tree predictions, you can inspect the distribution of individual tree predictions for a given input:</p>
+
+<pre><code class="language-python">def prediction_interval(model, X, percentile=90):
+    """Return median prediction and prediction interval from forest."""
+    all_preds = np.array([tree.predict(X) for tree in model.estimators_])
+    lower = np.percentile(all_preds, (100 - percentile) / 2, axis=0)
+    upper = np.percentile(all_preds, 100 - (100 - percentile) / 2, axis=0)
+    median = np.median(all_preds, axis=0)
+    return median, lower, upper
+
+# Apply to test set (first 100 samples for clarity)
+idx = np.argsort(y_test[:100])
+y_sub = y_test[:100][idx]
+X_sub = X_test[:100][idx]
+
+median_pred, lower, upper = prediction_interval(rf, X_sub, percentile=90)
+
+plt.figure(figsize=(12, 5))
+plt.fill_between(range(len(y_sub)), lower, upper, alpha=0.3, label="90% interval")
+plt.plot(range(len(y_sub)), median_pred, "g-", lw=1.5, label="Median prediction")
+plt.plot(range(len(y_sub)), y_sub, "r.", markersize=4, label="Actual")
+plt.xlabel("Sample (sorted by actual value)")
+plt.ylabel("Target")
+plt.title("Prediction Intervals from Random Forest")
+plt.legend()
+plt.tight_layout()
+plt.show()</code></pre>
+
+                        <blockquote>
+                            <strong>Caveat:</strong> These intervals reflect the variability <em>among</em> the trees, not the true aleatoric uncertainty of the data. For calibrated prediction intervals, consider quantile regression forests (e.g., the <code>quantile-forest</code> library).
+                        </blockquote>
+
+                        <h2>Handling Missing Values</h2>
+
+                        <p>Scikit-Learn&rsquo;s <code>RandomForestRegressor</code> does not natively handle missing values. Common strategies include:</p>
+
+<pre><code class="language-python">from sklearn.impute import SimpleImputer
+
+# Strategy 1: Median imputation inside a pipeline
+pipe_with_imputer = Pipeline([
+    ("imputer", SimpleImputer(strategy="median")),
+    ("rf", RandomForestRegressor(n_estimators=200, random_state=42, n_jobs=-1)),
+])
+
+# Strategy 2: Iterative imputation (can use RF as the estimator)
+from sklearn.experimental import enable_iterative_imputer
+from sklearn.impute import IterativeImputer
+
+pipe_iterative = Pipeline([
+    ("imputer", IterativeImputer(
+        estimator=RandomForestRegressor(n_estimators=50, random_state=42),
+        max_iter=10, random_state=42
+    )),
+    ("rf", RandomForestRegressor(n_estimators=200, random_state=42, n_jobs=-1)),
+])</code></pre>
+
+                        <p>For datasets with substantial missingness, iterative imputation with a tree-based estimator often outperforms simple median imputation. Alternatively, libraries like <strong>LightGBM</strong> and <strong>XGBoost</strong> handle missing values natively in their splitting algorithm.</p>
+
+                        <h2>When to Choose Random Forests vs Alternatives</h2>
+
+                        <p>Random Forests are an excellent default model, but they are not always the best choice:</p>
+
+                        <ul>
+                            <li><strong>Random Forest vs Decision Tree:</strong> Almost always prefer the forest. It trades a small amount of interpretability for a large reduction in variance.</li>
+                            <li><strong>Random Forest vs Gradient Boosting (XGBoost, LightGBM):</strong> Gradient boosting often achieves better accuracy, especially on tabular data with complex interactions. However, forests are simpler to tune, more robust to hyperparameter choices, and trivially parallelisable.</li>
+                            <li><strong>Random Forest vs Linear Models:</strong> When the true relationship is linear, regularised linear models (Ridge, Lasso) will be more efficient and interpretable. Forests excel when the relationship is nonlinear or includes interactions.</li>
+                            <li><strong>Random Forest vs Neural Networks:</strong> For tabular data, forests are competitive with or superior to neural networks in most benchmarks, with far less tuning and training time.</li>
+                        </ul>
+
+                        <h2>End-to-End Template</h2>
+
+                        <p>Copy and adapt this template for your own Random Forest regression projects:</p>
+
+<pre><code class="language-python">import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.datasets import fetch_california_housing
+from sklearn.model_selection import train_test_split, RandomizedSearchCV
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import OrdinalEncoder
+from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.inspection import permutation_importance, PartialDependenceDisplay
+from scipy.stats import randint, uniform
+
+# ── 1. Load data ───────────────────────────────────────────
+data = fetch_california_housing(as_frame=True)
+df = data.frame
+target = "MedHouseVal"
+features = [c for c in df.columns if c != target]
+
+X_train, X_test, y_train, y_test = train_test_split(
+    df[features], df[target], test_size=0.2, random_state=42
+)
+
+# ── 2. Pipeline ────────────────────────────────────────────
+cat_cols = X_train.select_dtypes(include="category").columns.tolist()
+
+preprocessor = ColumnTransformer(
+    [("cat", OrdinalEncoder(), cat_cols)],
+    remainder="passthrough",
+)
+
+pipe = Pipeline([
+    ("prep", preprocessor),
+    ("rf", RandomForestRegressor(random_state=42, n_jobs=-1)),
+])
+
+# ── 3. Hyperparameter search ──────────────────────────────
+param_dist = {
+    "rf__n_estimators": randint(100, 500),
+    "rf__max_depth": [None, 10, 20, 30],
+    "rf__max_features": uniform(0.2, 0.8),
+    "rf__min_samples_leaf": randint(1, 20),
+}
+
+search = RandomizedSearchCV(
+    pipe, param_dist, n_iter=40, cv=5,
+    scoring="neg_root_mean_squared_error",
+    random_state=42, n_jobs=-1,
+)
+search.fit(X_train, y_train)
+
+print("Best CV RMSE:", -search.best_score_)
+print("Best params: ", search.best_params_)
+
+# ── 4. Evaluate on test set ───────────────────────────────
+y_pred = search.predict(X_test)
+print(f"Test RMSE: {mean_squared_error(y_test, y_pred, squared=False):.4f}")
+print(f"Test R²:   {r2_score(y_test, y_pred):.4f}")
+
+# ── 5. Diagnostics ────────────────────────────────────────
+# Predicted vs actual
+plt.figure(figsize=(6, 6))
+plt.scatter(y_test, y_pred, s=5, alpha=0.3)
+plt.plot([y_test.min(), y_test.max()],
+         [y_test.min(), y_test.max()], "r--", lw=2)
+plt.xlabel("Actual")
+plt.ylabel("Predicted")
+plt.title("Random Forest: Predicted vs Actual")
+plt.tight_layout()
+plt.show()
+
+# Permutation importance
+best_rf = search.best_estimator_
+result = permutation_importance(
+    best_rf, X_test, y_test, n_repeats=10, random_state=42
+)
+sorted_idx = result.importances_mean.argsort()
+plt.figure(figsize=(8, 5))
+plt.boxplot(result.importances[sorted_idx].T, vert=False,
+            labels=np.array(features)[sorted_idx])
+plt.title("Permutation Importance")
+plt.tight_layout()
+plt.show()
+
+# Partial dependence
+fig, ax = plt.subplots(figsize=(14, 4))
+PartialDependenceDisplay.from_estimator(
+    best_rf, X_test, features=[0, 5, 7],
+    feature_names=features, ax=ax, n_jobs=-1,
+)
+plt.suptitle("Partial Dependence")
+plt.tight_layout()
+plt.show()</code></pre>
+
+                        <h2>Key Takeaways</h2>
+
+                        <ul>
+                            <li>A Random Forest averages many decorrelated decision trees to achieve low variance without sacrificing low bias.</li>
+                            <li>The three pillars&mdash;bootstrap sampling, random feature subsets, and averaging&mdash;are what make it work.</li>
+                            <li><code>n_estimators</code>, <code>max_features</code>, and <code>min_samples_leaf</code> are the most impactful hyperparameters.</li>
+                            <li>The OOB score gives you a free validation metric without a separate hold-out set.</li>
+                            <li>Use permutation importance over impurity-based importance for unbiased feature ranking.</li>
+                            <li>Partial dependence plots reveal <em>how</em> features affect predictions, not just <em>how much</em>.</li>
+                            <li>Individual tree predictions can be used to estimate prediction intervals, though calibration requires care.</li>
+                            <li>Random Forests cannot extrapolate beyond the range of training targets, just like individual trees.</li>
+                            <li>For tabular data, Random Forests are one of the strongest out-of-the-box models, competitive with gradient boosting and neural networks.</li>
+                        </ul>
+
+                    </div>
+                </div>
+
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing large-scale distributed systems. Specialized in Generative AI, AI Agents, and cloud-native architectures.</p>
+                        <div class="sidebar-author-links">
+                            <a href="https://www.linkedin.com/in/paolo-mascia-italy" target="_blank" aria-label="LinkedIn">
+                                <svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                            </a>
+                            <a href="https://github.com/paolomascia" target="_blank" aria-label="GitHub">
+                                <svg viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+                            </a>
+                            <a href="https://www.kaggle.com/paolomascia" target="_blank" aria-label="Kaggle">
+                                <svg viewBox="0 0 24 24"><path d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.233-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.075.378z"/></svg>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <ul>
+                            <li><a href="post-random-forest.html">Random Forest Model Evaluation</a><span class="sidebar-post-meta">Model Evaluation &middot; Dec 2023</span></li>
+                            <li><a href="post-regression-trees.html">Regression Trees in Python</a><span class="sidebar-post-meta">Decision Tree &middot; Aug 2023</span></li>
+                            <li><a href="post-decision-tree.html">Decision Tree Regression in Python</a><span class="sidebar-post-meta">Decision Tree &middot; Apr 2024</span></li>
+                            <li><a href="post-regularization.html">Regularization: Ridge, Lasso, Elastic Net</a><span class="sidebar-post-meta">Regularization &middot; Jul 2023</span></li>
+                            <li><a href="post-ml-pipelines.html">Building ML Pipelines in Python</a><span class="sidebar-post-meta">Pipelines &middot; Nov 2025</span></li>
+                        </ul>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+</body>
+</html>

@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JCShield — Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <header class="article-header">
+                <a href="index.html#projects" class="back-link">&larr; Back to Projects</a>
+                <div class="project-tag" style="margin-bottom: 12px;">Software Protection</div>
+                <h1>JCShield</h1>
+                <div class="project-tech" style="margin-top: 16px;">
+                    <span>Java</span>
+                    <span>C++</span>
+                    <span>Maven</span>
+                    <span>AES / JNA</span>
+                </div>
+                <div style="margin-top: 20px;">
+                    <a href="https://github.com/paolomascia/jcshield" target="_blank" rel="noopener noreferrer" class="btn btn-outline" style="display: inline-flex; align-items: center; gap: 8px;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+                        View on GitHub
+                    </a>
+                </div>
+            </header>
+
+            <div class="article-body">
+                <p class="lead">JCShield is a security solution that protects Java classes from reverse engineering through AES encryption with native code decryption and Java agent integration. It encrypts <code>.class</code> files at build time and decrypts them transparently at runtime via a native shared library, making decompilation significantly harder.</p>
+
+                <h2>The Problem</h2>
+                <p>There is currently no real method to fully protect Java classes from reverse engineering. Bytecode obfuscation only complicates decompilation — it doesn't prevent it. Encryption also has inherent limitations since the JVM requires original bytecode to execute: obtaining running code means accessing bytecode, which can always be decompiled. JCShield acknowledges these limitations while still raising the bar significantly against casual and automated reverse engineering.</p>
+
+                <h2>Architecture</h2>
+                <p>JCShield comprises three integrated components:</p>
+                <ol>
+                    <li><strong>Maven Plugin</strong> — Encrypts target classes during the build phase using AES-128. Configured directly in the project's <code>pom.xml</code>, it processes specified classes after compilation and replaces them with encrypted versions.</li>
+                    <li><strong>Native Shared Library</strong> — Written in C++, handles runtime decryption. The decryption key is hardcoded into the native source code (<code>crypto.cpp</code>), requiring modification before compilation. Compiles to <code>crypto.dll</code> on Windows or <code>crypto.so</code> on Linux.</li>
+                    <li><strong>Java Agent</strong> — Deployed via the <code>-javaagent</code> JVM argument, uses JNA (Java Native Access) to load the native library and intercept class loading, transparently decrypting encrypted classes before they reach the JVM.</li>
+                </ol>
+
+                <h2>How It Works</h2>
+                <h3>Build Time — Encryption</h3>
+                <p>The Maven plugin runs during the <code>compile</code> phase with the <code>encrypt</code> goal. It takes the following configuration parameters:</p>
+                <ul>
+                    <li><code>classdir</code> — Directory containing compiled classes</li>
+                    <li><code>classes</code> — List of specific classes to encrypt</li>
+                    <li><code>secretkey</code> — 128-bit AES key expressed as 16 hexadecimal numbers (e.g., <code>000102030405060708090A0B0C0D0E</code>)</li>
+                </ul>
+
+                <h3>Runtime — Decryption</h3>
+                <p>When the application is launched with the Java agent, encrypted classes are intercepted during class loading. The agent calls into the native C++ library via JNA, which performs AES decryption and returns the original bytecode to the JVM. The process is fully transparent to the application code.</p>
+
+                <h3>Without the Agent</h3>
+                <p>Running an encrypted application without the agent produces an error that confirms the protection is active:</p>
+                <pre><code>Error: LinkageError occurred while loading main class jcshield.Demo
+java.lang.ClassFormatError: Incompatible magic value 2005639721</code></pre>
+                <p>The encrypted class file has an invalid magic number, making it unrecognizable as a valid Java class.</p>
+
+                <h2>Installation &amp; Compilation</h2>
+
+                <h3>Step 1 — Maven Plugin</h3>
+                <pre><code>cd jcshield-mvn-plugin
+mvn clean install</code></pre>
+
+                <h3>Step 2 — POM Configuration</h3>
+                <p>Add the plugin to the project's <code>pom.xml</code> build section:</p>
+                <ul>
+                    <li>GroupId: <code>cryptoclass.plugin</code></li>
+                    <li>ArtifactId: <code>cryptoclass-mvn-plugin</code></li>
+                    <li>Version: <code>1.0-SNAPSHOT</code></li>
+                    <li>Execution phase: <code>compile</code></li>
+                    <li>Goal: <code>encrypt</code></li>
+                </ul>
+
+                <h3>Step 3 — Native Library</h3>
+                <p><strong>Windows</strong> (requires Visual Studio Build Tools):</p>
+                <pre><code>cd cshield\windows_x64
+build.bat</code></pre>
+                <p>Output: <code>crypto.dll</code> — add its directory to the <code>PATH</code> environment variable.</p>
+
+                <p><strong>Linux</strong> (requires GCC):</p>
+                <pre><code>cd cshield/linux_x64
+./build.sh</code></pre>
+                <p>Output: <code>crypto.so</code> — add its directory to <code>LD_LIBRARY_PATH</code>.</p>
+
+                <h3>Step 4 — Java Agent</h3>
+                <pre><code>cd jcshield-agent
+mvn clean install</code></pre>
+                <p>Rename the generated <code>crypto-agent-1.0-jar-with-dependencies.jar</code> to <code>crypto-agent.jar</code>.</p>
+
+                <h2>Usage</h2>
+
+                <h3>Building the Demo</h3>
+                <pre><code>mvn clean install</code></pre>
+
+                <h3>Running (Windows)</h3>
+                <p>Place the agent JAR and native library in the same directory as the application JAR:</p>
+                <pre><code>java -javaagent:crypto-agent.jar -jar jcshield-demo-1.0.jar</code></pre>
+
+                <h3>Running (Linux)</h3>
+                <pre><code>LD_LIBRARY_PATH=/path/to/crypto.so java -javaagent:crypto-agent.jar -jar jcshield-demo-1.0.jar</code></pre>
+
+                <h2>Requirements</h2>
+                <ul>
+                    <li>Maven</li>
+                    <li>JNA (Java Native Access)</li>
+                    <li>Visual Studio Build Tools (Windows) or GCC (Linux)</li>
+                </ul>
+
+                <p>This project is still ongoing. It is open-source under the MIT License and available on <a href="https://github.com/paolomascia/jcshield" target="_blank" rel="noopener noreferrer">GitHub</a>.</p>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+</body>
+</html>

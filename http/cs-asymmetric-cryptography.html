@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Asymmetric (Public-Key) Cryptography &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="cybersecurity-tech-insights.html" class="back-link">&larr; Back to Cybersecurity</a>
+                        <div class="post-meta">
+                            <span class="post-date">May 2025</span>
+                            <span class="post-reading">11 min read</span>
+                        </div>
+                        <h1>Asymmetric (Public-Key) Cryptography</h1>
+                        <div class="post-tags">
+                            <span>Cryptography</span>
+                            <span>Public-Key</span>
+                            <span>RSA</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Asymmetric cryptography uses a pair of mathematically related keys: a public key, which anyone can know, and a private key, which must be kept secret. Anyone can encrypt a message to the public key; only the private key holder can decrypt. Conversely, a sender can sign with the private key so that anyone can verify authenticity with the corresponding public key. These ideas underpin TLS/HTTPS and many other protocols.</p>
+
+                        <h2>RSA</h2>
+
+                        <p><strong>RSA</strong> (Rivest&ndash;Shamir&ndash;Adleman) is the best-known public-key scheme. In practice, RSA is used for <em>small</em> data (key transport, signatures), while bulk data is protected by fast symmetric ciphers (e.g., AES). RSA arithmetic lives modulo an integer <em>n = p&middot;q</em>, the product of two large primes.</p>
+
+                        <h3>Core Operations</h3>
+
+<pre><code class="language-c">// Public key:  (n, e)
+// Private key: (n, d)
+// Messages are integers in {0, 1, ..., n-1} after encoding/padding.
+
+// Encryption
+y = x^e mod n
+
+// Decryption
+x = y^d mod n</code></pre>
+
+                        <p>Here, <em>e</em> is the public exponent and <em>d</em> the private exponent. In practice, <strong>messages are padded/encoded</strong> (e.g., OAEP for encryption; PSS for signatures) to add randomness and prevent structural attacks. Also note: a message must be an integer strictly less than <em>n</em> (so its bit-length is &lt; log<sub>2</sub> n).</p>
+
+                        <h3>Key Generation (Conceptual)</h3>
+
+                        <ol>
+                            <li>Choose large random primes <em>p</em> and <em>q</em>.</li>
+                            <li>Compute <em>n = p&middot;q</em> and Euler&rsquo;s totient <em>&phi;(n) = (p&minus;1)(q&minus;1)</em> (or Carmichael&rsquo;s <em>&lambda;(n)</em>).</li>
+                            <li>Choose public exponent <em>e</em> coprime to <em>&phi;(n)</em> (common choices are small, e.g., 65537).</li>
+                            <li>Compute the private exponent <em>d</em> as the modular inverse of <em>e</em> modulo <em>&phi;(n)</em>: <em>d&middot;e &equiv; 1 (mod &phi;(n))</em>.</li>
+                        </ol>
+
+<pre><code class="language-python"># Extended Euclid finds d = e^{-1} mod phi(n)
+g, x, y = egcd(e, phi_n)
+assert g == 1
+d = x % phi_n</code></pre>
+
+                        <p>Security requirements (informal): recovering <em>d</em> from <em>(n, e)</em> should be computationally infeasible; modular exponentiations <em>x<sup>e</sup> mod n</em> and <em>y<sup>d</sup> mod n</em> should be efficient; for a given <em>n</em>, many valid key pairs should exist.</p>
+
+                        <h3>Toy Example (Small Integers)</h3>
+
+<pre><code class="language-python"># Primes
+p = 7
+q = 11
+n = p * q          # n = 77
+phi_n = (p-1) * (q-1)  # phi(n) = 60
+
+# Public exponent
+e = 7               # gcd(7, 60) = 1 -> OK
+
+# Encrypt x = 9
+y = pow(9, 7, 77)   # y = 37
+
+# Private exponent d solves: d*e = 1 (mod 60)
+d = 43               # since 7*43 = 301 = 1 (mod 60)
+
+# Decrypt
+x = pow(37, 43, 77)  # x = 9</code></pre>
+
+                        <p>Tiny parameters are for illustration only; real RSA uses moduli of at least 2048 bits and standardized padding/encoding.</p>
+
+                        <h2>Diffie&ndash;Hellman Key Exchange (DH)</h2>
+
+                        <p><strong>Diffie&ndash;Hellman</strong> lets two parties agree on a shared secret over a public channel. They publish common parameters: a large prime <em>p</em> and a generator <em>g</em> of a cyclic subgroup. Each side picks a secret exponent and publishes a corresponding public value; both then derive the same shared key.</p>
+
+<pre><code class="language-python"># Public parameters: p (prime), g (generator)
+
+# Alice (secret a)
+A = pow(g, a, p)
+
+# Bob (secret b)
+B = pow(g, b, p)
+
+# Shared key (both compute):
+# K = B^a mod p = (g^b)^a mod p = g^(ab) mod p
+# K = A^b mod p = (g^a)^b mod p = g^(ab) mod p
+K_alice = pow(B, a, p)
+K_bob   = pow(A, b, p)
+# K_alice == K_bob</code></pre>
+
+                        <p>The derived <em>K</em> seeds a symmetric cipher (e.g., AES). Classical DH provides <em>confidentiality</em> of the key agreement assuming the <strong>discrete logarithm problem</strong> is hard in the chosen group. However, unauthenticated DH is vulnerable to <strong>man-in-the-middle</strong> attacks; protocols use signatures or certificates to authenticate the parties.</p>
+
+                        <h3>Toy Example (Small Numbers)</h3>
+
+<pre><code class="language-python">p = 29
+g = 2
+
+# Alice: a = 5
+A = pow(2, 5, 29)    # A = 3
+
+# Bob: b = 12
+B = pow(2, 12, 29)   # B = 7
+
+# Exchange A=3, B=7
+K_alice = pow(B, 5, 29)   # 7^5  mod 29 = 16
+K_bob   = pow(A, 12, 29)  # 3^12 mod 29 = 16
+
+# Shared secret: 16</code></pre>
+
+                        <h2>The Discrete Logarithm Problem (DLP)</h2>
+
+                        <p>Given a finite cyclic group (e.g., integers modulo a prime <em>p</em> under multiplication) and a generator <em>g</em>, the <strong>discrete logarithm</strong> of <em>&beta;</em> is the unique exponent <em>x</em> such that <em>g<sup>x</sup> &equiv; &beta; (mod p)</em>. Computing <em>x</em> from <em>(g, &beta;, p)</em> is believed to be hard for appropriate parameters, which underlies the security of Diffie&ndash;Hellman and related schemes.</p>
+
+<pre><code class="language-c">// RSA: message space and encoding
+// Encode plaintext to integer m where 0 &lt;= m &lt; n;
+// apply OAEP for IND-CPA security.
+
+// DH: authenticated variants
+// Use signatures (e.g., sign A and B) or certificates
+// (TLS) to prevent MITM.</code></pre>
+
+                    </div>
+                </div>
+
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing large-scale distributed systems. Specialized in Generative AI, AI Agents, and cloud-native architectures.</p>
+                        <div class="sidebar-author-links">
+                            <a href="https://www.linkedin.com/in/paolo-mascia-italy" target="_blank" aria-label="LinkedIn"><svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg></a>
+                            <a href="https://github.com/paolomascia" target="_blank" aria-label="GitHub"><svg viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg></a>
+                            <a href="https://www.kaggle.com/paolomascia" target="_blank" aria-label="Kaggle"><svg viewBox="0 0 24 24"><path d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.233-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.075.378z"/></svg></a>
+                        </div>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="cs-symmetric-key.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cryptography</span>
+                            <div class="sidebar-link-title">Symmetric-Key Cryptography</div>
+                            <span class="sidebar-link-meta">Mar 2025</span>
+                        </a>
+                        <a href="cs-des.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cryptography</span>
+                            <div class="sidebar-link-title">DES (Data Encryption Standard)</div>
+                            <span class="sidebar-link-meta">Jun 2025</span>
+                        </a>
+                        <a href="cs-aes.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cryptography</span>
+                            <div class="sidebar-link-title">AES (Advanced Encryption Standard)</div>
+                            <span class="sidebar-link-meta">Jan 2025</span>
+                        </a>
+                        <a href="cs-digital-certificates.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cryptography</span>
+                            <div class="sidebar-link-title">Digital Certificates</div>
+                            <span class="sidebar-link-meta">Aug 2025</span>
+                        </a>
+                        <a href="cs-hash-functions.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cryptography</span>
+                            <div class="sidebar-link-title">Hash Functions</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-nasm.min.js"></script>
+</body>
+</html>

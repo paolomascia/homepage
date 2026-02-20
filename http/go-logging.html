@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Application Logging in Go &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="golang-tech-insights.html" class="back-link">&larr; Back to Go Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Jun 2024</span>
+                            <span class="post-reading">20 min read</span>
+                        </div>
+                        <h1>Application Logging in Go</h1>
+                        <div class="post-tags">
+                            <span>Go</span>
+                            <span>Logging</span>
+                            <span>Observability</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Logging is one of the pillars of observability. In Go, you can start with the standard library and grow into fully structured, JSON logs with rotation, correlation IDs, and production-grade practices.</p>
+
+                        <p>This guide covers the standard library (<code>log</code> and modern <code>log/slog</code> in Go 1.21+), log levels, formats (text vs JSON), fields and contexts, file logging and rotation with Lumberjack, HTTP middleware for request/response logging and panic recovery, correlation IDs and request-scoped loggers, and performance tips with production best practices.</p>
+
+                        <h2>The Standard Library <code>log</code></h2>
+
+                        <p>The classic <code>log</code> package is simple and battle-tested. It supports custom destinations (any <code>io.Writer</code>) and flags for timestamps, file/line, etc. It has no levels (Info/Debug/...).</p>
+
+<pre><code class="language-go">package main
+
+import (
+    "log"
+    "os"
+)
+
+func main() {
+    logger := log.New(os.Stdout, "", log.Ldate|log.Ltime|log.Lshortfile)
+    logger.Println("hello from classic log")
+    // No levels: use prefixes or multiple loggers if needed.
+}</code></pre>
+
+                        <h2>Structured Logging with <code>log/slog</code> (Go 1.21+)</h2>
+
+                        <p><code>log/slog</code> adds levels (Debug, Info, Warn, Error), structured fields, and pluggable handlers (text/JSON). It&rsquo;s now the idiomatic standard for structured logging in Go.</p>
+
+<pre><code class="language-go">package main
+
+import (
+    "log/slog"
+    "os"
+)
+
+func main() {
+    // Text handler
+    logger := slog.New(slog.NewTextHandler(os.Stdout, &amp;slog.HandlerOptions{Level: slog.LevelInfo}))
+    logger.Info("server starting", "addr", ":8080")
+
+    // JSON handler (for ELK/Cloud logs)
+    jsonLogger := slog.New(slog.NewJSONHandler(os.Stdout, &amp;slog.HandlerOptions{
+        Level:     slog.LevelDebug,
+        AddSource: true,
+    }))
+    jsonLogger.Debug("debug event", "feature", "payments", "attempt", 1)
+}</code></pre>
+
+                        <h2>File Logging &amp; Rotation with Lumberjack</h2>
+
+                        <p>You usually shouldn&rsquo;t roll your own rotation. Lumberjack is a tiny library that rotates files by size, age, and count. You can fan-out to both <code>stdout</code> and a file using <code>io.MultiWriter</code>.</p>
+
+<pre><code class="language-bash">go get gopkg.in/natefinch/lumberjack.v2</code></pre>
+
+<pre><code class="language-go">package main
+
+import (
+    "io"
+    "log"
+    "os"
+    "time"
+
+    "gopkg.in/natefinish/lumberjack.v2"
+)
+
+func main() {
+    // Ensure log directory exists
+    _ = os.MkdirAll("./logs", 0o755)
+
+    // Daily-ish rotation by age/size/backups (values are examples)
+    rotating := &amp;lumberjack.Logger{
+        Filename:   "./logs/app.log",
+        MaxSize:    100,  // MB per file
+        MaxBackups: 3,    // keep last 3
+        MaxAge:     7,    // days
+        Compress:   true, // gzip old logs
+    }
+
+    // Write to both stdout and file
+    mw := io.MultiWriter(os.Stdout, rotating)
+
+    logger := log.New(mw, "", log.Ldate|log.Ltime|log.Lshortfile)
+
+    for i := 0; i &lt; 5; i++ {
+        logger.Printf("log message %d", i)
+        time.Sleep(500 * time.Millisecond)
+    }
+}</code></pre>
+
+                        <p><strong>Tip:</strong> Lumberjack doesn&rsquo;t need explicit <code>Close()</code>, rotation is automatic when thresholds are hit.</p>
+
+                        <h2>Combine <code>slog</code> + Lumberjack (JSON to File + Console)</h2>
+
+<pre><code class="language-go">package main
+
+import (
+    "io"
+    "log/slog"
+    "os"
+
+    "gopkg.in/natefinish/lumberjack.v2"
+)
+
+func main() {
+    _ = os.MkdirAll("./logs", 0o755)
+
+    file := &amp;lumberjack.Logger{
+        Filename:   "./logs/app.jsonl",
+        MaxSize:    100,
+        MaxBackups: 7,
+        MaxAge:     14,
+        Compress:   true,
+    }
+
+    // Fan-out: stdout (human), file (JSON for machines)
+    out := io.MultiWriter(os.Stdout, file)
+
+    logger := slog.New(slog.NewJSONHandler(out, &amp;slog.HandlerOptions{
+        Level:     slog.LevelInfo,
+        AddSource: true,
+    }))
+
+    // Make this the default logger
+    slog.SetDefault(logger)
+
+    slog.Info("service started", "version", "1.2.3", "env", "prod")
+    slog.Error("something went wrong", "err", "timeout", "resource", "db")
+}</code></pre>
+
+                        <h2>Log Levels, Fields, and Conventions</h2>
+
+                        <ul>
+                            <li><strong>Levels:</strong> Debug (dev only), Info (high-level events), Warn (unexpected but handled), Error (failed operations).</li>
+                            <li><strong>Fields:</strong> use lower_snake_case or lowerCamel consistently (e.g., <code>request_id</code>, <code>user_id</code>).</li>
+                            <li><strong>Errors:</strong> include <code>err</code> field; prefer wrapping with <code>fmt.Errorf("...: %w", err)</code>.</li>
+                            <li><strong>Time:</strong> log in UTC; include <code>time</code> only if your handler doesn&rsquo;t add it.</li>
+                        </ul>
+
+                        <h2>Context-Aware Logging (Request-Scoped)</h2>
+
+                        <p>Attach a request-scoped logger to <code>context.Context</code> so handlers automatically log correlation IDs, user IDs, etc.</p>
+
+<pre><code class="language-go">package logctx
+
+import (
+    "context"
+    "log/slog"
+)
+
+type ctxKey struct{}
+
+func Into(ctx context.Context, logger *slog.Logger) context.Context {
+    return slog.NewContext(ctx, logger) // built-in helper
+}
+
+func From(ctx context.Context) *slog.Logger {
+    if l := slog.FromContext(ctx); l != nil {
+        return l
+    }
+    return slog.Default()
+}</code></pre>
+
+                        <h2>HTTP Logging Middleware (Requests, Latency, Status)</h2>
+
+<pre><code class="language-go">package main
+
+import (
+    "log/slog"
+    "net/http"
+    "time"
+
+    "github.com/google/uuid"
+)
+
+type statusRecorder struct {
+    http.ResponseWriter
+    status int
+    bytes  int
+}
+
+func (r *statusRecorder) WriteHeader(code int) {
+    r.status = code
+    r.ResponseWriter.WriteHeader(code)
+}
+
+func (r *statusRecorder) Write(b []byte) (int, error) {
+    if r.status == 0 {
+        r.status = http.StatusOK
+    }
+    n, err := r.ResponseWriter.Write(b)
+    r.bytes += n
+    return n, err
+}
+
+func Logging(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        start := time.Now()
+
+        // Correlation ID (reuse if provided)
+        rid := r.Header.Get("X-Request-ID")
+        if rid == "" {
+            rid = uuid.NewString()
+        }
+
+        // Request-scoped logger
+        logger := slog.Default().With(
+            "request_id", rid,
+            "method", r.Method,
+            "path", r.URL.Path,
+            "remote_ip", r.RemoteAddr,
+        )
+
+        // Add to response and context
+        w.Header().Set("X-Request-ID", rid)
+
+        rec := &amp;statusRecorder{ResponseWriter: w}
+        next.ServeHTTP(rec, r.WithContext(slog.NewContext(r.Context(), logger)))
+
+        dur := time.Since(start)
+        logger.Info("http_request",
+            "status", rec.status,
+            "bytes", rec.bytes,
+            "duration_ms", dur.Milliseconds(),
+        )
+    })
+}</code></pre>
+
+                        <h2>Panic Recovery Middleware (Stack Traces)</h2>
+
+<pre><code class="language-go">package main
+
+import (
+    "fmt"
+    "log/slog"
+    "net/http"
+    "runtime/debug"
+)
+
+func Recover(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        defer func() {
+            if rec := recover(); rec != nil {
+                slog.Error("panic recovered",
+                    "panic", rec,
+                    "stack", string(debug.Stack()),
+                )
+                http.Error(w,
+                    http.StatusText(http.StatusInternalServerError),
+                    http.StatusInternalServerError,
+                )
+            }
+        }()
+        next.ServeHTTP(w, r)
+    })
+}</code></pre>
+
+                        <h2>Wire It Together (Server with slog + Lumberjack + Middlewares)</h2>
+
+<pre><code class="language-go">package main
+
+import (
+    "io"
+    "log/slog"
+    "net/http"
+    "os"
+    "time"
+
+    "gopkg.in/natefinish/lumberjack.v2"
+)
+
+func main() {
+    _ = os.MkdirAll("./logs", 0o755)
+    f := &amp;lumberjack.Logger{
+        Filename:   "./logs/server.jsonl",
+        MaxSize:    100,
+        MaxBackups: 7,
+        MaxAge:     14,
+        Compress:   true,
+    }
+    out := io.MultiWriter(os.Stdout, f)
+    slog.SetDefault(slog.New(slog.NewJSONHandler(out, &amp;slog.HandlerOptions{
+        Level:     slog.LevelInfo,
+        AddSource: true,
+    })))
+
+    mux := http.NewServeMux()
+    mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+        w.WriteHeader(200)
+        w.Write([]byte("OK"))
+    })
+    mux.HandleFunc("/hello", func(w http.ResponseWriter, r *http.Request) {
+        w.Write([]byte("hello"))
+    })
+
+    handler := Recover(Logging(mux))
+
+    srv := &amp;http.Server{
+        Addr:         ":8080",
+        Handler:      handler,
+        ReadTimeout:  5 * time.Second,
+        WriteTimeout: 5 * time.Second,
+        IdleTimeout:  60 * time.Second,
+    }
+
+    slog.Info("server starting", "addr", srv.Addr)
+    if err := srv.ListenAndServe(); err != nil &amp;&amp; err != http.ErrServerClosed {
+        slog.Error("server error", "err", err)
+    }
+}</code></pre>
+
+                        <h2>Config via Environment (Levels, JSON/Text, Paths)</h2>
+
+<pre><code class="language-go">package config
+
+import (
+    "io"
+    "log/slog"
+    "os"
+    "strings"
+
+    "gopkg.in/natefinish/lumberjack.v2"
+)
+
+type Options struct {
+    Level string // "debug", "info", "warn", "error"
+    JSON  bool
+    File  string // empty =&gt; stdout only
+}
+
+func SetupLogger(opt Options) *slog.Logger {
+    level := slog.LevelInfo
+    switch strings.ToLower(opt.Level) {
+    case "debug":
+        level = slog.LevelDebug
+    case "warn":
+        level = slog.LevelWarn
+    case "error":
+        level = slog.LevelError
+    }
+    var w io.Writer = os.Stdout
+    if opt.File != "" {
+        _ = os.MkdirAll("./logs", 0o755)
+        w = io.MultiWriter(os.Stdout, &amp;lumberjack.Logger{
+            Filename:   opt.File,
+            MaxSize:    100,
+            MaxBackups: 7,
+            MaxAge:     14,
+            Compress:   true,
+        })
+    }
+    var h slog.Handler
+    if opt.JSON {
+        h = slog.NewJSONHandler(w, &amp;slog.HandlerOptions{Level: level, AddSource: true})
+    } else {
+        h = slog.NewTextHandler(w, &amp;slog.HandlerOptions{Level: level, AddSource: true})
+    }
+    logger := slog.New(h)
+    slog.SetDefault(logger)
+    return logger
+}</code></pre>
+
+                        <h2>Performance &amp; Sampling</h2>
+
+                        <p>High-volume systems can generate massive logs. Consider:</p>
+
+                        <ul>
+                            <li><strong>Lowering log level</strong> in prod (e.g., <code>info</code>).</li>
+                            <li><strong>Sampling:</strong> log 1/N debug entries. (Native sampling isn&rsquo;t built into <code>slog</code>; implement a small wrapper if needed.)</li>
+                            <li><strong>Use JSON</strong> and avoid heavy string formatting unless needed.</li>
+                            <li><strong>Async shipping:</strong> emit locally and ship with agents (Fluent Bit, Vector, Filebeat) to ELK/Cloud.</li>
+                        </ul>
+
+<pre><code class="language-go">// Simple sample helper
+package sample
+
+import "math/rand"
+
+func OneIn(n int) bool { return rand.Intn(n) == 0 }</code></pre>
+
+                        <h2>Error Logging Patterns</h2>
+
+<pre><code class="language-go">// Wrap errors to keep original cause
+if err != nil {
+    err = fmt.Errorf("query user %d: %w", userID, err)
+    slog.Error("db query failed", "err", err, "user_id", userID)
+}
+
+// Log once at the boundary (don&rsquo;t duplicate the same error up the stack).</code></pre>
+
+                        <h2>Log Formats: Text vs JSON</h2>
+
+                        <ul>
+                            <li><strong>JSON</strong> is best for machines: indexing, search, metrics. Use in prod.</li>
+                            <li><strong>Text</strong> is nice for local dev.</li>
+                            <li>Stick to one format per environment to simplify parsing.</li>
+                        </ul>
+
+                        <h2>Shipping &amp; Cloud Integrations</h2>
+
+                        <ul>
+                            <li><strong>ELK/OpenSearch:</strong> ship JSON lines via Filebeat/Fluent Bit.</li>
+                            <li><strong>GCP:</strong> Cloud Logging; optionally use GCP log adapter or ship via agents.</li>
+                            <li><strong>AWS:</strong> CloudWatch Logs; same idea.</li>
+                            <li><strong>Kubernetes:</strong> write to <code>stdout</code>/<code>stderr</code> (12-factor); rotate at node/agent level, or still duplicate to a file via Lumberjack if you need local retention.</li>
+                        </ul>
+
+                        <h2>Production Checklist</h2>
+
+                        <ul>
+                            <li>Use <strong>structured logging</strong> (<code>log/slog</code>) with <strong>JSON</strong>.</li>
+                            <li>Set <strong>level</strong> via env/config; default to <strong>info</strong> in prod.</li>
+                            <li>Include <strong>correlation IDs</strong> and key fields (<code>user_id</code>, <code>request_id</code>, <code>resource</code>).</li>
+                            <li>Add <strong>HTTP logging</strong> and <strong>panic recovery</strong> middleware.</li>
+                            <li>Rotate files with <strong>Lumberjack</strong> (or rely on platform agents/K8s).</li>
+                            <li>Ship logs to a central store (ELK, Cloud) and set <strong>retention</strong>.</li>
+                            <li>Be careful with <strong>PII</strong>/secrets; scrub sensitive data.</li>
+                            <li>Document your <strong>log schema</strong> and fields for your team.</li>
+                        </ul>
+                    </div>
+                </div>
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="go-goroutines.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Goroutines</div>
+                            <span class="sidebar-link-meta">Jan 2024</span>
+                        </a>
+                        <a href="go-error-handling.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Error Handling in Go</div>
+                            <span class="sidebar-link-meta">May 2024</span>
+                        </a>
+                        <a href="go-scheduler-internals.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Go Scheduler Internals</div>
+                            <span class="sidebar-link-meta">Jul 2025</span>
+                        </a>
+                        <a href="go-zero-copy-io.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Zero-Copy I/O and Memory Efficiency in Go</div>
+                            <span class="sidebar-link-meta">Aug 2024</span>
+                        </a>
+                        <a href="go-goroutine-leaks.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Detecting and Preventing Goroutine Leaks</div>
+                            <span class="sidebar-link-meta">Sep 2025</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+
+</body>
+</html>

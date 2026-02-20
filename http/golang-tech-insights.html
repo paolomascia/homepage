@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Go Tech Insights &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+            <button class="nav-toggle" aria-label="Toggle menu">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </div>
+    </nav>
+
+    <section class="writing" style="padding-top: 140px;">
+        <div class="container">
+            <a href="index.html" class="back-link" style="display: inline-block; font-size: 14px; color: var(--text-muted); margin-bottom: 32px; transition: color 0.2s;">&larr; Back to Home</a>
+            <h2 class="section-title">Go Tech Insights</h2>
+            <p class="section-subtitle">Deep dives into Go programming &mdash; from fundamentals to advanced concurrency, performance tuning, and systems engineering.</p>
+
+            <!-- Go Fundamentals -->
+            <h3 style="font-size: 18px; font-weight: 700; color: var(--text); margin-top: 48px; margin-bottom: 24px; text-transform: uppercase; letter-spacing: 2px; font-family: var(--mono);">Go Fundamentals</h3>
+            <div class="posts-grid">
+
+                <a href="go-installation-data-types.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Feb 2023</span>
+                        <span class="post-reading">10 min read</span>
+                    </div>
+                    <h3>GO Installation and Data Types</h3>
+                    <p>Getting started with Go &mdash; installation, workspace setup, basic syntax, primitive data types, variables, constants, and the Go type system.</p>
+                    <div class="post-tags">
+                        <span>Go</span>
+                        <span>Installation</span>
+                        <span>Data Types</span>
+                    </div>
+                </a>
+
+                <a href="go-control-flow.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Sep 2025</span>
+                        <span class="post-reading">8 min read</span>
+                    </div>
+                    <h3>Control Flow Statements</h3>
+                    <p>Mastering Go&rsquo;s control flow &mdash; if/else, switch, for loops, range, break, continue, goto, and idiomatic patterns for clean control logic.</p>
+                    <div class="post-tags">
+                        <span>Go</span>
+                        <span>Control Flow</span>
+                        <span>Loops</span>
+                    </div>
+                </a>
+
+                <a href="go-functions.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Sep 2025</span>
+                        <span class="post-reading">10 min read</span>
+                    </div>
+                    <h3>The Functions</h3>
+                    <p>Functions in Go &mdash; multiple return values, named returns, variadic functions, closures, defer, and functional programming patterns.</p>
+                    <div class="post-tags">
+                        <span>Go</span>
+                        <span>Functions</span>
+                        <span>Closures</span>
+                    </div>
+                </a>
+
+                <a href="go-oop.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Oct 2025</span>
+                        <span class="post-reading">12 min read</span>
+                    </div>
+                    <h3>Object Oriented Programming in GO</h3>
+                    <p>Go&rsquo;s approach to OOP &mdash; structs, methods, interfaces, embedding, composition over inheritance, and polymorphism the Go way.</p>
+                    <div class="post-tags">
+                        <span>Go</span>
+                        <span>OOP</span>
+                        <span>Interfaces</span>
+                    </div>
+                </a>
+
+                <a href="go-goroutines.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Oct 2025</span>
+                        <span class="post-reading">12 min read</span>
+                    </div>
+                    <h3>Goroutines</h3>
+                    <p>Go&rsquo;s lightweight concurrency primitives &mdash; goroutines, channels, select, WaitGroups, mutexes, and building concurrent programs.</p>
+                    <div class="post-tags">
+                        <span>Go</span>
+                        <span>Goroutines</span>
+                        <span>Channels</span>
+                    </div>
+                </a>
+
+                <a href="go-error-handling.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Oct 2025</span>
+                        <span class="post-reading">10 min read</span>
+                    </div>
+                    <h3>Error Handling in Go</h3>
+                    <p>Idiomatic error handling &mdash; the error interface, custom errors, error wrapping with fmt.Errorf, errors.Is/As, sentinel errors, and panic/recover.</p>
+                    <div class="post-tags">
+                        <span>Go</span>
+                        <span>Errors</span>
+                        <span>Best Practices</span>
+                    </div>
+                </a>
+
+            </div>
+
+            <!-- Core Go -->
+            <h3 style="font-size: 18px; font-weight: 700; color: var(--text); margin-top: 48px; margin-bottom: 24px; text-transform: uppercase; letter-spacing: 2px; font-family: var(--mono);">Core Go</h3>
+            <div class="posts-grid">
+
+                <a href="go-file-handling.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Oct 2025</span>
+                        <span class="post-reading">12 min read</span>
+                    </div>
+                    <h3>File Handling in Go</h3>
+                    <p>Reading, writing, and managing files &mdash; os and io packages, buffered I/O, file permissions, directory operations, and working with CSV/JSON files.</p>
+                    <div class="post-tags">
+                        <span>Go</span>
+                        <span>Files</span>
+                        <span>I/O</span>
+                    </div>
+                </a>
+
+                <a href="go-json.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Oct 2025</span>
+                        <span class="post-reading">10 min read</span>
+                    </div>
+                    <h3>Working with JSON in Go</h3>
+                    <p>JSON encoding and decoding &mdash; struct tags, marshaling/unmarshaling, streaming with json.Decoder, custom marshalers, and handling nested structures.</p>
+                    <div class="post-tags">
+                        <span>Go</span>
+                        <span>JSON</span>
+                        <span>Serialization</span>
+                    </div>
+                </a>
+
+                <a href="go-passing-parameters.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Oct 2025</span>
+                        <span class="post-reading">8 min read</span>
+                    </div>
+                    <h3>Passing Parameters to Go Applications</h3>
+                    <p>Command-line arguments, flags, environment variables &mdash; os.Args, the flag package, and building CLI tools with configurable parameters.</p>
+                    <div class="post-tags">
+                        <span>Go</span>
+                        <span>CLI</span>
+                        <span>Parameters</span>
+                    </div>
+                </a>
+
+                <a href="go-logging.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Oct 2025</span>
+                        <span class="post-reading">10 min read</span>
+                    </div>
+                    <h3>Application Logging in Go</h3>
+                    <p>Structured logging in Go &mdash; the log package, slog (Go 1.21+), zerolog, zap, log levels, contextual logging, and production logging best practices.</p>
+                    <div class="post-tags">
+                        <span>Go</span>
+                        <span>Logging</span>
+                        <span>Observability</span>
+                    </div>
+                </a>
+
+                <a href="go-http-server.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Oct 2025</span>
+                        <span class="post-reading">12 min read</span>
+                    </div>
+                    <h3>Creating an HTTP Server</h3>
+                    <p>Building HTTP servers with Go&rsquo;s net/http package &mdash; handlers, routing, middleware, templates, static files, and graceful shutdown.</p>
+                    <div class="post-tags">
+                        <span>Go</span>
+                        <span>HTTP</span>
+                        <span>Server</span>
+                    </div>
+                </a>
+
+                <a href="go-rest-apis.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Oct 2025</span>
+                        <span class="post-reading">12 min read</span>
+                    </div>
+                    <h3>Calling REST APIs in Go</h3>
+                    <p>HTTP client in Go &mdash; making GET/POST requests, handling responses, timeouts, retries, and building robust API clients with net/http.</p>
+                    <div class="post-tags">
+                        <span>Go</span>
+                        <span>REST</span>
+                        <span>HTTP Client</span>
+                    </div>
+                </a>
+
+                <a href="go-periodic-tasks.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Oct 2025</span>
+                        <span class="post-reading">8 min read</span>
+                    </div>
+                    <h3>Periodic Tasks in Go</h3>
+                    <p>Scheduling recurring work &mdash; time.Ticker, time.Timer, cron-like scheduling, background workers, and graceful shutdown patterns.</p>
+                    <div class="post-tags">
+                        <span>Go</span>
+                        <span>Scheduling</span>
+                        <span>Concurrency</span>
+                    </div>
+                </a>
+
+            </div>
+
+            <!-- Data & Security -->
+            <h3 style="font-size: 18px; font-weight: 700; color: var(--text); margin-top: 48px; margin-bottom: 24px; text-transform: uppercase; letter-spacing: 2px; font-family: var(--mono);">Data &amp; Security</h3>
+            <div class="posts-grid">
+
+                <a href="go-mysql.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Oct 2025</span>
+                        <span class="post-reading">12 min read</span>
+                    </div>
+                    <h3>MySQL Go</h3>
+                    <p>Connecting Go to MySQL &mdash; database/sql interface, connection pooling, prepared statements, transactions, and the go-sql-driver/mysql package.</p>
+                    <div class="post-tags">
+                        <span>Go</span>
+                        <span>MySQL</span>
+                        <span>Database</span>
+                    </div>
+                </a>
+
+                <a href="go-orm.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Oct 2025</span>
+                        <span class="post-reading">12 min read</span>
+                    </div>
+                    <h3>Go ORM</h3>
+                    <p>Object-Relational Mapping in Go &mdash; GORM basics, models, migrations, associations, queries, hooks, and when to use an ORM vs raw SQL.</p>
+                    <div class="post-tags">
+                        <span>Go</span>
+                        <span>ORM</span>
+                        <span>GORM</span>
+                    </div>
+                </a>
+
+                <a href="go-jwt-authentication.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Oct 2025</span>
+                        <span class="post-reading">10 min read</span>
+                    </div>
+                    <h3>JWT Authentication</h3>
+                    <p>Implementing JWT-based authentication &mdash; token creation, signing, validation, middleware, refresh tokens, and securing Go APIs.</p>
+                    <div class="post-tags">
+                        <span>Go</span>
+                        <span>JWT</span>
+                        <span>Authentication</span>
+                    </div>
+                </a>
+
+                <a href="go-symmetric-cryptography.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Oct 2025</span>
+                        <span class="post-reading">10 min read</span>
+                    </div>
+                    <h3>Symmetric Cryptography with Go</h3>
+                    <p>Encryption in Go &mdash; AES, block ciphers, cipher modes (CBC, GCM), the crypto package, key derivation, and secure encryption patterns.</p>
+                    <div class="post-tags">
+                        <span>Go</span>
+                        <span>Cryptography</span>
+                        <span>AES</span>
+                    </div>
+                </a>
+
+            </div>
+
+            <!-- Infrastructure & DevOps -->
+            <h3 style="font-size: 18px; font-weight: 700; color: var(--text); margin-top: 48px; margin-bottom: 24px; text-transform: uppercase; letter-spacing: 2px; font-family: var(--mono);">Infrastructure &amp; DevOps</h3>
+            <div class="posts-grid">
+
+                <a href="go-service-registry.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Oct 2025</span>
+                        <span class="post-reading">12 min read</span>
+                    </div>
+                    <h3>Service Registry &amp; Discovery in Go</h3>
+                    <p>Microservice discovery &mdash; Consul, etcd, service registration, health checks, load balancing, and building discoverable Go services.</p>
+                    <div class="post-tags">
+                        <span>Go</span>
+                        <span>Microservices</span>
+                        <span>Consul</span>
+                    </div>
+                </a>
+
+                <a href="go-messaging-queues.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Oct 2025</span>
+                        <span class="post-reading">12 min read</span>
+                    </div>
+                    <h3>Messaging Queues in Go</h3>
+                    <p>Asynchronous messaging &mdash; RabbitMQ, Kafka, NATS with Go clients, pub/sub patterns, message reliability, and event-driven architectures.</p>
+                    <div class="post-tags">
+                        <span>Go</span>
+                        <span>Messaging</span>
+                        <span>Kafka</span>
+                    </div>
+                </a>
+
+                <a href="go-cross-compiling-docker.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Oct 2025</span>
+                        <span class="post-reading">10 min read</span>
+                    </div>
+                    <h3>Cross-Compiling &amp; Docker</h3>
+                    <p>Building Go binaries for multiple platforms &mdash; GOOS/GOARCH, CGO, multi-stage Docker builds, minimal container images, and CI/CD pipelines.</p>
+                    <div class="post-tags">
+                        <span>Go</span>
+                        <span>Docker</span>
+                        <span>Cross-Compile</span>
+                    </div>
+                </a>
+
+            </div>
+
+            <!-- Concurrency & Performance -->
+            <h3 style="font-size: 18px; font-weight: 700; color: var(--text); margin-top: 48px; margin-bottom: 24px; text-transform: uppercase; letter-spacing: 2px; font-family: var(--mono);">Concurrency &amp; Performance</h3>
+            <div class="posts-grid">
+
+                <a href="go-advanced-concurrency.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Oct 2025</span>
+                        <span class="post-reading">14 min read</span>
+                    </div>
+                    <h3>Advanced Concurrency Patterns in Go</h3>
+                    <p>Beyond basic goroutines &mdash; fan-in/fan-out, pipelines, worker pools, rate limiting, context cancellation, and building robust concurrent systems.</p>
+                    <div class="post-tags">
+                        <span>Go</span>
+                        <span>Concurrency</span>
+                        <span>Patterns</span>
+                    </div>
+                </a>
+
+                <a href="go-goroutine-leaks.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Oct 2025</span>
+                        <span class="post-reading">12 min read</span>
+                    </div>
+                    <h3>Detecting and Preventing Goroutine Leaks</h3>
+                    <p>Finding and fixing goroutine leaks &mdash; common leak patterns, detection with runtime and pprof, goleak, and defensive coding practices.</p>
+                    <div class="post-tags">
+                        <span>Go</span>
+                        <span>Goroutines</span>
+                        <span>Debugging</span>
+                    </div>
+                </a>
+
+                <a href="go-memory-gc-internals.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Oct 2025</span>
+                        <span class="post-reading">14 min read</span>
+                    </div>
+                    <h3>Go Memory Model, Garbage Collection &amp; Internals</h3>
+                    <p>How Go manages memory &mdash; the memory model, stack vs heap allocation, escape analysis, the tricolor GC, GOGC tuning, and memory profiling.</p>
+                    <div class="post-tags">
+                        <span>Go</span>
+                        <span>Memory</span>
+                        <span>GC</span>
+                    </div>
+                </a>
+
+                <a href="go-performance-tuning.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Oct 2025</span>
+                        <span class="post-reading">14 min read</span>
+                    </div>
+                    <h3>Go Performance Tuning</h3>
+                    <p>Benchmarking, profiling, and optimization &mdash; go test -bench, pprof, trace, reducing allocations, GC pauses, and writing high-performance Go code.</p>
+                    <div class="post-tags">
+                        <span>Go</span>
+                        <span>Performance</span>
+                        <span>Profiling</span>
+                    </div>
+                </a>
+
+            </div>
+
+            <!-- Advanced GO -->
+            <h3 style="font-size: 18px; font-weight: 700; color: var(--text); margin-top: 48px; margin-bottom: 24px; text-transform: uppercase; letter-spacing: 2px; font-family: var(--mono);">Advanced GO</h3>
+            <div class="posts-grid">
+
+                <a href="go-dsls-generics.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Oct 2025</span>
+                        <span class="post-reading">14 min read</span>
+                    </div>
+                    <h3>Building Domain-Specific Languages (DSLs) in Go</h3>
+                    <p>Creating DSLs with generics and reflection &mdash; fluent APIs, builder patterns, type-safe query builders, and embedding custom languages in Go.</p>
+                    <div class="post-tags">
+                        <span>Go</span>
+                        <span>DSL</span>
+                        <span>Generics</span>
+                    </div>
+                </a>
+
+                <a href="go-scheduler-internals.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Oct 2025</span>
+                        <span class="post-reading">14 min read</span>
+                    </div>
+                    <h3>Go Scheduler Internals</h3>
+                    <p>How goroutines are managed under the hood &mdash; the GMP model, work stealing, preemption, syscall handling, and scheduler tuning with GOMAXPROCS.</p>
+                    <div class="post-tags">
+                        <span>Go</span>
+                        <span>Scheduler</span>
+                        <span>Runtime</span>
+                    </div>
+                </a>
+
+                <a href="go-arena-allocators.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Oct 2025</span>
+                        <span class="post-reading">12 min read</span>
+                    </div>
+                    <h3>Memory Optimization in Go: Arena Allocators</h3>
+                    <p>Arena-based memory management in Go 1.20+ &mdash; reducing GC pressure, batch allocation, arena.NewOf, and when to use arenas vs standard allocation.</p>
+                    <div class="post-tags">
+                        <span>Go</span>
+                        <span>Memory</span>
+                        <span>Arena</span>
+                    </div>
+                </a>
+
+                <a href="go-zero-copy-io.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Oct 2025</span>
+                        <span class="post-reading">12 min read</span>
+                    </div>
+                    <h3>Zero-Copy I/O and Memory Efficiency in Go</h3>
+                    <p>Mastering io.Reader and io.Writer &mdash; zero-copy techniques, io.Pipe, bufio, memory-mapped files, and building efficient data pipelines.</p>
+                    <div class="post-tags">
+                        <span>Go</span>
+                        <span>I/O</span>
+                        <span>Performance</span>
+                    </div>
+                </a>
+
+                <a href="go-generic-data-structures.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Oct 2025</span>
+                        <span class="post-reading">14 min read</span>
+                    </div>
+                    <h3>Building Generic Data Structures in Go</h3>
+                    <p>Type-safe collections with Go generics &mdash; trees, graphs, caches, linked lists, priority queues, and implementing reusable data structures.</p>
+                    <div class="post-tags">
+                        <span>Go</span>
+                        <span>Generics</span>
+                        <span>Data Structures</span>
+                    </div>
+                </a>
+
+            </div>
+
+        </div>
+    </section>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script>
+        // Mobile nav toggle
+        const toggle = document.querySelector('.nav-toggle');
+        const navLinks = document.querySelector('.nav-links');
+        toggle.addEventListener('click', () => {
+            navLinks.classList.toggle('active');
+            toggle.classList.toggle('active');
+        });
+    </script>
+
+</body>
+</html>

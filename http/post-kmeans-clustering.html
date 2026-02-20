@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>K-Means Clustering in Python &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="ai-tech-insights.html" class="back-link">&larr; Back to Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Sep 2024</span>
+                            <span class="post-reading">14 min read</span>
+                        </div>
+                        <h1>K-Means Clustering in Python</h1>
+                        <div class="post-tags">
+                            <span>K-Means</span>
+                            <span>Clustering</span>
+                            <span>Unsupervised Learning</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">K-Means is the workhorse of unsupervised learning. It partitions data into K groups by iteratively assigning points to the nearest centroid and updating centroids to the mean of their assigned points. Despite its simplicity, K-Means remains one of the most widely used clustering algorithms in practice &mdash; from customer segmentation and document grouping to image compression and anomaly detection. Understanding how it works, when it fails, and how to evaluate its output is foundational knowledge for any data scientist.</p>
+
+                        <h2>The Assign-Update Loop</h2>
+
+                        <p>K-Means follows a deceptively simple two-step process that repeats until convergence:</p>
+
+                        <ol>
+                            <li><strong>Assign</strong> &mdash; each point is assigned to the cluster whose centroid is closest (by Euclidean distance).</li>
+                            <li><strong>Update</strong> &mdash; each centroid is recalculated as the mean of all points currently assigned to it.</li>
+                        </ol>
+
+                        <p>These two steps alternate until assignments stop changing (or a maximum number of iterations is reached). The algorithm minimizes <strong>inertia</strong> &mdash; the sum of squared distances from each point to its assigned centroid:</p>
+
+<pre><code class="language-python"># The objective K-Means minimizes:
+# Inertia = sum over all points of ||x_i - c_{assigned}||^2
+# where c_{assigned} is the centroid of the cluster x_i belongs to</code></pre>
+
+                        <p>Because this optimization is NP-hard in general, K-Means uses a greedy heuristic that is not guaranteed to find the global optimum. Different initializations can lead to different solutions, which is why smart initialization and multiple runs matter.</p>
+
+                        <h2>K-Means++ Initialization</h2>
+
+                        <p>The original K-Means algorithm picks initial centroids randomly, which can lead to poor convergence. <strong>K-Means++</strong> is a smarter initialization scheme that spreads initial centroids apart:</p>
+
+                        <ol>
+                            <li>Choose the first centroid uniformly at random from the data.</li>
+                            <li>For each remaining centroid, pick a point with probability proportional to its squared distance from the nearest existing centroid.</li>
+                            <li>Repeat until all K centroids are initialized.</li>
+                        </ol>
+
+<pre><code class="language-python">from sklearn.cluster import KMeans
+
+# K-Means++ is the default in scikit-learn
+kmeans = KMeans(
+    n_clusters=4,
+    init="k-means++",    # smart initialization (default)
+    n_init=10,           # run 10 times with different seeds
+    max_iter=300,        # max iterations per run
+    random_state=42
+)
+labels = kmeans.fit_predict(X_scaled)
+
+print(f"Inertia: {kmeans.inertia_:.1f}")
+print(f"Iterations: {kmeans.n_iter_}")
+print(f"Centroids shape: {kmeans.cluster_centers_.shape}")</code></pre>
+
+                        <p>The <code>n_init=10</code> parameter tells scikit-learn to run K-Means 10 times with different random initializations and keep the result with the lowest inertia. This is crucial &mdash; a single run may converge to a local minimum that misrepresents the true cluster structure.</p>
+
+                        <h2>Choosing K: The Elbow Method</h2>
+
+                        <p>K-Means requires you to specify the number of clusters upfront. The <strong>elbow method</strong> runs K-Means for a range of K values and plots inertia against K, looking for the point where additional clusters stop providing significant improvement:</p>
+
+<pre><code class="language-python">import matplotlib.pyplot as plt
+
+inertias = []
+K_range = range(2, 11)
+
+for k in K_range:
+    km = KMeans(n_clusters=k, n_init=10, random_state=42)
+    km.fit(X_scaled)
+    inertias.append(km.inertia_)
+
+plt.figure(figsize=(8, 4))
+plt.plot(K_range, inertias, "bo-")
+plt.xlabel("Number of clusters (K)")
+plt.ylabel("Inertia")
+plt.title("Elbow Method for Optimal K")
+plt.tight_layout()
+plt.show()</code></pre>
+
+                        <p>The &ldquo;elbow&rdquo; is where the curve bends &mdash; adding more clusters beyond this point yields diminishing returns. The elbow is sometimes ambiguous, so combine it with the silhouette method for a more definitive answer.</p>
+
+                        <h2>Choosing K: Silhouette Analysis</h2>
+
+                        <p>The <strong>silhouette score</strong> measures how similar each point is to its own cluster compared to the nearest neighboring cluster. It ranges from &ndash;1 (wrong cluster) to +1 (perfectly clustered):</p>
+
+<pre><code class="language-python">from sklearn.metrics import silhouette_score, silhouette_samples
+import numpy as np
+
+sil_scores = []
+for k in K_range:
+    km = KMeans(n_clusters=k, n_init=10, random_state=42)
+    labels_k = km.fit_predict(X_scaled)
+    score = silhouette_score(X_scaled, labels_k)
+    sil_scores.append(score)
+    print(f"K={k}: silhouette = {score:.3f}")
+
+best_k = list(K_range)[np.argmax(sil_scores)]
+print(f"\nBest K by silhouette: {best_k}")</code></pre>
+
+                        <p>Beyond the average score, examine the <strong>silhouette plot</strong> for each K. A good clustering shows uniformly thick silhouette profiles across all clusters. If one cluster&rsquo;s silhouettes are mostly negative, those points are likely misassigned:</p>
+
+<pre><code class="language-python"># Silhouette plot for the best K
+km_best = KMeans(n_clusters=best_k, n_init=10, random_state=42)
+labels_best = km_best.fit_predict(X_scaled)
+sample_scores = silhouette_samples(X_scaled, labels_best)
+
+fig, ax = plt.subplots(figsize=(8, 5))
+y_lower = 10
+for i in range(best_k):
+    cluster_scores = np.sort(sample_scores[labels_best == i])
+    size = cluster_scores.shape[0]
+    y_upper = y_lower + size
+    ax.fill_betweenx(np.arange(y_lower, y_upper),
+                      0, cluster_scores, alpha=0.7)
+    ax.text(-0.05, y_lower + 0.5 * size, str(i))
+    y_lower = y_upper + 10
+
+ax.axvline(x=silhouette_score(X_scaled, labels_best),
+           color="red", linestyle="--", label="Average")
+ax.set_xlabel("Silhouette Coefficient")
+ax.set_ylabel("Cluster")
+ax.set_title(f"Silhouette Plot (K={best_k})")
+ax.legend()
+plt.tight_layout()
+plt.show()</code></pre>
+
+                        <h2>Preprocessing Pipeline with Scaling and Categoricals</h2>
+
+                        <p>K-Means uses Euclidean distance, which means features must be on comparable scales. A proper preprocessing pipeline handles both numerical scaling and categorical encoding:</p>
+
+<pre><code class="language-python">from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+
+# Define feature types
+num_features = ["age", "income", "spending_score"]
+cat_features = ["gender", "region"]
+
+# Build preprocessor
+preprocessor = ColumnTransformer([
+    ("num", StandardScaler(), num_features),
+    ("cat", OneHotEncoder(drop="first", sparse_output=False), cat_features)
+])
+
+# Full pipeline
+pipeline = Pipeline([
+    ("preprocess", preprocessor),
+    ("cluster", KMeans(n_clusters=4, n_init=10, random_state=42))
+])
+
+# Fit and predict
+labels = pipeline.fit_predict(df)
+df["cluster"] = labels</code></pre>
+
+                        <blockquote>
+                            <p><strong>Important:</strong> One-hot encoded categoricals create binary features (0/1) while scaled numericals typically range from &ndash;3 to +3. With many categories, the categoricals can dominate the distance calculation. Consider using <code>OrdinalEncoder</code> + scaling or reducing cardinality before clustering.</p>
+                        </blockquote>
+
+                        <h2>Cluster Profiling</h2>
+
+                        <p>After clustering, the next step is understanding <em>what</em> each cluster represents. Profile clusters by examining the distribution of features within each group:</p>
+
+<pre><code class="language-python">import pandas as pd
+
+# Summary statistics per cluster
+profile = df.groupby("cluster").agg(
+    count=("age", "size"),
+    avg_age=("age", "mean"),
+    avg_income=("income", "mean"),
+    avg_spending=("spending_score", "mean"),
+    top_region=("region", lambda x: x.mode()[0])
+).round(1)
+
+print(profile)
+
+# Centroid interpretation (on original scale)
+# Transform centroids back through the scaler
+centroids_scaled = pipeline.named_steps["cluster"].cluster_centers_
+scaler = pipeline.named_steps["preprocess"].named_transformers_["num"]
+centroids_original = scaler.inverse_transform(
+    centroids_scaled[:, :len(num_features)]
+)
+
+centroid_df = pd.DataFrame(
+    centroids_original, columns=num_features
+)
+centroid_df.index.name = "cluster"
+print("\nCentroid values (original scale):")
+print(centroid_df.round(1))</code></pre>
+
+                        <p>Give each cluster a descriptive name based on its profile. For example: &ldquo;High-Income Low-Spenders,&rdquo; &ldquo;Young Budget-Conscious,&rdquo; or &ldquo;Premium Loyalists.&rdquo; This makes the results actionable for stakeholders who don&rsquo;t think in cluster IDs.</p>
+
+                        <h2>Mini-Batch K-Means for Large Datasets</h2>
+
+                        <p>Standard K-Means loads all data into memory and updates centroids using every point in each iteration. For large datasets (100K+ samples), <strong>Mini-Batch K-Means</strong> is dramatically faster because it updates centroids using small random batches:</p>
+
+<pre><code class="language-python">from sklearn.cluster import MiniBatchKMeans
+
+mbk = MiniBatchKMeans(
+    n_clusters=4,
+    batch_size=1024,     # points per mini-batch
+    n_init=10,
+    max_iter=100,
+    random_state=42
+)
+labels_mb = mbk.fit_predict(X_scaled)
+
+print(f"Inertia (Mini-Batch): {mbk.inertia_:.1f}")
+print(f"Inertia (Standard):   {kmeans.inertia_:.1f}")</code></pre>
+
+                        <p>Mini-Batch K-Means typically produces slightly higher inertia (worse by 1&ndash;3%) but runs 5&ndash;10x faster on large datasets. It also supports <code>partial_fit()</code> for streaming data that doesn&rsquo;t fit in memory.</p>
+
+                        <h2>PCA Visualization</h2>
+
+                        <p>Visualizing clusters in their original high-dimensional space is impossible. <strong>PCA</strong> (Principal Component Analysis) projects the data to 2D while preserving as much variance as possible:</p>
+
+<pre><code class="language-python">from sklearn.decomposition import PCA
+
+# Reduce to 2D for visualization
+pca = PCA(n_components=2, random_state=42)
+X_2d = pca.fit_transform(X_scaled)
+
+plt.figure(figsize=(8, 6))
+scatter = plt.scatter(X_2d[:, 0], X_2d[:, 1],
+                      c=labels, cmap="viridis",
+                      s=20, alpha=0.6)
+
+# Plot centroids
+centroids_2d = pca.transform(kmeans.cluster_centers_)
+plt.scatter(centroids_2d[:, 0], centroids_2d[:, 1],
+            c="red", marker="X", s=200, edgecolors="black",
+            linewidths=1.5, label="Centroids")
+
+plt.xlabel(f"PC1 ({pca.explained_variance_ratio_[0]:.1%} variance)")
+plt.ylabel(f"PC2 ({pca.explained_variance_ratio_[1]:.1%} variance)")
+plt.title("K-Means Clusters (PCA Projection)")
+plt.colorbar(scatter, label="Cluster")
+plt.legend()
+plt.tight_layout()
+plt.show()</code></pre>
+
+                        <p>Remember that PCA visualization is a <em>projection</em> &mdash; clusters that overlap in 2D may be well-separated in the original space. Always verify with quantitative metrics, not just visual inspection.</p>
+
+                        <h2>Anomaly Detection with Distances</h2>
+
+                        <p>K-Means naturally provides a measure of how &ldquo;normal&rdquo; each point is: its distance to the nearest centroid. Points far from all centroids are potential anomalies:</p>
+
+<pre><code class="language-python"># Distance from each point to its assigned centroid
+distances = kmeans.transform(X_scaled).min(axis=1)
+
+# Flag points beyond the 95th percentile as anomalies
+threshold = np.percentile(distances, 95)
+anomalies = distances > threshold
+print(f"Anomalies detected: {anomalies.sum()}")
+
+# Visualize
+plt.figure(figsize=(8, 5))
+plt.scatter(X_2d[~anomalies, 0], X_2d[~anomalies, 1],
+            c="steelblue", s=15, alpha=0.4, label="Normal")
+plt.scatter(X_2d[anomalies, 0], X_2d[anomalies, 1],
+            c="red", s=40, marker="x", label="Anomaly")
+plt.legend()
+plt.title("Anomaly Detection via K-Means Distance")
+plt.tight_layout()
+plt.show()</code></pre>
+
+                        <p>This approach is simple but effective for detecting global outliers. For more nuanced anomaly detection, consider combining K-Means distances with cluster-specific thresholds (e.g., flag points beyond 3 standard deviations within their cluster).</p>
+
+                        <h2>Image Compression via Color Quantization</h2>
+
+                        <p>A fun and practical application of K-Means is <strong>image compression</strong>. Every pixel in an image is a point in RGB space (3 dimensions). By clustering pixels into K colors and replacing each pixel with its centroid color, you can dramatically reduce file size:</p>
+
+<pre><code class="language-python">from sklearn.utils import shuffle
+from PIL import Image
+
+# Load image and reshape to (n_pixels, 3)
+img = np.array(Image.open("photo.jpg")) / 255.0
+h, w, d = img.shape
+pixels = img.reshape(-1, d)
+
+# Fit on a sample for speed, predict on all pixels
+sample = shuffle(pixels, random_state=42, n_samples=10_000)
+kmeans_img = KMeans(n_clusters=16, n_init=4, random_state=42)
+kmeans_img.fit(sample)
+
+# Replace each pixel with its centroid color
+labels_img = kmeans_img.predict(pixels)
+compressed = kmeans_img.cluster_centers_[labels_img].reshape(h, w, d)
+
+# Compare
+fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+axes[0].imshow(img)
+axes[0].set_title(f"Original ({256**3:,} possible colors)")
+axes[0].axis("off")
+axes[1].imshow(compressed)
+axes[1].set_title(f"Compressed (16 colors)")
+axes[1].axis("off")
+plt.tight_layout()
+plt.show()</code></pre>
+
+                        <p>With K=16, you reduce from 16.7 million possible colors to just 16, achieving significant compression while retaining visual fidelity. Increasing K improves quality; decreasing K improves compression.</p>
+
+                        <h2>Common Pitfalls</h2>
+
+                        <ul>
+                            <li><strong>Not scaling features.</strong> K-Means is distance-based. Unscaled features with large ranges will dominate cluster assignment. Always apply <code>StandardScaler</code> or <code>MinMaxScaler</code> before clustering.</li>
+                            <li><strong>Choosing K by gut feeling.</strong> Don&rsquo;t guess the number of clusters. Use the elbow method, silhouette analysis, or domain knowledge. Try multiple values and compare.</li>
+                            <li><strong>Assuming clusters are spherical.</strong> K-Means creates Voronoi partitions &mdash; convex, roughly spherical regions. If your data has elongated, ring-shaped, or interleaved clusters, K-Means will fail. Use DBSCAN or Gaussian Mixture Models instead.</li>
+                            <li><strong>Ignoring n_init.</strong> A single run with bad initialization can produce terrible results. Keep <code>n_init &ge; 10</code> and trust that scikit-learn will return the best run.</li>
+                            <li><strong>Over-interpreting PCA plots.</strong> Clusters overlapping in 2D PCA space may be well-separated in the original space. Use quantitative metrics alongside visual inspection.</li>
+                            <li><strong>Using K-Means on categorical data.</strong> Euclidean distance is meaningless for categorical features. Either encode and scale carefully, or use K-Modes or K-Prototypes for mixed data.</li>
+                            <li><strong>Ignoring cluster sizes.</strong> K-Means can produce clusters of vastly different sizes. If one cluster has 90% of the data, your K may be wrong, or your data may lack the structure K-Means expects.</li>
+                        </ul>
+
+                        <h2>Key Takeaways</h2>
+
+                        <ul>
+                            <li>K-Means partitions data into K clusters by iterating between <strong>assigning points to centroids</strong> and <strong>updating centroids to cluster means</strong> until convergence.</li>
+                            <li><strong>K-Means++ initialization</strong> (the default in scikit-learn) spreads initial centroids apart, leading to faster convergence and better results than random initialization.</li>
+                            <li>Use the <strong>elbow method</strong> and <strong>silhouette analysis</strong> together to choose K. The elbow shows diminishing returns; the silhouette measures cluster cohesion and separation.</li>
+                            <li>Build a proper <strong>preprocessing pipeline</strong> with <code>StandardScaler</code> for numericals and <code>OneHotEncoder</code> for categoricals. K-Means requires comparable feature scales.</li>
+                            <li><strong>Profile clusters</strong> by examining feature distributions within each group. Give clusters descriptive names to make results actionable.</li>
+                            <li><strong>Mini-Batch K-Means</strong> trades a small amount of accuracy for dramatically faster training on large datasets, and supports online learning via <code>partial_fit()</code>.</li>
+                            <li>Use <strong>PCA</strong> to visualize clusters in 2D, but remember that 2D projections can be misleading &mdash; always verify with quantitative metrics.</li>
+                            <li><strong>Distance to centroid</strong> provides a natural anomaly score. Points far from all centroids are candidates for outlier investigation.</li>
+                            <li>K-Means assumes <strong>spherical, equally-sized clusters</strong>. For non-convex shapes or varying densities, consider DBSCAN, HDBSCAN, or Gaussian Mixture Models.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing large-scale distributed systems. Specialized in Generative AI, AI Agents, and cloud-native architectures.</p>
+                        <div class="sidebar-author-links">
+                            <a href="https://www.linkedin.com/in/paolo-mascia-italy" target="_blank" aria-label="LinkedIn">
+                                <svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                            </a>
+                            <a href="https://github.com/paolomascia" target="_blank" aria-label="GitHub">
+                                <svg viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+                            </a>
+                            <a href="https://www.kaggle.com/paolomascia" target="_blank" aria-label="Kaggle">
+                                <svg viewBox="0 0 24 24"><path d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.233-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.075.378z"/></svg>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="post-dbscan.html" class="sidebar-link">
+                            <span class="sidebar-link-title">DBSCAN and HDBSCAN in Python</span>
+                            <span class="sidebar-link-meta">DBSCAN &middot; Nov 2024</span>
+                        </a>
+                        <a href="post-kmeans.html" class="sidebar-link">
+                            <span class="sidebar-link-title">K-Means Clustering Evaluation</span>
+                            <span class="sidebar-link-meta">Model Evaluation &middot; Feb 2024</span>
+                        </a>
+                        <a href="post-pca.html" class="sidebar-link">
+                            <span class="sidebar-link-title">Principal Component Analysis (PCA)</span>
+                            <span class="sidebar-link-meta">PCA &middot; May 2024</span>
+                        </a>
+                        <a href="post-tsne-umap.html" class="sidebar-link">
+                            <span class="sidebar-link-title">t-SNE and UMAP in Python</span>
+                            <span class="sidebar-link-meta">Dimension Reduction &middot; Jul 2024</span>
+                        </a>
+                        <a href="post-ml-pipelines.html" class="sidebar-link">
+                            <span class="sidebar-link-title">Building ML Pipelines in Python</span>
+                            <span class="sidebar-link-meta">Pipelines &middot; Nov 2025</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+</body>
+</html>

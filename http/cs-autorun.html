@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Understanding Autorun.inf and Its Security Implications &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="cybersecurity-tech-insights.html" class="back-link">&larr; Back to Cybersecurity</a>
+                        <div class="post-meta">
+                            <span class="post-date">Feb 2024</span>
+                            <span class="post-reading">7 min read</span>
+                        </div>
+                        <h1>Understanding Autorun.inf and Its Security Implications</h1>
+                        <div class="post-tags">
+                            <span>Cybersecurity</span>
+                            <span>Windows</span>
+                            <span>Malware</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Autorun.inf is a small configuration file that tells Windows what to do when removable media such as CD-ROMs, USB flash drives, or external disks are inserted. While designed for convenience &mdash; enabling automatic program launches and custom icon displays &mdash; this mechanism has been widely exploited by malware. This article explains how autorun.inf works, its structure, security risks, and how to disable it to protect your systems.</p>
+
+                        <blockquote>
+                            <p><strong>Disclaimer:</strong> This content serves <strong>educational and defensive cybersecurity</strong> purposes only. Do not use <code>autorun.inf</code> for unauthorized or malicious activity. Always follow organizational IT policies.</p>
+                        </blockquote>
+
+                        <h2>What Is Autorun.inf?</h2>
+
+                        <p><code>Autorun.inf</code> is a small configuration file that tells Windows what to do when removable media such as CD-ROMs, USB flash drives, or external disks are inserted. It enables automatic program launches and custom icon displays. The file is placed in the root directory of removable media (e.g., <code>E:\</code>) and is processed by Windows upon drive insertion.</p>
+
+                        <h2>Structure of Autorun.inf</h2>
+
+                        <p>The file uses an INI-style format with sections defined in brackets:</p>
+
+<pre><code class="language-bash">[autorun]
+open=Filename_x86.exe
+icon=IconFile.ico
+
+[autorun.alpha]
+open=Filename_RISC.exe
+icon=IconFile.ico</code></pre>
+
+                        <h3>Sections Explained</h3>
+
+                        <ul>
+                            <li><strong><code>[autorun]</code></strong> &mdash; The primary required section. Contains the main instructions for Windows to execute.</li>
+                            <li><strong><code>[autorun.alpha]</code></strong> &mdash; An optional section for RISC-based systems (rarely used in modern environments).</li>
+                        </ul>
+
+                        <h3>Common Keys</h3>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Key</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><code>open</code></td>
+                                    <td>Program to launch automatically when the media is inserted</td>
+                                </tr>
+                                <tr>
+                                    <td><code>icon</code></td>
+                                    <td>Custom icon file to display for the drive</td>
+                                </tr>
+                                <tr>
+                                    <td><code>label</code></td>
+                                    <td>Custom drive name shown in Windows Explorer</td>
+                                </tr>
+                                <tr>
+                                    <td><code>action</code></td>
+                                    <td>Description text shown in the AutoPlay dialog</td>
+                                </tr>
+                                <tr>
+                                    <td><code>shell\verb\command</code></td>
+                                    <td>Custom context menu actions for the drive</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <h2>How Windows Processes Autorun.inf</h2>
+
+                        <p>When removable media is inserted, Windows follows this sequence:</p>
+
+                        <ol>
+                            <li>Searches for <code>autorun.inf</code> in the root directory of the inserted drive.</li>
+                            <li>Parses the file to read its configuration directives.</li>
+                            <li>Executes the instructions specified in the <code>open</code> key (or presents the AutoPlay dialog).</li>
+                            <li>Applies custom icons and labels defined in the file.</li>
+                        </ol>
+
+                        <h2>Security Risks</h2>
+
+                        <p>The autorun mechanism presents three primary security concerns:</p>
+
+                        <ol>
+                            <li><strong>Automatic malware execution:</strong> Attackers can craft <code>autorun.inf</code> files that silently launch hidden executables when a USB drive is inserted into a system.</li>
+                            <li><strong>File hiding:</strong> Malware uses attributes like <code>attrib +h autorun.inf</code> to make the configuration file invisible to casual users.</li>
+                            <li><strong>Rapid propagation:</strong> Through removable media, infected <code>autorun.inf</code> files can spread rapidly across multiple systems in an organization.</li>
+                        </ol>
+
+                        <h2>Mitigation: Disabling AutoRun in Windows</h2>
+
+                        <p>The most effective defense is to disable AutoRun entirely via the Windows Registry.</p>
+
+                        <h3>Registry Path</h3>
+
+<pre><code class="language-bash">HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Policies</code></pre>
+
+                        <h3>NoDriveTypeAutorun Values</h3>
+
+                        <p>The <code>NoDriveTypeAutorun</code> registry value controls which drive types have AutoRun disabled:</p>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Hex Value</th>
+                                    <th>Drive Type Disabled</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><code>0xFF</code></td>
+                                    <td>All drives</td>
+                                </tr>
+                                <tr>
+                                    <td><code>0x20</code></td>
+                                    <td>CD-ROM drives</td>
+                                </tr>
+                                <tr>
+                                    <td><code>0x04</code></td>
+                                    <td>Removable drives (USB)</td>
+                                </tr>
+                                <tr>
+                                    <td><code>0x08</code></td>
+                                    <td>Fixed drives</td>
+                                </tr>
+                                <tr>
+                                    <td><code>0x10</code></td>
+                                    <td>Network drives</td>
+                                </tr>
+                                <tr>
+                                    <td><code>0x40</code></td>
+                                    <td>RAM disks</td>
+                                </tr>
+                                <tr>
+                                    <td><code>0x01</code></td>
+                                    <td>Unknown drives</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <h3>Example Registry Entry</h3>
+
+                        <p>To disable AutoRun on all drive types, apply the following registry entry:</p>
+
+<pre><code class="language-bash">Windows Registry Editor Version 5.00
+
+[HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer]
+"NoDriveTypeAutorun"=dword:000000ff</code></pre>
+
+                        <p>After applying the registry change, either restart your system or log off and back in for it to take effect.</p>
+
+                        <h2>Additional Recommendations</h2>
+
+                        <ul>
+                            <li><strong>Disable AutoPlay through Group Policy or Control Panel:</strong> In enterprise environments, use Group Policy Objects (GPOs) to enforce AutoPlay settings across all domain-joined machines.</li>
+                            <li><strong>Deploy endpoint protection monitoring removable media:</strong> Use EDR solutions that scan and monitor removable media upon insertion.</li>
+                            <li><strong>Avoid inserting untrusted USB devices:</strong> Treat unknown USB drives as potential threats &mdash; never insert devices from unverified sources.</li>
+                            <li><strong>Educate users about auto-execution risks:</strong> Train users to understand how autorun works and why it poses a security risk.</li>
+                        </ul>
+
+                        <h2>Key Takeaways</h2>
+
+                        <ul>
+                            <li><code>Autorun.inf</code> was designed for convenience but poses significant security risks when exploited by malware.</li>
+                            <li>Modern malware continues to leverage autorun mechanisms for propagation via removable media.</li>
+                            <li>Administrators should disable AutoRun functionality via Group Policy or the Windows Registry.</li>
+                            <li>Layered defenses &mdash; endpoint protection, user awareness, and removable media control &mdash; minimize exposure to autorun-based attacks.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing large-scale distributed systems. Specialized in Generative AI, AI Agents, and cloud-native architectures.</p>
+                        <div class="sidebar-author-links">
+                            <a href="https://www.linkedin.com/in/paolo-mascia-italy" target="_blank" aria-label="LinkedIn">
+                                <svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                            </a>
+                            <a href="https://github.com/paolomascia" target="_blank" aria-label="GitHub">
+                                <svg viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+                            </a>
+                            <a href="https://www.kaggle.com/paolomascia" target="_blank" aria-label="Kaggle">
+                                <svg viewBox="0 0 24 24"><path d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.233-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.075.378z"/></svg>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="cs-computer-viruses.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cybersecurity</span>
+                            <div class="sidebar-link-title">Computer Viruses</div>
+                            <span class="sidebar-link-meta">Mar 2024</span>
+                        </a>
+                        <a href="cs-keyloggers.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cybersecurity</span>
+                            <div class="sidebar-link-title">Windows Keyloggers</div>
+                            <span class="sidebar-link-meta">Nov 2024</span>
+                        </a>
+                        <a href="cs-buffer-overflow.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cybersecurity</span>
+                            <div class="sidebar-link-title">Buffer Overflow</div>
+                            <span class="sidebar-link-meta">Sep 2023</span>
+                        </a>
+                        <a href="cs-network-security.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Networking</span>
+                            <div class="sidebar-link-title">Network Security</div>
+                            <span class="sidebar-link-meta">Feb 2025</span>
+                        </a>
+                        <a href="cs-social-engineering.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cybersecurity</span>
+                            <div class="sidebar-link-title">Social Engineering</div>
+                            <span class="sidebar-link-meta">Jan 2024</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-nasm.min.js"></script>
+</body>
+</html>

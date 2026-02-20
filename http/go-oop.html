@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Object Oriented Programming in Go &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="golang-tech-insights.html" class="back-link">&larr; Back to Go Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Oct 2023</span>
+                            <span class="post-reading">10 min read</span>
+                        </div>
+                        <h1>Object Oriented Programming in Go</h1>
+                        <div class="post-tags">
+                            <span>Go</span>
+                            <span>OOP</span>
+                            <span>Standard Library</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Go supports object-oriented programming but differs from classical OOP languages. The language intentionally omits traditional features such as inheritance and classes, favoring a simpler and more compositional design. Key OOP principles &mdash; encapsulation, composition, and polymorphism &mdash; are all supported in Go through its unique approach.</p>
+
+                        <h2>Encapsulation with Structs</h2>
+                        <p>Structs group related data fields under a single logical unit. Fields are either exported (capital letter) or unexported (lowercase):</p>
+<pre><code class="language-go">type Person struct {
+    Name string
+    Age  int
+}
+
+type Employee struct {
+    ID   int      // exported
+    name string   // unexported
+}</code></pre>
+                        <p>Struct instances can be created using literal syntax or the <code>new()</code> keyword:</p>
+<pre><code class="language-go">p1 := Person{Name: "Alice", Age: 25}
+p2 := new(Person)
+p2.Name = "Bob"
+p2.Age = 30</code></pre>
+
+                        <h2>Methods and Receivers</h2>
+                        <p>Methods are functions associated with a type through a receiver parameter. Value receivers work on copies; pointer receivers operate on the original object:</p>
+<pre><code class="language-go">// Method with value receiver
+func (p Person) GetName() string {
+    return p.Name
+}
+
+// Method with pointer receiver (allows modification)
+func (p *Person) Birthday() {
+    p.Age++
+}</code></pre>
+                        <p>Example usage:</p>
+<pre><code class="language-go">person := Person{Name: "Alice", Age: 25}
+fmt.Println(person.GetName()) // "Alice"
+
+person.Birthday()
+fmt.Println(person.Age) // 26</code></pre>
+
+                        <h2>Composition Instead of Inheritance</h2>
+                        <p>Go doesn&rsquo;t support classical inheritance. Instead, it encourages composition by embedding types:</p>
+<pre><code class="language-go">type Person struct {
+    Name string
+    Age  int
+}
+
+func (p Person) GetName() string {
+    return p.Name
+}
+
+type Student struct {
+    Person // embedded struct
+    Grade  float32
+}</code></pre>
+                        <p>Embedded fields and methods are automatically promoted:</p>
+<pre><code class="language-go">student := Student{
+    Person: Person{Name: "John", Age: 20},
+    Grade:  85.5,
+}
+
+fmt.Println(student.GetName()) // "John" - method promoted from Person</code></pre>
+
+                        <h2>Interfaces and Polymorphism</h2>
+                        <p>Interfaces define method signatures. Go uses implicit implementation &mdash; no explicit declaration needed:</p>
+<pre><code class="language-go">type Shape interface {
+    Area() float64
+}
+
+type Circle struct {
+    Radius float64
+}
+
+func (c Circle) Area() float64 {
+    return 3.14 * c.Radius * c.Radius
+}
+
+func printArea(s Shape) {
+    fmt.Println("Area:", s.Area())
+}
+
+func main() {
+    c := Circle{Radius: 5}
+    printArea(c) // Circle satisfies Shape implicitly
+}</code></pre>
+
+                        <h2>Go Standard Library</h2>
+
+                        <h3>The fmt Package</h3>
+                        <p>Provides formatted I/O functions:</p>
+<pre><code class="language-go">package main
+
+import "fmt"
+
+func main() {
+    // Print to console
+    fmt.Println("Hello, World!")
+
+    // Format string with variables
+    name := "Mario"
+    age := 30
+    fmt.Printf("My name is %s and I am %d years old\n", name, age)
+
+    // Read input from keyboard
+    var input string
+    fmt.Print("Enter a value: ")
+    fmt.Scanln(&amp;input)
+    fmt.Println("You entered:", input)
+}</code></pre>
+
+                        <h3>The net/http Package</h3>
+                        <p>Complete HTTP client and server tools without external dependencies:</p>
+<pre><code class="language-go">package main
+
+import (
+    "fmt"
+    "net/http"
+)
+
+func handler(w http.ResponseWriter, r *http.Request) {
+    fmt.Fprintf(w, "Hello from Go HTTP Server!")
+}
+
+func main() {
+    http.HandleFunc("/", handler)
+    fmt.Println("Server running on http://localhost:8080")
+    http.ListenAndServe(":8080", nil)
+}</code></pre>
+
+                        <h3>The io/ioutil Package</h3>
+                        <p>File reading and writing utilities:</p>
+<pre><code class="language-go">import (
+    "io/ioutil"
+    "log"
+)
+
+// Read file
+data, err := ioutil.ReadFile("filename.txt")
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Println(string(data))
+
+// Write file
+err = ioutil.WriteFile("output.txt", data, 0644)
+if err != nil {
+    log.Fatal(err)
+}</code></pre>
+
+                        <h3>The strconv Package</h3>
+                        <p>String and number conversions:</p>
+<pre><code class="language-go">import "strconv"
+
+// String to int
+num, err := strconv.Atoi("123")
+
+// Int to string
+str := strconv.Itoa(123)
+
+// String to float
+f, err := strconv.ParseFloat("3.14", 64)
+
+// Boolean parsing
+b, err := strconv.ParseBool("true")</code></pre>
+
+                        <h3>The encoding/json Package</h3>
+                        <p>JSON encoding and decoding:</p>
+<pre><code class="language-go">import "encoding/json"
+
+type Person struct {
+    Name string `json:"name"`
+    Age  int    `json:"age"`
+}
+
+// Encode to JSON
+person := Person{Name: "John", Age: 30}
+jsonData, err := json.Marshal(person)
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Println(string(jsonData))
+
+// Decode from JSON
+var p Person
+err = json.Unmarshal(jsonData, &amp;p)
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Println(p.Name, p.Age)</code></pre>
+
+                        <h2>Summary</h2>
+                        <p>Go embraces OOP pragmatically through:</p>
+                        <ul>
+                            <li><strong>Structs</strong> for encapsulating data</li>
+                            <li><strong>Methods</strong> for attaching behavior to types</li>
+                            <li><strong>Interfaces</strong> for polymorphism and abstraction</li>
+                            <li><strong>Composition</strong> for reusability and flexibility</li>
+                        </ul>
+                        <p>Combined with its rich standard library, Go provides tools for writing clean, efficient, and maintainable software with a modern, concurrent, and type-safe design.</p>
+                    </div>
+                </div>
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="go-advanced-concurrency.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Advanced Concurrency Patterns in Go</div>
+                            <span class="sidebar-link-meta">Jun 2025</span>
+                        </a>
+                        <a href="go-performance-tuning.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Go Performance Tuning</div>
+                            <span class="sidebar-link-meta">Dec 2025</span>
+                        </a>
+                        <a href="go-rest-apis.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Calling REST APIs in Go</div>
+                            <span class="sidebar-link-meta">Nov 2023</span>
+                        </a>
+                        <a href="go-generic-data-structures.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Building Generic Data Structures in Go</div>
+                            <span class="sidebar-link-meta">Mar 2025</span>
+                        </a>
+                        <a href="go-memory-gc-internals.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Go Memory Model, GC &amp; Internals</div>
+                            <span class="sidebar-link-meta">May 2025</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+
+</body>
+</html>

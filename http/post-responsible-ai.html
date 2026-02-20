@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Building Responsible AI — Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="ai-tech-insights.html" class="back-link">&larr; Back to Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Jul 2025</span>
+                            <span class="post-reading">6 min read</span>
+                        </div>
+                        <h1>Building Responsible AI: Lessons from the Trenches</h1>
+                        <div class="post-tags">
+                            <span>Ethics</span>
+                            <span>Safety</span>
+                            <span>Engineering</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">I've shipped three AI-powered products to production in the last two years. Each time, I thought the hardest part would be the model. Each time, I was wrong. The hardest part is everything that surrounds the model — the guardrails, the monitoring, the graceful failures, and the constant question: "What happens when this goes wrong at 3 AM?"</p>
+
+                        <h2>The 3 AM Test</h2>
+                        <p>Here's a mental model I use for every AI feature I build: imagine it's 3 AM, you're asleep, and your AI system is handling requests unsupervised. What's the worst thing it could do? If the answer makes you uncomfortable, you need better guardrails.</p>
+                        <p>This isn't theoretical. On one of my early projects, we deployed a customer-facing AI assistant that was supposed to help users navigate our documentation. Within 48 hours, a user had convinced it to generate a detailed comparison with a competitor's product — including made-up statistics that favored our product. Nobody asked for that feature. The model just... improvised.</p>
+
+                        <h2>Lesson 1: Output Validation Is Not Optional</h2>
+                        <p>The single most impactful thing you can do for AI safety is validate outputs before they reach users. This sounds obvious, but an alarming number of production AI systems pipe model output directly to the frontend.</p>
+                        <p>I now build validation layers that check for:</p>
+                        <ul>
+                            <li><strong>Factual grounding</strong> — Does the response reference real information from the provided context?</li>
+                            <li><strong>Scope adherence</strong> — Is the response within the boundaries of what this system should discuss?</li>
+                            <li><strong>Tone consistency</strong> — Does the response match the expected voice and professionalism level?</li>
+                            <li><strong>Harmful content</strong> — Does it contain anything that could be offensive, misleading, or dangerous?</li>
+                        </ul>
+
+                        <h2>Lesson 2: Logging Everything Is Survival</h2>
+                        <p>When an AI system misbehaves, the first question everyone asks is "What happened?" If you can't answer that in detail, you're flying blind. I log every input, every output, every intermediate step, every tool call, and every decision point. Storage is cheap; trust is expensive.</p>
+                        <p>This logging has saved us multiple times. When a user reported that our system gave incorrect medical-adjacent advice (we're not a medical product — that's the point), we could trace the exact chain of reasoning that led to the problematic output and fix the underlying prompt vulnerability within hours.</p>
+
+                        <h2>Lesson 3: Fail Gracefully, Fail Honestly</h2>
+                        <p>AI systems will fail. The question isn't whether, but how. I've adopted a philosophy of honest failure: when the system isn't confident, it says so. When it can't help, it explains why and offers alternatives. When it encounters an edge case, it escalates to a human rather than guessing.</p>
+                        <p>Users are surprisingly forgiving of AI that says "I'm not sure about this — let me connect you with someone who can help." They are far less forgiving of AI that confidently gives them wrong information.</p>
+
+                        <h2>Lesson 4: Your Team Needs AI Literacy</h2>
+                        <p>This might be the most underrated aspect of responsible AI deployment. Every person on your team — designers, PMs, support staff, not just engineers — needs to understand what your AI can and cannot do. They need to know its failure modes, its limitations, and its tendencies.</p>
+                        <p>I run quarterly "AI literacy" sessions where we review recent incidents, discuss new capabilities, and red-team our own systems. The insights that come from non-technical team members are often the most valuable, because they think about failure modes that engineers overlook.</p>
+
+                        <h2>The Bottom Line</h2>
+                        <p>Building responsible AI isn't a checkbox exercise or a compliance requirement. It's an engineering discipline. It requires the same rigor we apply to security, performance, and reliability — maybe more, because AI failures are often subtle and difficult to detect.</p>
+                        <p>The good news is that the tools and frameworks for responsible AI are improving rapidly. The bad news is that the deployment pace is outrunning the safety pace. As practitioners, it's on us to close that gap — one guardrail at a time.</p>
+                    </div>
+                </div>
+
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI & Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing large-scale distributed systems. Specialized in Generative AI, AI Agents, and cloud-native architectures.</p>
+                        <div class="sidebar-author-links">
+                            <a href="https://www.linkedin.com/in/paolo-mascia-italy" target="_blank" aria-label="LinkedIn">
+                                <svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                            </a>
+                            <a href="https://github.com/paolomascia" target="_blank" aria-label="GitHub">
+                                <svg viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+                            </a>
+                            <a href="https://www.kaggle.com/paolomascia" target="_blank" aria-label="Kaggle">
+                                <svg viewBox="0 0 24 24"><path d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.233-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.075.378z"/></svg>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="post-agentic-ai.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Agentic AI</span>
+                            <div class="sidebar-link-title">The Rise of Agentic AI: Why 2025 Changed Everything</div>
+                            <span class="sidebar-link-meta">Sep 2025</span>
+                        </a>
+                        <a href="post-rlhf.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">RLHF</span>
+                            <div class="sidebar-link-title">Reinforcement Learning from Human Feedback (RLHF)</div>
+                            <span class="sidebar-link-meta">Jun 2025</span>
+                        </a>
+                        <a href="post-dpo.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">DPO</span>
+                            <div class="sidebar-link-title">Direct Preference Optimization (DPO)</div>
+                            <span class="sidebar-link-meta">Aug 2025</span>
+                        </a>
+                        <a href="post-transformers.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Transformers</span>
+                            <div class="sidebar-link-title">Transformers: The Architecture That Revolutionized Deep Learning</div>
+                            <span class="sidebar-link-meta">Mar 2025</span>
+                        </a>
+                        <a href="post-random-forest.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Model Evaluation</span>
+                            <div class="sidebar-link-title">Random Forest Model Evaluation in Python</div>
+                            <span class="sidebar-link-meta">Dec 2023</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+</body>
+</html>

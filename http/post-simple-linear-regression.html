@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Linear Regression in Python &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="ai-tech-insights.html" class="back-link">&larr; Back to Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Feb 2023</span>
+                            <span class="post-reading">18 min read</span>
+                        </div>
+                        <h1>Simple Linear Regression in Python</h1>
+                        <div class="post-tags">
+                            <span>Linear Regression</span>
+                            <span>Python</span>
+                            <span>Machine Learning</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+
+                        <p>Simple linear regression models the relationship between a single predictor variable and a continuous target using a straight line. It is one of the most fundamental and interpretable techniques in machine learning and statistics.</p>
+
+                        <h2>Mathematical Formulation</h2>
+
+                        <p>The model assumes a linear relationship between the predictor <em>x</em> and the response <em>y</em>:</p>
+
+                        <p><strong>y = &beta;<sub>0</sub> + &beta;<sub>1</sub>x + &epsilon;</strong></p>
+
+                        <p>Where:</p>
+
+                        <ul>
+                            <li><strong>&beta;<sub>0</sub></strong> (intercept) &mdash; the expected value of <em>y</em> when <em>x</em> = 0.</li>
+                            <li><strong>&beta;<sub>1</sub></strong> (slope) &mdash; the change in <em>y</em> for a one-unit increase in <em>x</em>.</li>
+                            <li><strong>&epsilon;</strong> (error term) &mdash; random noise, assumed to be normally distributed with mean 0 and constant variance.</li>
+                        </ul>
+
+                        <h2>Ordinary Least Squares (OLS)</h2>
+
+                        <p>The <strong>Ordinary Least Squares</strong> method finds the values of &beta;<sub>0</sub> and &beta;<sub>1</sub> that minimize the sum of squared residuals:</p>
+
+                        <p><strong>minimize &sum;(y<sub>i</sub> &minus; &beta;<sub>0</sub> &minus; &beta;<sub>1</sub>x<sub>i</sub>)&sup2;</strong></p>
+
+                        <p>The closed-form solutions are:</p>
+
+                        <ul>
+                            <li><strong>&beta;<sub>1</sub> = &sum;(x<sub>i</sub> &minus; x&#772;)(y<sub>i</sub> &minus; y&#772;) / &sum;(x<sub>i</sub> &minus; x&#772;)&sup2;</strong></li>
+                            <li><strong>&beta;<sub>0</sub> = y&#772; &minus; &beta;<sub>1</sub>x&#772;</strong></li>
+                        </ul>
+
+                        <p>Let&rsquo;s implement OLS from scratch before using libraries:</p>
+
+<pre><code class="language-python">import numpy as np
+
+# Generate synthetic data
+np.random.seed(42)
+X = 2 * np.random.rand(100)
+y = 4 + 3 * X + np.random.randn(100)  # true: b0=4, b1=3
+
+# OLS from scratch
+x_mean = np.mean(X)
+y_mean = np.mean(y)
+
+beta_1 = np.sum((X - x_mean) * (y - y_mean)) / np.sum((X - x_mean) ** 2)
+beta_0 = y_mean - beta_1 * x_mean
+
+print(f"Intercept (beta_0): {beta_0:.4f}")  # ~4.0
+print(f"Slope     (beta_1): {beta_1:.4f}")  # ~3.0</code></pre>
+
+                        <h2>Implementation with Scikit-Learn</h2>
+
+                        <p>Scikit-learn&rsquo;s <code>LinearRegression</code> class makes fitting a model a one-liner:</p>
+
+<pre><code class="language-python">from sklearn.linear_model import LinearRegression
+
+# Reshape X for sklearn (needs 2D array)
+X_2d = X.reshape(-1, 1)
+
+# Fit the model
+model = LinearRegression()
+model.fit(X_2d, y)
+
+print(f"Intercept: {model.intercept_:.4f}")
+print(f"Slope:     {model.coef_[0]:.4f}")
+
+# Predict
+y_pred = model.predict(X_2d)</code></pre>
+
+                        <h2>Visualization with Matplotlib</h2>
+
+<pre><code class="language-python">import matplotlib.pyplot as plt
+
+fig, ax = plt.subplots(figsize=(8, 5))
+
+# Scatter plot of the data
+ax.scatter(X, y, alpha=0.6, edgecolors='k', linewidth=0.5,
+           label='Observed data')
+
+# Regression line
+X_line = np.linspace(0, 2, 100).reshape(-1, 1)
+y_line = model.predict(X_line)
+ax.plot(X_line, y_line, color='red', linewidth=2,
+        label=f'y = {model.intercept_:.2f} + {model.coef_[0]:.2f}x')
+
+ax.set_xlabel('x')
+ax.set_ylabel('y')
+ax.set_title('Simple Linear Regression')
+ax.legend()
+ax.grid(True, alpha=0.3)
+plt.tight_layout()
+plt.show()</code></pre>
+
+                        <h2>Evaluation Metrics</h2>
+
+                        <h3>Mean Squared Error (MSE)</h3>
+
+                        <p>The average of the squared residuals. Lower is better.</p>
+
+                        <p><strong>MSE = (1/n) &sum;(y<sub>i</sub> &minus; &ycirc;<sub>i</sub>)&sup2;</strong></p>
+
+                        <h3>R-squared (R&sup2;)</h3>
+
+                        <p>The proportion of variance in <em>y</em> explained by the model. Ranges from 0 to 1 (or negative for very poor models).</p>
+
+                        <p><strong>R&sup2; = 1 &minus; SS<sub>res</sub> / SS<sub>tot</sub></strong></p>
+
+<pre><code class="language-python">from sklearn.metrics import mean_squared_error, r2_score
+
+mse = mean_squared_error(y, y_pred)
+rmse = np.sqrt(mse)
+r2 = r2_score(y, y_pred)
+
+print(f"MSE:  {mse:.4f}")
+print(f"RMSE: {rmse:.4f}")
+print(f"R^2:  {r2:.4f}")</code></pre>
+
+                        <h2>Statistical Inference with Statsmodels</h2>
+
+                        <p>Scikit-learn is great for prediction, but <strong>statsmodels</strong> gives you the full statistical picture: standard errors, confidence intervals, p-values, and hypothesis tests.</p>
+
+<pre><code class="language-python">import statsmodels.api as sm
+
+# Add a constant (intercept) to the predictor
+X_sm = sm.add_constant(X)
+
+# Fit OLS
+ols_model = sm.OLS(y, X_sm).fit()
+
+# Full summary
+print(ols_model.summary())</code></pre>
+
+                        <p>The summary table includes:</p>
+
+                        <ul>
+                            <li><strong>coef</strong> &mdash; estimated coefficients (&beta;<sub>0</sub>, &beta;<sub>1</sub>).</li>
+                            <li><strong>std err</strong> &mdash; standard error of each coefficient.</li>
+                            <li><strong>t</strong> &mdash; t-statistic for testing H<sub>0</sub>: &beta; = 0.</li>
+                            <li><strong>P&gt;|t|</strong> &mdash; p-value; small values (&lt; 0.05) indicate the coefficient is statistically significant.</li>
+                            <li><strong>[0.025, 0.975]</strong> &mdash; 95% confidence interval for the coefficient.</li>
+                            <li><strong>R-squared</strong> and <strong>Adj. R-squared</strong>.</li>
+                            <li><strong>F-statistic</strong> &mdash; overall model significance.</li>
+                        </ul>
+
+<pre><code class="language-python"># Extract confidence intervals
+conf_int = ols_model.conf_int(alpha=0.05)
+print("\n95% Confidence Intervals:")
+print(conf_int)
+
+# Individual coefficient p-values
+print(f"\nSlope p-value: {ols_model.pvalues[1]:.2e}")</code></pre>
+
+                        <h2>Predictions with Confidence and Prediction Intervals</h2>
+
+                        <p>A <strong>confidence interval</strong> covers the expected mean response at a given <em>x</em>. A <strong>prediction interval</strong> covers a single new observation &mdash; it is always wider because it includes the inherent noise &epsilon;.</p>
+
+<pre><code class="language-python">from statsmodels.sandbox.regression.predstd import wls_prediction_std
+
+# Generate prediction points
+X_new = np.linspace(0, 2, 50)
+X_new_sm = sm.add_constant(X_new)
+
+# Predictions
+y_pred_sm = ols_model.predict(X_new_sm)
+
+# Prediction intervals (individual)
+prstd, iv_l, iv_u = wls_prediction_std(ols_model, exog=X_new_sm, alpha=0.05)
+
+# Confidence intervals (mean response)
+pred_summary = ols_model.get_prediction(X_new_sm).summary_frame(alpha=0.05)
+
+fig, ax = plt.subplots(figsize=(10, 6))
+ax.scatter(X, y, alpha=0.5, label='Data')
+ax.plot(X_new, y_pred_sm, 'r-', linewidth=2, label='Fitted line')
+ax.fill_between(X_new, pred_summary['mean_ci_lower'],
+                pred_summary['mean_ci_upper'],
+                alpha=0.3, color='blue', label='95% Confidence interval')
+ax.fill_between(X_new, iv_l, iv_u,
+                alpha=0.15, color='red', label='95% Prediction interval')
+ax.set_xlabel('x')
+ax.set_ylabel('y')
+ax.set_title('Regression with Confidence &amp; Prediction Intervals')
+ax.legend()
+ax.grid(True, alpha=0.3)
+plt.tight_layout()
+plt.show()</code></pre>
+
+                        <h2>Residual Diagnostics</h2>
+
+                        <p>Residual analysis is essential for validating the assumptions of linear regression.</p>
+
+<pre><code class="language-python">residuals = ols_model.resid
+fitted = ols_model.fittedvalues
+
+fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+
+# 1. Residuals vs Fitted
+axes[0, 0].scatter(fitted, residuals, alpha=0.6, edgecolors='k', linewidth=0.5)
+axes[0, 0].axhline(y=0, color='red', linestyle='--')
+axes[0, 0].set_xlabel('Fitted values')
+axes[0, 0].set_ylabel('Residuals')
+axes[0, 0].set_title('Residuals vs Fitted')
+
+# 2. Q-Q Plot
+sm.qqplot(residuals, line='45', ax=axes[0, 1])
+axes[0, 1].set_title('Normal Q-Q Plot')
+
+# 3. Scale-Location
+axes[1, 0].scatter(fitted, np.sqrt(np.abs(residuals)), alpha=0.6,
+                   edgecolors='k', linewidth=0.5)
+axes[1, 0].set_xlabel('Fitted values')
+axes[1, 0].set_ylabel('sqrt(|Residuals|)')
+axes[1, 0].set_title('Scale-Location (Homoscedasticity Check)')
+
+# 4. Histogram of residuals
+axes[1, 1].hist(residuals, bins=20, edgecolor='black', alpha=0.7)
+axes[1, 1].set_xlabel('Residual value')
+axes[1, 1].set_ylabel('Frequency')
+axes[1, 1].set_title('Distribution of Residuals')
+
+plt.tight_layout()
+plt.show()</code></pre>
+
+                        <p>What to look for:</p>
+
+                        <ul>
+                            <li><strong>Residuals vs Fitted</strong> &mdash; should show no pattern; a random scatter around zero indicates linearity and homoscedasticity.</li>
+                            <li><strong>Q-Q Plot</strong> &mdash; points should follow the 45&deg; line if residuals are normally distributed.</li>
+                            <li><strong>Scale-Location</strong> &mdash; should show no funnel shape; a constant spread confirms homoscedasticity.</li>
+                            <li><strong>Histogram</strong> &mdash; should be roughly bell-shaped and centered at zero.</li>
+                        </ul>
+
+                        <h2>Handling Outliers and Leverage</h2>
+
+                        <p>Outliers and high-leverage points can distort the regression line significantly.</p>
+
+<pre><code class="language-python">from statsmodels.stats.outliers_influence import OLSInfluence
+
+influence = OLSInfluence(ols_model)
+summary = influence.summary_frame()
+
+# Cook's distance: measures each point's influence on the fitted model
+cooks_d = summary['cooks_d']
+leverage = summary['hat_diag']  # hat values (leverage)
+
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+# Cook's distance
+axes[0].stem(range(len(cooks_d)), cooks_d, markerfmt=',')
+axes[0].axhline(y=4 / len(X), color='red', linestyle='--',
+                label=f'Threshold (4/n = {4/len(X):.3f})')
+axes[0].set_xlabel('Observation index')
+axes[0].set_ylabel("Cook's distance")
+axes[0].set_title("Cook's Distance")
+axes[0].legend()
+
+# Leverage vs Residuals
+axes[1].scatter(leverage, residuals, alpha=0.6, edgecolors='k', linewidth=0.5)
+axes[1].axhline(y=0, color='red', linestyle='--')
+axes[1].set_xlabel('Leverage (hat value)')
+axes[1].set_ylabel('Residuals')
+axes[1].set_title('Leverage vs Residuals')
+
+plt.tight_layout()
+plt.show()
+
+# Identify influential observations
+influential = summary[summary['cooks_d'] &gt; 4 / len(X)]
+print(f"Number of influential points: {len(influential)}")
+print(influential[['cooks_d', 'hat_diag', 'student_resid']].head())</code></pre>
+
+                        <h2>Feature Scaling</h2>
+
+                        <p>Simple linear regression with one predictor does not <em>require</em> scaling, but standardizing can help with interpretation and numerical stability, especially when extending to multiple regression.</p>
+
+<pre><code class="language-python">from sklearn.preprocessing import StandardScaler
+
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X.reshape(-1, 1))
+
+model_scaled = LinearRegression()
+model_scaled.fit(X_scaled, y)
+
+print(f"Intercept (scaled): {model_scaled.intercept_:.4f}")
+print(f"Slope     (scaled): {model_scaled.coef_[0]:.4f}")
+# The intercept now equals y_mean; the slope represents the change
+# in y for a one-standard-deviation increase in x.</code></pre>
+
+                        <h2>When Linearity Is Not Enough: Polynomial Features</h2>
+
+                        <p>If the relationship between <em>x</em> and <em>y</em> is nonlinear, adding polynomial features can capture curvature while keeping the model linear in the parameters.</p>
+
+<pre><code class="language-python">from sklearn.preprocessing import PolynomialFeatures
+from sklearn.pipeline import make_pipeline
+
+# Generate nonlinear data
+np.random.seed(42)
+X_nl = np.sort(2 * np.random.rand(100))
+y_nl = 0.5 * X_nl**2 + X_nl + 2 + 0.3 * np.random.randn(100)
+
+# Compare linear vs polynomial fits
+fig, axes = plt.subplots(1, 3, figsize=(16, 5))
+
+for i, degree in enumerate([1, 2, 3]):
+    pipe = make_pipeline(
+        PolynomialFeatures(degree=degree, include_bias=False),
+        LinearRegression()
+    )
+    pipe.fit(X_nl.reshape(-1, 1), y_nl)
+    y_fit = pipe.predict(X_nl.reshape(-1, 1))
+    r2 = r2_score(y_nl, y_fit)
+
+    axes[i].scatter(X_nl, y_nl, alpha=0.5, label='Data')
+    axes[i].plot(X_nl, y_fit, 'r-', linewidth=2,
+                 label=f'Degree {degree}, R^2={r2:.4f}')
+    axes[i].set_title(f'Polynomial Degree {degree}')
+    axes[i].legend()
+    axes[i].grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()</code></pre>
+
+                        <h2>Realistic Workflow with CSV Data</h2>
+
+                        <p>In practice, you will load data from a file, explore it, clean it, then model it. Here is a realistic end-to-end workflow:</p>
+
+<pre><code class="language-python">import pandas as pd
+from sklearn.model_selection import train_test_split
+
+# Load data
+df = pd.read_csv('house_prices.csv')
+print(df.head())
+print(df.describe())
+print(df.info())
+
+# Check for missing values
+print(f"\nMissing values:\n{df.isnull().sum()}")
+
+# Select predictor and target
+X_df = df[['sqft']].values   # single predictor: square footage
+y_df = df['price'].values     # target: sale price
+
+# Exploratory scatter plot
+plt.figure(figsize=(8, 5))
+plt.scatter(X_df, y_df, alpha=0.5, edgecolors='k', linewidth=0.5)
+plt.xlabel('Square Footage')
+plt.ylabel('Price ($)')
+plt.title('House Price vs Square Footage')
+plt.grid(True, alpha=0.3)
+plt.show()
+
+# Train-test split
+X_train, X_test, y_train, y_test = train_test_split(
+    X_df, y_df, test_size=0.2, random_state=42
+)
+
+# Fit
+model = LinearRegression()
+model.fit(X_train, y_train)
+
+# Evaluate
+y_train_pred = model.predict(X_train)
+y_test_pred  = model.predict(X_test)
+
+print(f"\nTrain R^2: {r2_score(y_train, y_train_pred):.4f}")
+print(f"Test  R^2: {r2_score(y_test, y_test_pred):.4f}")
+print(f"Test RMSE: {np.sqrt(mean_squared_error(y_test, y_test_pred)):.2f}")
+
+# Interpretation
+print(f"\nFor every additional square foot, "
+      f"price increases by ${model.coef_[0]:.2f}")
+print(f"Base price (intercept): ${model.intercept_:.2f}")</code></pre>
+
+                        <h2>Common Pitfalls</h2>
+
+                        <h3>1. Extrapolation</h3>
+
+                        <p>The model is only valid within the range of the training data. Predicting far outside that range (&ldquo;extrapolation&rdquo;) is unreliable because the linear relationship may not hold.</p>
+
+<pre><code class="language-python"># Dangerous: predicting far outside training range
+x_extreme = np.array([[10000]])  # if training data ranges 500-3000 sqft
+price_extreme = model.predict(x_extreme)
+print(f"Extrapolated price: ${price_extreme[0]:,.0f}")
+# This prediction is unreliable!</code></pre>
+
+                        <h3>2. Omitted Variable Bias</h3>
+
+                        <p>If an important predictor is left out, its effect is absorbed into the error term or distorts the estimated slope. For example, modeling house price solely on square footage ignores location, age, and condition &mdash; all of which are correlated with both size and price.</p>
+
+                        <h3>3. Outliers Distorting the Fit</h3>
+
+                        <p>A single extreme observation can pull the regression line away from the bulk of the data. Always inspect residuals and Cook&rsquo;s distance. Consider robust regression methods (e.g., <code>HuberRegressor</code>, <code>RANSACRegressor</code>) when outliers are present.</p>
+
+<pre><code class="language-python">from sklearn.linear_model import HuberRegressor, RANSACRegressor
+
+# Robust to outliers
+huber = HuberRegressor(epsilon=1.35)
+huber.fit(X_train, y_train)
+print(f"Huber R^2: {huber.score(X_test, y_test):.4f}")
+
+ransac = RANSACRegressor(random_state=42)
+ransac.fit(X_train, y_train)
+print(f"RANSAC R^2: {ransac.score(X_test, y_test):.4f}")</code></pre>
+
+                        <h3>4. Ignoring Assumptions</h3>
+
+                        <p>Always check linearity, normality of residuals, homoscedasticity, and independence before trusting the model&rsquo;s coefficients and p-values.</p>
+
+                        <h3>5. Confusing Correlation with Causation</h3>
+
+                        <p>A strong linear relationship does not imply that <em>x</em> causes <em>y</em>. Both may be driven by a lurking variable, or the direction of causality may be reversed.</p>
+
+                        <h2>Key Takeaways</h2>
+
+                        <ol>
+                            <li><strong>Simple linear regression</strong> models <em>y = &beta;<sub>0</sub> + &beta;<sub>1</sub>x + &epsilon;</em>, fitting a straight line through the data via Ordinary Least Squares.</li>
+                            <li>Use <strong>scikit-learn</strong> for quick modeling and prediction, and <strong>statsmodels</strong> for statistical inference (p-values, confidence intervals).</li>
+                            <li>Evaluate with <strong>MSE/RMSE</strong> (prediction accuracy) and <strong>R&sup2;</strong> (variance explained).</li>
+                            <li>Always perform <strong>residual diagnostics</strong>: check for linearity, normality, homoscedasticity, and influential outliers.</li>
+                            <li><strong>Confidence intervals</strong> cover the expected mean; <strong>prediction intervals</strong> cover individual observations and are always wider.</li>
+                            <li>When the relationship is curved, consider <strong>polynomial features</strong> to capture nonlinearity while remaining within the linear regression framework.</li>
+                            <li>Watch out for <strong>extrapolation</strong>, <strong>omitted variable bias</strong>, and <strong>outlier influence</strong> &mdash; the three most common pitfalls in practice.</li>
+                            <li>Simple linear regression is the foundation upon which <strong>multiple regression</strong>, <strong>regularized models</strong>, and <strong>generalized linear models</strong> are built.</li>
+                        </ol>
+
+                    </div>
+                </div>
+
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing large-scale distributed systems. Specialized in Generative AI, AI Agents, and cloud-native architectures.</p>
+                        <div class="sidebar-author-links">
+                            <a href="https://www.linkedin.com/in/paolo-mascia-italy" target="_blank" aria-label="LinkedIn">
+                                <svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                            </a>
+                            <a href="https://github.com/paolomascia" target="_blank" aria-label="GitHub">
+                                <svg viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+                            </a>
+                            <a href="https://www.kaggle.com/paolomascia" target="_blank" aria-label="Kaggle">
+                                <svg viewBox="0 0 24 24"><path d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.233-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.075.378z"/></svg>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="post-multiple-linear-regression.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Linear Regression</span>
+                            <div class="sidebar-link-title">Multiple Linear Regression in Python</div>
+                            <span class="sidebar-link-meta">May 2023</span>
+                        </a>
+                        <a href="post-regularization.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Regularization</span>
+                            <div class="sidebar-link-title">Regularization: Ridge, Lasso, and Elastic Net</div>
+                            <span class="sidebar-link-meta">Jul 2023</span>
+                        </a>
+                        <a href="post-shallow-vs-deep.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Neural Networks</span>
+                            <div class="sidebar-link-title">Shallow vs Deep Neural Networks</div>
+                            <span class="sidebar-link-meta">Aug 2024</span>
+                        </a>
+                        <a href="post-ml-pipelines.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Pipelines</span>
+                            <div class="sidebar-link-title">Building Machine Learning Pipelines in Python</div>
+                            <span class="sidebar-link-meta">Nov 2025</span>
+                        </a>
+                        <a href="post-polynomial-regression.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Polynomial</span>
+                            <div class="sidebar-link-title">Polynomial Regression in Python</div>
+                            <span class="sidebar-link-meta">Sep 2023</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+</body>
+</html>

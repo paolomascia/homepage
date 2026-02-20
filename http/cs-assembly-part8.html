@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IA-32 and Intel 64 ISA Assembly Language (Part 8) &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="cybersecurity-tech-insights.html" class="back-link">&larr; Back to Cybersecurity</a>
+                        <div class="post-meta">
+                            <span class="post-date">Jul 2024</span>
+                            <span class="post-reading">12 min read</span>
+                        </div>
+                        <h1>IA-32 and Intel 64 ISA Assembly Language (Part 8)</h1>
+                        <div class="post-tags">
+                            <span>Assembly</span>
+                            <span>NASM</span>
+                            <span>Hello World</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">This post walks through minimal, working NASM &ldquo;Hello World&rdquo; programs for Linux and Windows, in both 32-bit and 64-bit modes. For each target we explain how the code interacts with the OS (syscalls vs WinAPI), which registers carry parameters, and how to assemble and link.</p>
+
+                        <h2>Linux 32-bit (ELF32)</h2>
+                        <p>Uses legacy <code>int 0x80</code> system-call interface. The system call number goes in <code>EAX</code>. For <code>sys_write</code> (number 4), parameters are passed in <code>EBX</code> (fd), <code>ECX</code> (buffer), <code>EDX</code> (length). For <code>sys_exit</code> (number 1), the exit code is in <code>EBX</code>.</p>
+
+<pre><code class="language-nasm">section .data
+    hello     db  'Hello World!', 0x0A
+    hello_len equ $ - hello
+
+section .text
+    global main
+
+main:
+    ; write(1, hello, hello_len)
+    mov eax, 4          ; sys_write
+    mov ebx, 1          ; stdout
+    mov ecx, hello      ; ptr to message
+    mov edx, hello_len  ; length
+    int 0x80            ; enter kernel
+
+    ; exit(0)
+    mov eax, 1          ; sys_exit
+    mov ebx, 0          ; status
+    int 0x80</code></pre>
+
+                        <p>The interrupt <code>0x80</code> ABI uses <code>EAX</code> for the syscall number and <code>EBX</code>/<code>ECX</code>/<code>EDX</code> for the first three parameters. The message includes a trailing line feed (<code>0x0A</code>) and we compute its length with <code>equ $ - hello</code>.</p>
+
+                        <h3>Build</h3>
+<pre><code class="language-bash">nasm -f elf hello.asm
+ld -m elf_i386 -s -o hello hello.o</code></pre>
+
+                        <p>If you prefer GCC to link: <code>gcc -m32 hello.o -o hello</code>. Ensure the 32-bit toolchain/multilibs are installed.</p>
+
+                        <h2>Linux 64-bit (ELF64)</h2>
+                        <p>Uses the <code>syscall</code> instruction and the x86-64 System V ABI for register-based parameter passing:</p>
+                        <ul>
+                            <li><code>RAX</code>: syscall number.</li>
+                            <li><code>RDI</code>, <code>RSI</code>, <code>RDX</code>, <code>R10</code>, <code>R8</code>, <code>R9</code>: first six arguments.</li>
+                        </ul>
+                        <p><code>write</code> is syscall 1, <code>exit</code> is syscall 60.</p>
+
+<pre><code class="language-nasm">section .data
+    hello     db  'Hello World!', 0x0A
+    hello_len equ $ - hello
+
+section .text
+    global _start
+
+_start:
+    ; write(1, hello, hello_len)
+    mov rax, 1          ; SYS_write
+    mov rdi, 1          ; stdout
+    lea rsi, [rel hello]; buffer (RIP-relative safe)
+    mov rdx, hello_len  ; length
+    syscall
+
+    ; exit(0)
+    mov rax, 60         ; SYS_exit
+    xor rdi, rdi        ; status = 0
+    syscall</code></pre>
+
+                        <p>Use RIP-relative addressing (<code>lea rsi, [rel hello]</code>) so the code links as position-independent by default.</p>
+
+                        <h3>Build</h3>
+<pre><code class="language-bash">nasm -f elf64 hello.asm
+ld -o hello hello.o   # or: gcc hello.o -o hello</code></pre>
+
+                        <h2>Windows 32-bit (PE/COFF)</h2>
+                        <p>Windows user-mode code typically calls WinAPI functions in <code>kernel32.dll</code> rather than making raw syscalls. In 32-bit mode, stdcall/cdecl-style calling conventions pass parameters on the stack <em>right-to-left</em>. Here we use <code>GetStdHandle</code> to fetch <code>STD_OUTPUT_HANDLE</code>, then <code>WriteFile</code>, and finally <code>ExitProcess</code>.</p>
+
+<pre><code class="language-nasm">section .data
+    message       db 'Hello World!', 0
+end_message:
+    message_len   equ end_message - message
+
+section .bss
+    bytes_written resd 1
+
+section .text
+    global main
+    extern GetStdHandle
+    extern WriteFile
+    extern ExitProcess
+
+main:
+    sub  esp, 4                 ; reserve space (optional temp/local)
+
+    ; HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE = -11)
+    push dword -11
+    call GetStdHandle
+    mov  ebx, eax               ; save handle
+
+    ; BOOL ok = WriteFile(h, message, message_len, &amp;bytes_written, NULL)
+    push dword 0                ; LPOVERLAPPED
+    lea  eax, [bytes_written]
+    push eax                    ; LPDWORD lpNumberOfBytesWritten
+    push dword message_len      ; DWORD nNumberOfBytesToWrite
+    push dword message          ; LPCVOID lpBuffer
+    push ebx                    ; HANDLE hFile
+    call WriteFile
+
+    ; ExitProcess(0)
+    push dword 0
+    call ExitProcess</code></pre>
+
+                        <p>32-bit Windows passes arguments on the stack. Push them in reverse order so that the first argument is at the lowest address (topmost after pushes). Strings for WinAPI are typically ASCII (for <code>WriteFile</code>) or UTF-16 (for <code>*W</code> variants).</p>
+
+                        <h3>Build (MSVC toolchain)</h3>
+<pre><code class="language-bash">nasm -f win32 hello.asm -o hello.obj
+link hello.obj /subsystem:console /entry:main kernel32.lib</code></pre>
+
+                        <p>MinGW alternative: <code>i686-w64-mingw32-gcc hello.obj -o hello.exe -lkernel32</code>.</p>
+
+                        <h2>Windows 64-bit (PE/COFF)</h2>
+                        <p>Windows x64 has a distinct calling convention:</p>
+                        <ul>
+                            <li>First four integer/pointer arguments in <code>RCX</code>, <code>RDX</code>, <code>R8</code>, <code>R9</code>.</li>
+                            <li>Caller must reserve 32 bytes of <em>shadow space</em> on the stack before a call.</li>
+                            <li>Stack must be 16-byte aligned at a <code>call</code> instruction.</li>
+                        </ul>
+                        <p>We call <code>GetStdHandle</code>, then <code>WriteFile</code>, then <code>ExitProcess</code>. Note the length excludes the final null byte.</p>
+
+<pre><code class="language-nasm">section .data
+    message     db 'Hello World!', 0
+    message_len equ $ - message - 1   ; do not print the trailing 0
+
+section .bss
+    bytes_written resq 1
+
+section .text
+    global main
+    extern GetStdHandle
+    extern WriteFile
+    extern ExitProcess
+
+main:
+    sub  rsp, 40               ; 32 shadow + 8 to keep 16-byte alignment
+
+    ; HANDLE h = GetStdHandle(-11)
+    mov  rcx, -11              ; STD_OUTPUT_HANDLE
+    call GetStdHandle
+    mov  rbx, rax              ; save HANDLE
+
+    ; BOOL ok = WriteFile(h, message, message_len, &amp;bytes_written, NULL)
+    mov  rcx, rbx              ; hFile
+    lea  rdx, [rel message]    ; lpBuffer
+    mov  r8,  message_len      ; nNumberOfBytesToWrite
+    lea  r9,  [rel bytes_written] ; lpNumberOfBytesWritten
+    mov  qword [rsp+32], 0     ; lpOverlapped (5th arg on stack)
+    call WriteFile
+
+    ; ExitProcess(0)
+    xor  ecx, ecx              ; uExitCode = 0
+    call ExitProcess</code></pre>
+
+                        <p>Reserve shadow space before calling any Win64 API. Keep stack 16-byte aligned: since <code>call</code> pushes an 8-byte return address, subtracting 40 bytes here preserves alignment across the call.</p>
+
+                        <h3>Build (MSVC toolchain)</h3>
+<pre><code class="language-bash">nasm -f win64 hello.asm -o hello.obj
+link hello.obj /subsystem:console /entry:main kernel32.lib</code></pre>
+
+                        <p>MinGW-w64 alternative: <code>x86_64-w64-mingw32-gcc hello.obj -o hello.exe -lkernel32</code>.</p>
+
+                        <h2>Quick Reference</h2>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Target</th>
+                                    <th>Interface</th>
+                                    <th>Call ID Register</th>
+                                    <th>Param Registers / Stack</th>
+                                    <th>Write Call</th>
+                                    <th>Exit Call</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Linux 32-bit</td>
+                                    <td>int 0x80</td>
+                                    <td>EAX</td>
+                                    <td>EBX, ECX, EDX</td>
+                                    <td>sys_write = 4</td>
+                                    <td>sys_exit = 1</td>
+                                </tr>
+                                <tr>
+                                    <td>Linux 64-bit</td>
+                                    <td>syscall</td>
+                                    <td>RAX</td>
+                                    <td>RDI, RSI, RDX, R10, R8, R9</td>
+                                    <td>write = 1</td>
+                                    <td>exit = 60</td>
+                                </tr>
+                                <tr>
+                                    <td>Windows 32-bit</td>
+                                    <td>WinAPI</td>
+                                    <td>&mdash;</td>
+                                    <td>Stack (right-to-left)</td>
+                                    <td>WriteFile(h, buf, len, &amp;w, 0)</td>
+                                    <td>ExitProcess(code)</td>
+                                </tr>
+                                <tr>
+                                    <td>Windows 64-bit</td>
+                                    <td>WinAPI (x64)</td>
+                                    <td>&mdash;</td>
+                                    <td>RCX, RDX, R8, R9 + shadow space</td>
+                                    <td>WriteFile(h, buf, len, &amp;w, 0)</td>
+                                    <td>ExitProcess(code)</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <h2>Troubleshooting Tips</h2>
+                        <ul>
+                            <li>If linking on Linux fails, try using the system linker via <code>gcc</code> instead of <code>ld</code> directly.</li>
+                            <li>On Linux 64-bit, prefer RIP-relative addressing (<code>[rel label]</code>) to keep objects relocatable.</li>
+                            <li>On Windows 64-bit, always reserve 32 bytes of shadow space before calling a WinAPI function and maintain 16-byte stack alignment.</li>
+                            <li>Ensure you assemble with the correct output format: <code>-f elf</code>, <code>-f elf64</code>, <code>-f win32</code>, or <code>-f win64</code>.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing large-scale distributed systems. Specialized in Generative AI, AI Agents, and cloud-native architectures.</p>
+                        <div class="sidebar-author-links">
+                            <a href="https://www.linkedin.com/in/paolo-mascia-italy" target="_blank" aria-label="LinkedIn"><svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg></a>
+                            <a href="https://github.com/paolomascia" target="_blank" aria-label="GitHub"><svg viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg></a>
+                            <a href="https://www.kaggle.com/paolomascia" target="_blank" aria-label="Kaggle"><svg viewBox="0 0 24 24"><path d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.233-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.075.378z"/></svg></a>
+                        </div>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="cs-assembly-part7.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Assembly</span>
+                            <div class="sidebar-link-title">IA-32 and Intel 64 ISA Assembly Language (Part 7)</div>
+                            <span class="sidebar-link-meta">Apr 2024</span>
+                        </a>
+                        <a href="cs-assembly-part9.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Assembly</span>
+                            <div class="sidebar-link-title">IA-32 and Intel 64 ISA Assembly Language (Part 9)</div>
+                            <span class="sidebar-link-meta">Oct 2024</span>
+                        </a>
+                        <a href="cs-assembly-part10.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Assembly</span>
+                            <div class="sidebar-link-title">IA-32 and Intel 64 ISA Assembly Language (Part 10)</div>
+                            <span class="sidebar-link-meta">Dec 2024</span>
+                        </a>
+                        <a href="cs-reverse-engineering.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Reverse Engineering</span>
+                            <div class="sidebar-link-title">Reverse Engineering</div>
+                            <span class="sidebar-link-meta">Aug 2024</span>
+                        </a>
+                        <a href="cs-buffer-overflow.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Exploitation</span>
+                            <div class="sidebar-link-title">Buffer Overflow</div>
+                            <span class="sidebar-link-meta">Sep 2023</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-nasm.min.js"></script>
+</body>
+</html>

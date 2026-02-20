@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Network Architecture &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="cybersecurity-tech-insights.html" class="back-link">&larr; Back to Cybersecurity</a>
+                        <div class="post-meta">
+                            <span class="post-date">Mar 2023</span>
+                            <span class="post-reading">12 min read</span>
+                        </div>
+                        <h1>Network Architecture</h1>
+                        <div class="post-tags">
+                            <span>Networking</span>
+                            <span>Infrastructure</span>
+                            <span>IP Addressing</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Network architecture is the design and structure of a computer network: the physical and logical arrangement of components, the protocols that govern communication, and the services that enable connectivity and security.</p>
+
+                        <!-- Network Topologies -->
+                        <h2>Network Topologies</h2>
+
+                        <p>A network&rsquo;s topology describes how nodes and links are arranged, distinguished between:</p>
+                        <ul>
+                            <li><strong>Physical topology</strong> &mdash; the literal layout of cables, devices, and connectors</li>
+                            <li><strong>Logical topology</strong> &mdash; the path data actually takes through the network</li>
+                        </ul>
+
+                        <h3>Topology Comparison</h3>
+                        <div class="table-wrapper">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Topology</th>
+                                        <th>Description</th>
+                                        <th>Advantages</th>
+                                        <th>Disadvantages</th>
+                                        <th>Typical Use</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>Bus</td>
+                                        <td>All devices share single backbone cable</td>
+                                        <td>Simple, low cost, easy start</td>
+                                        <td>Single point of failure; degraded performance</td>
+                                        <td>Early Ethernet; small labs</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Star</td>
+                                        <td>Every device connects to central hub/switch</td>
+                                        <td>Easy troubleshooting; failure isolation; scales well</td>
+                                        <td>Central device is single point of failure</td>
+                                        <td>Most modern LANs, office networks</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Ring</td>
+                                        <td>Devices form closed loop</td>
+                                        <td>Predictable access/latency</td>
+                                        <td>Single break disrupts ring</td>
+                                        <td>Legacy Token Ring; FDDI</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Mesh</td>
+                                        <td>Multiple redundant paths between nodes</td>
+                                        <td>High resilience and fault tolerance</td>
+                                        <td>Complex and expensive</td>
+                                        <td>WAN backbones; critical infrastructure</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Tree</td>
+                                        <td>Hierarchical branching from root</td>
+                                        <td>Scalable; structured management</td>
+                                        <td>Higher tiers critical; misconfiguration impacts many</td>
+                                        <td>Large enterprises; multi-tier campus</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Hybrid</td>
+                                        <td>Mix of topologies to fit constraints</td>
+                                        <td>Flexible; optimizes per segment</td>
+                                        <td>More complex design and operations</td>
+                                        <td>Large campuses; multi-site networks</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <h3>Conceptual Topology Sketches</h3>
+                        <ul>
+                            <li><strong>Star</strong> &mdash; Central switch with devices connecting radially</li>
+                            <li><strong>Ring</strong> &mdash; Devices forming circular connection loop</li>
+                            <li><strong>Mesh (partial)</strong> &mdash; Multiple interconnected nodes with redundant paths</li>
+                        </ul>
+
+                        <!-- Layered Network Structure -->
+                        <h2>Layered Network Structure</h2>
+
+                        <h3>OSI 7-Layer Model</h3>
+                        <div class="table-wrapper">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>OSI Layer</th>
+                                        <th>Purpose / Examples</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>Application (7)</td>
+                                        <td>Network services for apps (HTTP, HTTPS, FTP, SMTP, DNS, SNMP; browsers, email clients)</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Presentation (6)</td>
+                                        <td>Encoding, compression, encryption (TLS/SSL, character sets, formats like JPEG/GIF)</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Session (5)</td>
+                                        <td>Session setup/teardown, dialog control, checkpoints (RPC, SQL sessions, NetBIOS)</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Transport (4)</td>
+                                        <td>Reliable/unreliable delivery, ports, segmentation (TCP, UDP)</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Network (3)</td>
+                                        <td>Routing and logical addressing (IP, ICMP; OSPF, BGP, RIP); forwarding, fragmentation</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Data Link (2)</td>
+                                        <td>Framing, MAC addressing, error detection (Ethernet, Wi-Fi, PPP, Frame Relay)</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Physical (1)</td>
+                                        <td>Signals, connectors, cabling, electrical/optical specs (copper, fiber, hubs, repeaters)</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <h3>TCP/IP Model Mapping</h3>
+                        <div class="table-wrapper">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>TCP/IP Layer</th>
+                                        <th>OSI Mapping</th>
+                                        <th>Primary Protocols</th>
+                                        <th>Functions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>Application</td>
+                                        <td>App + Presentation + Session</td>
+                                        <td>HTTP, FTP, SMTP, DNS</td>
+                                        <td>Application services &amp; UI</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Transport</td>
+                                        <td>Transport</td>
+                                        <td>TCP, UDP</td>
+                                        <td>End-to-end delivery, reliability</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Internet</td>
+                                        <td>Network</td>
+                                        <td>IP, ICMP, ARP</td>
+                                        <td>Routing &amp; logical addressing</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Network Access</td>
+                                        <td>Data Link + Physical</td>
+                                        <td>Ethernet, Wi-Fi</td>
+                                        <td>Framing &amp; media access</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- IP Addressing -->
+                        <h2>IP Addressing</h2>
+
+                        <h3>IPv4 Basics</h3>
+                        <p>An IPv4 address is written in dotted decimal (e.g., <code>192.168.1.1</code>), with four octets (8 bits each).</p>
+
+                        <h4>IPv4 Example (Binary)</h4>
+                        <pre><code class="language-bash">192.168.1.1 = 11000000.10101000.00000001.00000001</code></pre>
+
+                        <h4>IPv4 Classes</h4>
+                        <div class="table-wrapper">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Class</th>
+                                        <th>Range</th>
+                                        <th>Default Mask</th>
+                                        <th>Network Bits</th>
+                                        <th>Host Bits</th>
+                                        <th>Typical Purpose</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>A</td>
+                                        <td>1.0.0.0 &ndash; 126.255.255.255</td>
+                                        <td>255.0.0.0 (/8)</td>
+                                        <td>8</td>
+                                        <td>24</td>
+                                        <td>Large networks (legacy)</td>
+                                    </tr>
+                                    <tr>
+                                        <td>B</td>
+                                        <td>128.0.0.0 &ndash; 191.255.255.255</td>
+                                        <td>255.255.0.0 (/16)</td>
+                                        <td>16</td>
+                                        <td>16</td>
+                                        <td>Medium networks</td>
+                                    </tr>
+                                    <tr>
+                                        <td>C</td>
+                                        <td>192.0.0.0 &ndash; 223.255.255.255</td>
+                                        <td>255.255.255.0 (/24)</td>
+                                        <td>24</td>
+                                        <td>8</td>
+                                        <td>Small networks</td>
+                                    </tr>
+                                    <tr>
+                                        <td>D</td>
+                                        <td>224.0.0.0 &ndash; 239.255.255.255</td>
+                                        <td>N/A</td>
+                                        <td>N/A</td>
+                                        <td>N/A</td>
+                                        <td>Multicast</td>
+                                    </tr>
+                                    <tr>
+                                        <td>E</td>
+                                        <td>240.0.0.0 &ndash; 254.255.255.255</td>
+                                        <td>N/A</td>
+                                        <td>N/A</td>
+                                        <td>N/A</td>
+                                        <td>Experimental</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <h4>Special IPv4 Ranges</h4>
+                        <ul>
+                            <li><code>10.0.0.0/8</code>, <code>172.16.0.0/12</code>, <code>192.168.0.0/16</code> &mdash; private addressing</li>
+                            <li><code>127.0.0.0/8</code> &mdash; loopback</li>
+                            <li><code>169.254.0.0/16</code> &mdash; link-local (APIPA)</li>
+                            <li><code>0.0.0.0</code> &mdash; default route / &ldquo;any&rdquo;</li>
+                            <li><code>255.255.255.255</code> &mdash; limited broadcast</li>
+                        </ul>
+
+                        <h3>IPv6 Basics</h3>
+                        <p>IPv6 addresses are 128-bit and written in hexadecimal with colons. Zeros can be compressed.</p>
+
+                        <h4>IPv6 Compression Example</h4>
+                        <ul>
+                            <li>Full: <code>2001:0db8:85a3:0000:0000:8a2e:0370:7334</code></li>
+                            <li>Compressed: <code>2001:db8:85a3::8a2e:370:7334</code></li>
+                        </ul>
+
+                        <h4>IPv6 Address Types</h4>
+                        <div class="table-wrapper">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Type</th>
+                                        <th>Prefix</th>
+                                        <th>Description</th>
+                                        <th>Scope</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>Unicast</td>
+                                        <td>2000::/3</td>
+                                        <td>One-to-one addressing</td>
+                                        <td>Global</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Multicast</td>
+                                        <td>ff00::/8</td>
+                                        <td>One-to-many</td>
+                                        <td>Varies</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Link-Local</td>
+                                        <td>fe80::/10</td>
+                                        <td>Local-link communication</td>
+                                        <td>Link</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Unique Local</td>
+                                        <td>fc00::/7</td>
+                                        <td>Private addressing (non-routable)</td>
+                                        <td>Organization</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Loopback</td>
+                                        <td>::1/128</td>
+                                        <td>Local host</td>
+                                        <td>Node</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Subnetting -->
+                        <h2>Subnetting</h2>
+
+                        <p>Subnetting divides a network into smaller segments (subnets) to improve performance, security, and address utilization. A subnet mask (or prefix) identifies the network vs. host bits.</p>
+
+                        <h3>Subnetting Example with Binary</h3>
+                        <pre><code class="language-bash">IP:          192.168.1.1     = 11000000.10101000.00000001.00000001
+Subnet mask: 255.255.255.0   = 11111111.11111111.11111111.00000000
+Network:     192.168.1.0     = 11000000.10101000.00000001.00000000
+Broadcast:   192.168.1.255   = 11000000.10101000.00000001.11111111</code></pre>
+
+                        <h3>CIDR (Classless Inter-Domain Routing)</h3>
+                        <div class="table-wrapper">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>CIDR</th>
+                                        <th>Subnet Mask</th>
+                                        <th>Network Bits</th>
+                                        <th>Host Bits</th>
+                                        <th>Usable Hosts*</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>/30</td>
+                                        <td>255.255.255.252</td>
+                                        <td>30</td>
+                                        <td>2</td>
+                                        <td>2</td>
+                                    </tr>
+                                    <tr>
+                                        <td>/29</td>
+                                        <td>255.255.255.248</td>
+                                        <td>29</td>
+                                        <td>3</td>
+                                        <td>6</td>
+                                    </tr>
+                                    <tr>
+                                        <td>/28</td>
+                                        <td>255.255.255.240</td>
+                                        <td>28</td>
+                                        <td>4</td>
+                                        <td>14</td>
+                                    </tr>
+                                    <tr>
+                                        <td>/27</td>
+                                        <td>255.255.255.224</td>
+                                        <td>27</td>
+                                        <td>5</td>
+                                        <td>30</td>
+                                    </tr>
+                                    <tr>
+                                        <td>/26</td>
+                                        <td>255.255.255.192</td>
+                                        <td>26</td>
+                                        <td>6</td>
+                                        <td>62</td>
+                                    </tr>
+                                    <tr>
+                                        <td>/25</td>
+                                        <td>255.255.255.128</td>
+                                        <td>25</td>
+                                        <td>7</td>
+                                        <td>126</td>
+                                    </tr>
+                                    <tr>
+                                        <td>/24</td>
+                                        <td>255.255.255.0</td>
+                                        <td>24</td>
+                                        <td>8</td>
+                                        <td>254</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p><em>*Usable hosts per subnet traditionally exclude network and broadcast addresses.</em></p>
+
+                        <h3>Subnetting Example: Dividing /24 into /26</h3>
+                        <p>Split <code>192.168.1.0/24</code> into four equal subnets using <code>/26</code> (64 addresses each):</p>
+                        <ul>
+                            <li><strong>Subnet 1:</strong> <code>192.168.1.0/26</code> (hosts <code>192.168.1.1</code> &ndash; <code>192.168.1.62</code>)</li>
+                            <li><strong>Subnet 2:</strong> <code>192.168.1.64/26</code> (hosts <code>192.168.1.65</code> &ndash; <code>192.168.1.126</code>)</li>
+                            <li><strong>Subnet 3:</strong> <code>192.168.1.128/26</code> (hosts <code>192.168.1.129</code> &ndash; <code>192.168.1.190</code>)</li>
+                            <li><strong>Subnet 4:</strong> <code>192.168.1.192/26</code> (hosts <code>192.168.1.193</code> &ndash; <code>192.168.1.254</code>)</li>
+                        </ul>
+
+                        <h3>Variable Length Subnet Masking (VLSM)</h3>
+                        <div class="table-wrapper">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Department</th>
+                                        <th>Hosts Needed</th>
+                                        <th>Subnet</th>
+                                        <th>Prefix</th>
+                                        <th>Addresses</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>Engineering</td>
+                                        <td>500</td>
+                                        <td>172.16.0.0</td>
+                                        <td>/23</td>
+                                        <td>512</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Sales</td>
+                                        <td>200</td>
+                                        <td>172.16.2.0</td>
+                                        <td>/24</td>
+                                        <td>256</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Marketing</td>
+                                        <td>100</td>
+                                        <td>172.16.3.0</td>
+                                        <td>/25</td>
+                                        <td>128</td>
+                                    </tr>
+                                    <tr>
+                                        <td>HR</td>
+                                        <td>50</td>
+                                        <td>172.16.3.128</td>
+                                        <td>/26</td>
+                                        <td>64</td>
+                                    </tr>
+                                    <tr>
+                                        <td>IT</td>
+                                        <td>25</td>
+                                        <td>172.16.3.192</td>
+                                        <td>/27</td>
+                                        <td>32</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Point-to-Point</td>
+                                        <td>2</td>
+                                        <td>172.16.3.224</td>
+                                        <td>/30</td>
+                                        <td>4</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <h3>VLSM Tips</h3>
+                        <ul>
+                            <li>Round up hosts to next power-of-two plus 2 (network + broadcast) for IPv4</li>
+                            <li>Assign largest subnets first to avoid fragmentation</li>
+                            <li>Summarize contiguous subnets for tidy routing (route aggregation)</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing large-scale distributed systems. Specialized in Generative AI, AI Agents, and cloud-native architectures.</p>
+                        <div class="sidebar-author-links">
+                            <a href="https://www.linkedin.com/in/paolo-mascia-italy" target="_blank" aria-label="LinkedIn"><svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg></a>
+                            <a href="https://github.com/paolomascia" target="_blank" aria-label="GitHub"><svg viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg></a>
+                            <a href="https://www.kaggle.com/paolomascia" target="_blank" aria-label="Kaggle"><svg viewBox="0 0 24 24"><path d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.233-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.075.378z"/></svg></a>
+                        </div>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="cs-routing-switching.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Networking</span>
+                            <div class="sidebar-link-title">Routing and Switching</div>
+                            <span class="sidebar-link-meta">Jul 2025</span>
+                        </a>
+                        <a href="cs-network-security.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Networking</span>
+                            <div class="sidebar-link-title">Network Security</div>
+                            <span class="sidebar-link-meta">Feb 2025</span>
+                        </a>
+                        <a href="cs-network-management.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Networking</span>
+                            <div class="sidebar-link-title">Network Management</div>
+                            <span class="sidebar-link-meta">Apr 2025</span>
+                        </a>
+                        <a href="cs-wireless-networks.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Networking</span>
+                            <div class="sidebar-link-title">Wireless Networks</div>
+                            <span class="sidebar-link-meta">Sep 2025</span>
+                        </a>
+                        <a href="cs-cloud-networking.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Networking</span>
+                            <div class="sidebar-link-title">Cloud Networking</div>
+                            <span class="sidebar-link-meta">Nov 2025</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-nasm.min.js"></script>
+</body>
+</html>

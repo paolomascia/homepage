@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Goroutines &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="golang-tech-insights.html" class="back-link">&larr; Back to Go Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Jan 2024</span>
+                            <span class="post-reading">10 min read</span>
+                        </div>
+                        <h1>Goroutines</h1>
+                        <div class="post-tags">
+                            <span>Go</span>
+                            <span>Concurrency</span>
+                            <span>Channels</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Goroutines are lightweight execution units managed by the Go runtime, enabling concurrent code execution. The scheduler multiplexes many goroutines over fewer OS threads, making them memory-efficient. Communication typically occurs through channels, though shared-memory synchronization is also supported.</p>
+
+                        <h2>Creating Goroutines</h2>
+                        <p>Use the <code>go</code> keyword to spawn concurrent execution:</p>
+<pre><code class="language-go">func sayHello() {
+    fmt.Println("Hello")
+}
+
+go sayHello()</code></pre>
+
+                        <p><strong>Important caveat:</strong> Programs may exit before goroutines finish. Use <code>sync.WaitGroup</code> for synchronization:</p>
+<pre><code class="language-go">var wg sync.WaitGroup
+
+wg.Add(1)
+go func() {
+    defer wg.Done()
+    sayHello()
+}()
+
+wg.Wait()</code></pre>
+
+                        <h2>Channels</h2>
+                        <p>Channels are typed conduits used to send and receive values between goroutines. Sends and receives block unless buffered. Basic example:</p>
+<pre><code class="language-go">func sayHello(ch chan string) {
+    ch &lt;- "Hello"
+}
+
+func main() {
+    ch := make(chan string)
+    go sayHello(ch)
+    msg := &lt;-ch
+    fmt.Println(msg)
+}</code></pre>
+
+                        <p><strong>Channel operations:</strong></p>
+<pre><code class="language-go">ch := make(chan int)
+ch &lt;- 42
+x := &lt;-ch
+buf := make(chan int, 10)</code></pre>
+
+                        <h2>Closing and Ranging Over Channels</h2>
+                        <p>Close channels to signal completion. Receivers detect closure via a second return value or range loops:</p>
+<pre><code class="language-go">ch := make(chan int)
+
+go func() {
+    for i := 0; i &lt; 3; i++ {
+        ch &lt;- i
+    }
+    close(ch)
+}()
+
+for v := range ch {
+    fmt.Println("got:", v)
+}
+
+v, ok := &lt;-ch</code></pre>
+
+                        <blockquote>
+                            <p>Only the sender should close a channel; never close a channel from the receiving side.</p>
+                        </blockquote>
+
+                        <h2>Directional Channels</h2>
+                        <p>Restrict channel directions in function signatures for type safety:</p>
+<pre><code class="language-go">func producer(out chan&lt;- int) {
+    for i := 0; i &lt; 3; i++ {
+        out &lt;- i
+    }
+    close(out)
+}
+
+func consumer(in &lt;-chan int) {
+    for v := range in {
+        fmt.Println("consumed:", v)
+    }
+}</code></pre>
+
+                        <h2>Select Statement</h2>
+                        <p>The <code>select</code> statement waits on multiple channel operations, executing whichever is ready first:</p>
+<pre><code class="language-go">select {
+case msg1 := &lt;-ch1:
+    fmt.Println("Received message 1", msg1)
+case msg2 := &lt;-ch2:
+    fmt.Println("Received message 2", msg2)
+default:
+    fmt.Println("No message available")
+}</code></pre>
+
+                        <h3>Timeouts</h3>
+<pre><code class="language-go">select {
+case v := &lt;-ch:
+    fmt.Println("value:", v)
+case &lt;-time.After(500 * time.Millisecond):
+    fmt.Println("timeout")
+}</code></pre>
+
+                        <h2>Panic / Recover</h2>
+                        <p><code>panic</code> aborts normal control flow for unrecoverable errors or programmer bugs. <code>recover</code> regains control in deferred functions within the same goroutine:</p>
+<pre><code class="language-go">func main() {
+    defer func() {
+        if r := recover(); r != nil {
+            fmt.Println("Recovered from panic:", r)
+        }
+    }()
+
+    fmt.Println("Start of the program")
+    doSomething()
+    fmt.Println("End of the program")
+}
+
+func doSomething() {
+    fmt.Println("Start of doSomething function")
+    panic("Panic occurred")
+    fmt.Println("End of doSomething function")
+}</code></pre>
+
+                        <p>Key points:</p>
+                        <ul>
+                            <li><code>recover()</code> only works inside a deferred function</li>
+                            <li>A panic in one goroutine won&rsquo;t be recovered by a defer in another</li>
+                        </ul>
+
+                        <h2>Common Patterns &amp; Pitfalls</h2>
+
+                        <h3>Worker Pool (Fan-Out/Fan-In)</h3>
+<pre><code class="language-go">jobs := make(chan int)
+results := make(chan int)
+
+var wg sync.WaitGroup
+worker := func() {
+    defer wg.Done()
+    for j := range jobs {
+        results &lt;- (j * j)
+    }
+}
+
+wg.Add(3)
+for i := 0; i &lt; 3; i++ {
+    go worker()
+}
+
+go func() {
+    for i := 1; i &lt;= 5; i++ {
+        jobs &lt;- i
+    }
+    close(jobs)
+}()
+
+go func() {
+    wg.Wait()
+    close(results)
+}()
+
+for r := range results {
+    fmt.Println("result:", r)
+}</code></pre>
+
+                        <h3>Avoiding Goroutine Leaks</h3>
+                        <p>Always ensure goroutines can terminate: drain or close channels, respect contexts, or provide explicit quit signals.</p>
+                    </div>
+                </div>
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="go-advanced-concurrency.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Advanced Concurrency Patterns in Go</div>
+                            <span class="sidebar-link-meta">Jun 2025</span>
+                        </a>
+                        <a href="go-performance-tuning.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Go Performance Tuning</div>
+                            <span class="sidebar-link-meta">Dec 2025</span>
+                        </a>
+                        <a href="go-rest-apis.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Calling REST APIs in Go</div>
+                            <span class="sidebar-link-meta">Nov 2023</span>
+                        </a>
+                        <a href="go-generic-data-structures.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Building Generic Data Structures in Go</div>
+                            <span class="sidebar-link-meta">Mar 2025</span>
+                        </a>
+                        <a href="go-memory-gc-internals.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Go Memory Model, GC &amp; Internals</div>
+                            <span class="sidebar-link-meta">May 2025</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+
+</body>
+</html>

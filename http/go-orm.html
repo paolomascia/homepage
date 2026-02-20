@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Object-Relational Mapping (ORM) in Go &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="golang-tech-insights.html" class="back-link">&larr; Back to Go Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Oct 2024</span>
+                            <span class="post-reading">18 min read</span>
+                        </div>
+                        <h1>Object-Relational Mapping (ORM) in Go &mdash; Complete Guide</h1>
+                        <div class="post-tags">
+                            <span>Go</span>
+                            <span>GORM</span>
+                            <span>Database</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Object-Relational Mapping (ORM) is a technique that allows developers to interact with a relational database using Go structs and methods instead of raw SQL queries. ORMs help reduce boilerplate code, provide schema migration tools, and simplify CRUD operations, relationships, and transactions. In this lesson, you&rsquo;ll learn how to use <strong>GORM</strong>, Go&rsquo;s most widely adopted ORM library, with practical examples and best practices.</p>
+
+                        <h2>Popular ORM Libraries in Go</h2>
+
+                        <ul>
+                            <li><strong>GORM</strong> &mdash; the most complete ORM for Go. Supports MySQL, PostgreSQL, SQLite, SQL Server, and Oracle. Includes migrations, associations, transactions, hooks, and more.</li>
+                            <li><strong>Xorm</strong> &mdash; lightweight and fast ORM, suitable for simpler projects or embedded systems.</li>
+                            <li><strong>Pop (from Buffalo)</strong> &mdash; a simple, opinionated ORM often used in the Buffalo framework.</li>
+                        </ul>
+
+                        <p>Among these, <strong>GORM</strong> is the most feature-rich and widely used, so we&rsquo;ll focus on it in this lesson.</p>
+
+                        <h2>Installing GORM</h2>
+
+<pre><code class="language-bash">go mod init example.com/orm-demo
+go get gorm.io/gorm
+go get gorm.io/driver/sqlite</code></pre>
+
+                        <p>You can also install other drivers if you use different databases:</p>
+
+                        <ul>
+                            <li><code>go get gorm.io/driver/mysql</code></li>
+                            <li><code>go get gorm.io/driver/postgres</code></li>
+                            <li><code>go get gorm.io/driver/sqlserver</code></li>
+                        </ul>
+
+                        <h2>Basic GORM Example</h2>
+
+<pre><code class="language-go">package main
+
+import (
+    "fmt"
+    "gorm.io/driver/sqlite"
+    "gorm.io/gorm"
+    "gorm.io/gorm/logger"
+)
+
+type User struct {
+    gorm.Model
+    Name  string
+    Email string
+}
+
+func main() {
+    // Connect to database
+    db, err := gorm.Open(sqlite.Open("test.db"), &amp;gorm.Config{
+        Logger: logger.Default.LogMode(logger.Info),
+    })
+    if err != nil {
+        panic("Failed to connect to database!")
+    }
+
+    // Automatically create tables based on struct definitions
+    if err := db.AutoMigrate(&amp;User{}); err != nil {
+        panic("Failed to migrate database!")
+    }
+
+    // CREATE
+    user := User{Name: "John", Email: "john@example.com"}
+    result := db.Create(&amp;user)
+    if result.Error != nil {
+        panic("Failed to create user!")
+    }
+
+    // READ (retrieve by ID)
+    var retrieved User
+    db.First(&amp;retrieved, user.ID)
+    fmt.Println("Retrieved:", retrieved)
+
+    // UPDATE
+    db.Model(&amp;retrieved).Update("Email", "newemail@example.com")
+
+    // DELETE
+    db.Delete(&amp;retrieved)
+}</code></pre>
+
+                        <h2>Defining Models</h2>
+
+                        <p>A model in GORM is simply a Go struct that maps to a table in your database. You can embed <code>gorm.Model</code> to automatically include common fields:</p>
+
+<pre><code class="language-go">type gorm.Model struct {
+    ID        uint           `gorm:"primarykey"`
+    CreatedAt time.Time
+    UpdatedAt time.Time
+    DeletedAt gorm.DeletedAt `gorm:"index"`
+}</code></pre>
+
+                        <p>You can also define your own model with custom fields and constraints:</p>
+
+<pre><code class="language-go">type Product struct {
+    ID          uint   `gorm:"primaryKey"`
+    Code        string `gorm:"uniqueIndex"`
+    Price       float64
+    Description string `gorm:"size:255"`
+    Stock       int    `gorm:"default:0"`
+}</code></pre>
+
+                        <h2>Auto Migration</h2>
+
+                        <p>GORM can automatically create or update your database schema based on your Go structs:</p>
+
+<pre><code class="language-go">db.AutoMigrate(&amp;User{}, &amp;Product{})</code></pre>
+
+                        <p><strong>Note:</strong> AutoMigrate will create or modify tables, columns, and indexes, but it won&rsquo;t delete or rename existing columns automatically. For complex migrations, use a migration tool like <code>golang-migrate</code>.</p>
+
+                        <h2>CRUD Operations</h2>
+
+                        <h3>Create</h3>
+
+<pre><code class="language-go">// Create a new record
+user := User{Name: "Alice", Email: "alice@example.com"}
+if err := db.Create(&amp;user).Error; err != nil {
+    panic(err)
+}
+
+// Create multiple records
+users := []User{
+    {Name: "Bob", Email: "bob@example.com"},
+    {Name: "Carol", Email: "carol@example.com"},
+}
+db.Create(&amp;users)</code></pre>
+
+                        <h3>Read</h3>
+
+<pre><code class="language-go">// Find first record (by primary key)
+var user User
+db.First(&amp;user, 1)
+
+// Find by condition
+db.Where("email = ?", "bob@example.com").First(&amp;user)
+
+// Retrieve all users
+var all []User
+db.Find(&amp;all)
+
+// Select specific fields
+db.Select("name", "email").Where("name LIKE ?", "A%").Find(&amp;all)</code></pre>
+
+                        <h3>Update</h3>
+
+<pre><code class="language-go">// Update a single field
+db.Model(&amp;user).Update("Email", "updated@example.com")
+
+// Update multiple fields
+db.Model(&amp;user).Updates(User{Name: "Updated", Email: "new@example.com"})
+
+// Conditional update
+db.Model(&amp;User{}).Where("name = ?", "Bob").Update("email", "bob@new.com")</code></pre>
+
+                        <h3>Delete</h3>
+
+<pre><code class="language-go">// Delete by struct
+db.Delete(&amp;user)
+
+// Delete by condition
+db.Where("name = ?", "Alice").Delete(&amp;User{})</code></pre>
+
+                        <h2>Query Options</h2>
+
+                        <p>GORM queries are chainable and composable:</p>
+
+<pre><code class="language-go">db.Where("price &gt; ?", 100).Or("stock &lt; ?", 10).Find(&amp;products)
+db.Order("price desc").Limit(5).Offset(10).Find(&amp;products)
+db.Select("name, email").Find(&amp;users)</code></pre>
+
+                        <h2>Working with Relationships</h2>
+
+                        <p>GORM supports one-to-one, one-to-many, and many-to-many relationships through struct tags and foreign keys.</p>
+
+                        <h3>One-to-Many Example</h3>
+
+<pre><code class="language-go">type Customer struct {
+    gorm.Model
+    Name   string
+    Orders []Order // has-many relationship
+}
+
+type Order struct {
+    gorm.Model
+    CustomerID uint
+    Product    string
+    Amount     float64
+}</code></pre>
+
+<pre><code class="language-go">// Auto migrate both
+db.AutoMigrate(&amp;Customer{}, &amp;Order{})
+
+// Create customer and related orders
+customer := Customer{
+    Name: "Tom",
+    Orders: []Order{
+        {Product: "Laptop", Amount: 1200},
+        {Product: "Mouse", Amount: 25},
+    },
+}
+db.Create(&amp;customer)
+
+// Preload Orders when querying
+var c Customer
+db.Preload("Orders").First(&amp;c, 1)
+fmt.Println(c.Orders)</code></pre>
+
+                        <h3>Many-to-Many Example</h3>
+
+<pre><code class="language-go">type Author struct {
+    gorm.Model
+    Name   string
+    Books  []Book `gorm:"many2many:author_books;"`
+}
+
+type Book struct {
+    gorm.Model
+    Title   string
+    Authors []Author `gorm:"many2many:author_books;"`
+}</code></pre>
+
+<pre><code class="language-go">db.AutoMigrate(&amp;Author{}, &amp;Book{})
+
+book := Book{Title: "Golang Mastery"}
+author := Author{Name: "Jane Doe", Books: []Book{book}}
+db.Create(&amp;author)
+
+// Query with Preload
+var result Author
+db.Preload("Books").First(&amp;result, author.ID)
+fmt.Println(result.Books)</code></pre>
+
+                        <h2>Transactions</h2>
+
+                        <p>Use <code>db.Transaction()</code> for atomic operations:</p>
+
+<pre><code class="language-go">err := db.Transaction(func(tx *gorm.DB) error {
+    if err := tx.Create(&amp;User{Name: "A"}).Error; err != nil {
+        return err
+    }
+    if err := tx.Create(&amp;User{Name: "B"}).Error; err != nil {
+        return err
+    }
+    return nil
+})
+if err != nil {
+    fmt.Println("Transaction rolled back:", err)
+}</code></pre>
+
+                        <h2>Model Hooks</h2>
+
+                        <p>GORM lets you execute custom logic before or after certain database actions using hooks.</p>
+
+<pre><code class="language-go">func (u *User) BeforeCreate(tx *gorm.DB) (err error) {
+    fmt.Println("Before creating user:", u.Name)
+    return nil
+}
+
+func (u *User) AfterCreate(tx *gorm.DB) (err error) {
+    fmt.Println("User created successfully!")
+    return nil
+}</code></pre>
+
+                        <h2>Soft Deletes</h2>
+
+                        <p>If your model includes <code>gorm.DeletedAt</code>, calling <code>db.Delete()</code> won&rsquo;t remove the record from the database. Instead, it sets the <code>DeletedAt</code> timestamp.</p>
+
+<pre><code class="language-go">db.Delete(&amp;user)              // sets deleted_at timestamp
+db.Unscoped().Delete(&amp;user)   // permanently deletes</code></pre>
+
+                        <h2>Logging and Debugging</h2>
+
+                        <p>You can control GORM&rsquo;s logging level to see the executed SQL queries:</p>
+
+<pre><code class="language-go">db, _ := gorm.Open(sqlite.Open("test.db"), &amp;gorm.Config{
+    Logger: logger.Default.LogMode(logger.Info),
+})</code></pre>
+
+                        <h2>Pagination Example</h2>
+
+<pre><code class="language-go">func GetUsersPage(db *gorm.DB, page, pageSize int) ([]User, error) {
+    var users []User
+    offset := (page - 1) * pageSize
+    if err := db.Limit(pageSize).Offset(offset).Find(&amp;users).Error; err != nil {
+        return nil, err
+    }
+    return users, nil
+}</code></pre>
+
+                        <h2>Best Practices</h2>
+
+                        <ul>
+                            <li><strong>Use context</strong> for cancellation and timeouts: <code>db.WithContext(ctx)</code>.</li>
+                            <li><strong>Use transactions</strong> for multi-step operations.</li>
+                            <li><strong>Index frequently queried columns</strong> with <code>gorm:"index"</code>.</li>
+                            <li><strong>Validate input</strong> before saving to the database.</li>
+                            <li><strong>Separate layers:</strong> models, repositories, and services (clean architecture).</li>
+                            <li><strong>Run migrations automatically</strong> in dev, manually in prod.</li>
+                            <li><strong>Use connection pooling</strong> and configure DB timeouts.</li>
+                        </ul>
+
+                        <h2>Next Steps</h2>
+
+                        <ul>
+                            <li>Try switching from SQLite to MySQL or PostgreSQL.</li>
+                            <li>Explore advanced features like <code>Scopes</code>, <code>Associations</code>, and <code>Raw SQL</code>.</li>
+                            <li>Add <code>validator</code> integration (e.g., <code>go-playground/validator</code>) for input validation.</li>
+                            <li>Combine GORM with JWT Authentication for a complete REST API.</li>
+                        </ul>
+
+                        <h2>Complete Demo Code (SQLite)</h2>
+
+<pre><code class="language-go">package main
+
+import (
+    "fmt"
+    "gorm.io/driver/sqlite"
+    "gorm.io/gorm"
+    "gorm.io/gorm/logger"
+)
+
+type User struct {
+    gorm.Model
+    Name  string
+    Email string
+}
+
+func main() {
+    db, err := gorm.Open(sqlite.Open("test.db"), &amp;gorm.Config{
+        Logger: logger.Default.LogMode(logger.Info),
+    })
+    if err != nil {
+        panic("Failed to connect to database!")
+    }
+
+    db.AutoMigrate(&amp;User{})
+
+    // Create
+    user := User{Name: "John", Email: "john@example.com"}
+    db.Create(&amp;user)
+
+    // Read
+    var retrieved User
+    db.First(&amp;retrieved, user.ID)
+    fmt.Println("Retrieved:", retrieved)
+
+    // Update
+    db.Model(&amp;retrieved).Update("Email", "newemail@example.com")
+
+    // Delete
+    db.Delete(&amp;retrieved)
+}</code></pre>
+                    </div>
+                </div>
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="go-installation-data-types.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">GO Installation and Data Types</div>
+                            <span class="sidebar-link-meta">Sep 2025</span>
+                        </a>
+                        <a href="go-oop.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Object Oriented Programming in GO</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-cross-compiling-docker.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Cross-Compiling &amp; Docker</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-dsls-generics.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Building DSLs in Go Using Generics</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-arena-allocators.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Memory Optimization in Go: Arena Allocators</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+
+</body>
+</html>

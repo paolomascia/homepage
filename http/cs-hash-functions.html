@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hash Functions &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="cybersecurity-tech-insights.html" class="back-link">&larr; Back to Cybersecurity</a>
+                        <div class="post-meta">
+                            <span class="post-date">Oct 2025</span>
+                            <span class="post-reading">10 min read</span>
+                        </div>
+                        <h1>Hash Functions</h1>
+                        <div class="post-tags">
+                            <span>Cryptography</span>
+                            <span>Hashing</span>
+                            <span>MAC</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Cryptographic hash functions serve as fundamental tools in security protocols. They generate a fixed-length &ldquo;digest&rdquo; from input of any size&mdash;essentially a message fingerprint. Unlike encryption systems, hashes are keyless. They are vital for digital signatures, message verification, secure password storage (using specialized slow hashing), and key generation.</p>
+
+                        <h2>Security Properties</h2>
+
+                        <p>Three core requirements define secure hash functions:</p>
+
+                        <ul>
+                            <li><strong>Preimage resistance (one-wayness):</strong> Given output <em>z</em>, finding input <em>x</em> where <em>h(x) = z</em> should be computationally impossible.</li>
+                            <li><strong>Second-preimage resistance:</strong> Finding a different <em>x&prime;</em> producing identical output to a known <em>x</em> should be infeasible.</li>
+                            <li><strong>Collision resistance:</strong> Discovering any two distinct inputs yielding the same digest should be impractical.</li>
+                        </ul>
+
+                        <p>Common applications include fingerprinting, digital signature generation, message authentication codes (HMAC), and key derivation functions (KDF).</p>
+
+                        <h2>MD5</h2>
+
+                        <p>MD5 produces 128-bit digests but is <strong>not cryptographically secure</strong> and should serve only as a non-cryptographic checksum for detecting accidental corruption.</p>
+
+                        <p>Its workflow involves five stages:</p>
+
+                        <ol>
+                            <li>Padding the message</li>
+                            <li>Appending length information</li>
+                            <li>Initializing four 32-bit state variables</li>
+                            <li>Processing 512-bit blocks through four rounds using specific Boolean functions</li>
+                            <li>Outputting the concatenated final state</li>
+                        </ol>
+
+<pre><code class="language-c">// MD5 high-level structure (conceptual)
+// Initialize state
+A = 0x67452301;
+B = 0xEFCDAB89;
+C = 0x98BADCFE;
+D = 0x10325476;
+
+// Process each 512-bit block
+for each block M:
+    // 4 rounds of 16 operations each
+    // Round 1: F(B,C,D) = (B & C) | (~B & D)
+    // Round 2: G(B,C,D) = (B & D) | (C & ~D)
+    // Round 3: H(B,C,D) = B ^ C ^ D
+    // Round 4: I(B,C,D) = C ^ (B | ~D)
+
+// Output: A || B || C || D  (128 bits)</code></pre>
+
+                        <p>MD5&rsquo;s weaknesses include rapid computation enabling brute-force attacks, widespread precomputed rainbow tables, and broken collision resistance allowing practical chosen-prefix collision construction. For passwords, dedicated functions like bcrypt, scrypt, or Argon2 are mandatory&mdash;never use MD5 even with salt.</p>
+
+                        <h2>SHA Family</h2>
+
+                        <p>NIST standardizes the SHA family (FIPS 180-4), including deprecated SHA-1 (160-bit) and modern SHA-2 variants (SHA-224, SHA-256, SHA-384, SHA-512). SHA-3 (Keccak), selected through public competition in 2012, offers an alternative sponge-based architecture.</p>
+
+                        <p><strong>SHA-1</strong> is deprecated due to practical collision attacks. <strong>SHA-2</strong> remains widely trusted, using 32-bit or 64-bit word operations depending on variant. <strong>SHA-3</strong> uses sponge construction enabling variable-length output through SHAKE128/256 functions.</p>
+
+<pre><code class="language-c">// SHA-256 high-level structure (conceptual)
+// Initialize 8 x 32-bit state words (H0..H7)
+// from first 32 bits of fractional parts of
+// square roots of first 8 primes
+
+// Process each 512-bit block:
+//   Expand 16 message words to 64 schedule words
+//   64 rounds of compression using:
+//     - Ch(e,f,g), Maj(a,b,c) functions
+//     - Sigma rotations
+//     - Round constants K[0..63]
+
+// Output: H0 || H1 || ... || H7  (256 bits)</code></pre>
+
+                        <h2>MAC (Message Authentication Code)</h2>
+
+                        <p>MACs provide integrity and authenticity using shared secret keys. The sender generates a tag from the key and message; receivers verify by recomputing and comparing tags.</p>
+
+                        <p>Construction methods include:</p>
+
+                        <ul>
+                            <li><strong>HMAC:</strong> Hash-based, built from cryptographic hashes like HMAC-SHA-256.</li>
+                            <li><strong>CBC-MAC / CMAC:</strong> Block-cipher-based approaches.</li>
+                            <li><strong>PMAC / GMAC:</strong> Parallelizable or Galois-field variants.</li>
+                        </ul>
+
+<pre><code class="language-c">// HMAC construction (conceptual)
+// HMAC(K, m) = H( (K' ^ opad) || H( (K' ^ ipad) || m ) )
+//
+// K'    = key padded/hashed to block size
+// ipad  = 0x36 repeated to block size
+// opad  = 0x5C repeated to block size
+// H     = underlying hash function (e.g., SHA-256)
+//
+// Two-pass hash provides resistance to
+// length-extension attacks</code></pre>
+
+                        <p>Best practice combines encryption with authentication through AEAD modes (AES-GCM, ChaCha20-Poly1305). When AEAD is unavailable, <strong>encrypt-then-MAC</strong> is recommended&mdash;computing the MAC over ciphertext rather than plaintext first.</p>
+
+                        <h2>Practical Recommendations</h2>
+
+                        <ul>
+                            <li>Prefer SHA-256/384/512 or SHA-3; avoid MD5 and SHA-1 for security tasks.</li>
+                            <li>Use bcrypt, scrypt, or Argon2 for passwords with per-password salt and cost parameters.</li>
+                            <li>Employ HMAC when AEAD is unavailable; otherwise use AEAD schemes.</li>
+                        </ul>
+
+                    </div>
+                </div>
+
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing large-scale distributed systems. Specialized in Generative AI, AI Agents, and cloud-native architectures.</p>
+                        <div class="sidebar-author-links">
+                            <a href="https://www.linkedin.com/in/paolo-mascia-italy" target="_blank" aria-label="LinkedIn"><svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg></a>
+                            <a href="https://github.com/paolomascia" target="_blank" aria-label="GitHub"><svg viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg></a>
+                            <a href="https://www.kaggle.com/paolomascia" target="_blank" aria-label="Kaggle"><svg viewBox="0 0 24 24"><path d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.233-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.075.378z"/></svg></a>
+                        </div>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="cs-modern-cryptography.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cryptography</span>
+                            <div class="sidebar-link-title">Modern Cryptography</div>
+                            <span class="sidebar-link-meta">Sep 2024</span>
+                        </a>
+                        <a href="cs-symmetric-key.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cryptography</span>
+                            <div class="sidebar-link-title">Symmetric-Key Cryptography</div>
+                            <span class="sidebar-link-meta">Mar 2025</span>
+                        </a>
+                        <a href="cs-aes.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cryptography</span>
+                            <div class="sidebar-link-title">AES (Advanced Encryption Standard)</div>
+                            <span class="sidebar-link-meta">Jan 2025</span>
+                        </a>
+                        <a href="cs-asymmetric-cryptography.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cryptography</span>
+                            <div class="sidebar-link-title">Asymmetric (Public-Key) Cryptography</div>
+                            <span class="sidebar-link-meta">May 2025</span>
+                        </a>
+                        <a href="cs-digital-certificates.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cryptography</span>
+                            <div class="sidebar-link-title">Digital Certificates</div>
+                            <span class="sidebar-link-meta">Aug 2025</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-nasm.min.js"></script>
+</body>
+</html>

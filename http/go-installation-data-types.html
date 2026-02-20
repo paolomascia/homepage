@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Go Installation and Data Types &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="golang-tech-insights.html" class="back-link">&larr; Back to Go Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Feb 2023</span>
+                            <span class="post-reading">12 min read</span>
+                        </div>
+                        <h1>Go Installation and Data Types</h1>
+                        <div class="post-tags">
+                            <span>Go</span>
+                            <span>Installation</span>
+                            <span>Data Types</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Getting started with Go begins with a proper installation and a solid understanding of its type system. This guide walks you through installing Go on any platform and explores every data type the language offers &mdash; from primitive types like integers and strings to composite types like slices, maps, and pointers.</p>
+
+                        <h2>Installation</h2>
+
+                        <h3>Download and Install Go</h3>
+                        <ol>
+                            <li>Obtain the installation package from <code>https://golang.org/dl/</code></li>
+                            <li>Select the appropriate version for your OS (32-bit or 64-bit)</li>
+                            <li>Windows: Execute the <code>.msi</code> file following the installation wizard</li>
+                            <li>Linux/macOS: Extract the <code>tar.gz</code> file to your preferred directory</li>
+                        </ol>
+
+                        <h3>Configure Environment Variables</h3>
+
+                        <p><strong>Windows steps:</strong></p>
+                        <ul>
+                            <li>Access Control Panel &rarr; System &rarr; Advanced system settings &rarr; Environment Variables</li>
+                            <li>Locate the PATH variable and select Edit</li>
+                            <li>Insert Go installation path (e.g., <code>C:\Go\bin</code>)</li>
+                            <li>Click OK</li>
+                        </ul>
+
+                        <p><strong>Linux/macOS steps:</strong></p>
+                        <ul>
+                            <li>Open <code>.bashrc</code> or <code>.bash_profile</code></li>
+                            <li>Add: <code>export PATH=$PATH:/usr/local/go/bin</code></li>
+                            <li>Update <code>/usr/local/go</code> with your extraction location</li>
+                        </ul>
+
+                        <h3>Verify Installation</h3>
+                        <p>Execute this terminal command:</p>
+                        <pre><code class="language-bash">go version</code></pre>
+                        <p>Success displays your installed Go version.</p>
+
+                        <h2>Hello World in Go</h2>
+                        <ol>
+                            <li>Create a text file with <code>.go</code> extension (e.g., <code>hello.go</code>)</li>
+                            <li>Enter this code:</li>
+                        </ol>
+<pre><code class="language-go">package main
+
+import "fmt"
+
+func main() {
+    fmt.Println("Hello, World!")
+}</code></pre>
+                        <ol start="3">
+                            <li>Save the file</li>
+                            <li>Navigate to the file&rsquo;s folder in terminal</li>
+                            <li>Compile: <code>go build hello.go</code></li>
+                            <li>Run: <code>./hello</code></li>
+                        </ol>
+
+                        <h3>Code Explanation</h3>
+                        <ul>
+                            <li><code>package main</code>: declares this as the main package (required)</li>
+                            <li><code>import "fmt"</code>: imports Go&rsquo;s standard formatting library</li>
+                            <li><code>func main()</code>: program entry point</li>
+                            <li><code>fmt.Println()</code>: displays output from the fmt library</li>
+                        </ul>
+
+                        <h2>Data Types in Go</h2>
+                        <p>Two categories exist: primitive and composite types.</p>
+
+                        <h3>Primitive Data Types</h3>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Type</th>
+                                    <th>Description</th>
+                                    <th>Example</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><code>bool</code></td>
+                                    <td>Boolean value, true or false</td>
+                                    <td><code>var isActive bool = true</code></td>
+                                </tr>
+                                <tr>
+                                    <td><code>int, int8, int16, int32, int64</code></td>
+                                    <td>Signed integers; int64 ranges from -2^63 to 2^63-1</td>
+                                    <td><code>var age int = 25</code></td>
+                                </tr>
+                                <tr>
+                                    <td><code>uint, uint8, uint16, uint32, uint64</code></td>
+                                    <td>Unsigned integers; uint64 ranges from 0 to 2^64-1</td>
+                                    <td><code>var count uint = 100</code></td>
+                                </tr>
+                                <tr>
+                                    <td><code>float32, float64</code></td>
+                                    <td>Single and double precision per IEEE 754</td>
+                                    <td><code>var price float64 = 19.99</code></td>
+                                </tr>
+                                <tr>
+                                    <td><code>complex64, complex128</code></td>
+                                    <td>Single and double precision complex numbers</td>
+                                    <td><code>var c complex128 = 1 + 2i</code></td>
+                                </tr>
+                                <tr>
+                                    <td><code>string</code></td>
+                                    <td>Unicode character sequences</td>
+                                    <td><code>var name string = "John"</code></td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <h3>Composite Data Types</h3>
+                        <ul>
+                            <li><strong>array</strong>: Fixed-length collection of identical types</li>
+                            <li><strong>slice</strong>: Variable-length collection of identical types</li>
+                            <li><strong>map</strong>: Key-value pairs with unique keys</li>
+                            <li><strong>struct</strong>: Mixed-type field collections</li>
+                            <li><strong>pointer</strong>: Memory address reference</li>
+                            <li><strong>interface</strong>: Method set definition</li>
+                        </ul>
+                        <p>Special types: <code>byte</code> (alias for <code>uint8</code>) and <code>rune</code> (alias for <code>int32</code>).</p>
+
+                        <h2>Variable Declaration</h2>
+
+                        <h3>Explicit Type Declaration</h3>
+<pre><code class="language-go">var x int
+var y float64
+var z string</code></pre>
+
+                        <h3>Type Inference</h3>
+<pre><code class="language-go">a := 10               // a is of type int
+b := 3.14             // b is of type float64
+c := "Hello, world!"  // c is of type string</code></pre>
+
+                        <h3>Multiple Declaration</h3>
+<pre><code class="language-go">var x, y, z int
+a, b, c := 1, 2, 3</code></pre>
+
+                        <h3>Initialization with Values</h3>
+<pre><code class="language-go">var x int = 10
+y := 3.14</code></pre>
+
+                        <p><strong>Important:</strong> Declared variables must be used; unused variables prevent compilation.</p>
+
+                        <h2>Strings</h2>
+                        <p>Strings are immutable, representing byte sequences of Unicode characters.</p>
+
+                        <h3>String Declaration</h3>
+<pre><code class="language-go">var message string = "Hello, World!"</code></pre>
+
+                        <h3>String Length</h3>
+<pre><code class="language-go">length := len(message)</code></pre>
+
+                        <h3>Accessing Characters</h3>
+<pre><code class="language-go">char := message[0]</code></pre>
+
+                        <h3>String Concatenation</h3>
+<pre><code class="language-go">var str1 string = "Hello, "
+var str2 string = "World!"
+var message string = str1 + str2</code></pre>
+
+                        <h3>String to Byte Array Conversion</h3>
+<pre><code class="language-go">bytes := []byte(message)</code></pre>
+
+                        <h3>Byte Array to String Conversion</h3>
+<pre><code class="language-go">bytes := []byte{'H', 'e', 'l', 'l', 'o', ',', ' ', 'W', 'o', 'r', 'l', 'd', '!'}
+message := string(bytes)</code></pre>
+
+                        <h3>String Package Functions</h3>
+<pre><code class="language-go">import "strings"
+
+var message string = "Hello, World!"
+
+// Check if substring exists
+if strings.Contains(message, "World") {
+    // The substring "World" is present
+}
+
+// Replace substring
+newMessage := strings.Replace(message, "World", "Go", 1)</code></pre>
+
+                        <h2>Arrays</h2>
+                        <p>Homogeneous, static structures with fixed element count. Syntax: <code>var array_name [length]type</code></p>
+
+                        <h3>Array Declaration and Initialization</h3>
+<pre><code class="language-go">// Declare integer array with length 5
+var numbers [5]int
+
+// Initialize with values
+var numbers = [5]int{1, 2, 3, 4, 5}
+
+// Let Go deduce length
+numbers := [...]int{1, 2, 3, 4, 5}</code></pre>
+
+                        <h3>Accessing Array Elements</h3>
+<pre><code class="language-go">firstNumber := numbers[0]
+numbers[2] = 10
+lastNumber := numbers[len(numbers)-1]</code></pre>
+
+                        <h3>Iterating Over Arrays</h3>
+<pre><code class="language-go">// Traditional for loop
+for i := 0; i &lt; len(numbers); i++ {
+    fmt.Println(numbers[i])
+}
+
+// Using range function
+for _, value := range numbers {
+    fmt.Println(value)
+}</code></pre>
+
+                        <h2>Slices</h2>
+                        <p>Dynamically sized structures representing &ldquo;windows&rdquo; into underlying arrays.</p>
+
+                        <h3>Slice Declaration</h3>
+<pre><code class="language-go">var s []type
+
+// Create with make function
+s := make([]type, length, capacity)</code></pre>
+
+                        <h3>Slice Examples</h3>
+<pre><code class="language-go">package main
+
+import "fmt"
+
+func main() {
+    // Declaration of an empty slice
+    var s []int
+    fmt.Println("empty slice:", s)
+
+    // Declaration and initialization of a slice
+    s1 := []int{1, 2, 3, 4, 5}
+    fmt.Println("initialized slice:", s1)
+
+    // Access slice values
+    fmt.Println("s1[0]:", s1[0])
+    fmt.Println("s1[1]:", s1[1])
+
+    // Modify slice values
+    s1[2] = 100
+    fmt.Println("modified s1:", s1)
+
+    // Slice length
+    fmt.Println("length of s1:", len(s1))
+
+    // Add element to slice
+    s1 = append(s1, 6)
+    fmt.Println("s1 with new element:", s1)
+
+    // Add multiple elements
+    s1 = append(s1, 7, 8, 9)
+    fmt.Println("s1 with more elements:", s1)
+
+    // Create slice from another slice
+    s2 := s1[1:4]   // Elements from index 1 to 3
+    s3 := s1[2:]    // Elements from index 2 to end
+    s4 := s1[:3]    // Elements from start to index 2
+}</code></pre>
+
+                        <h3>Searching in Slices</h3>
+<pre><code class="language-go">func findInSlice(slice []int, target int) bool {
+    for _, value := range slice {
+        if value == target {
+            return true
+        }
+    }
+    return false
+}
+
+// Usage
+numbers := []int{2, 4, 6, 8, 10}
+found := findInSlice(numbers, 6)</code></pre>
+
+                        <h2>Maps</h2>
+                        <p>Data structures associating keys with values, similar to dictionaries.</p>
+
+                        <h3>Map Creation and Operations</h3>
+<pre><code class="language-go">// Create empty map
+myMap := make(map[string]int)
+
+// Add key-value pairs
+myMap["apple"] = 3
+myMap["orange"] = 5
+myMap["banana"] = 2
+
+// Access values
+fmt.Println(myMap["apple"])
+
+// Check if key exists
+_, ok := myMap["banana"]
+if ok {
+    fmt.Println("The key 'banana' exists in the map")
+} else {
+    fmt.Println("The key 'banana' does not exist in the map")
+}
+
+// Iterate over map
+for key, value := range myMap {
+    fmt.Printf("Key %s has value %d\n", key, value)
+}</code></pre>
+
+                        <h2>Constants Declaration</h2>
+                        <p>Constants are immutable values defined using the <code>const</code> keyword.</p>
+<pre><code class="language-go">const myConstant = 3.14
+
+const myBoolean = true
+const myString = "Hello, world!"
+const myInteger = 42
+const myRune = 'A'
+
+// Multiple constants
+const (
+    pi = 3.14159
+    e  = 2.71828
+)</code></pre>
+                        <p>Constants prevent accidental modification of values that shouldn&rsquo;t change during execution.</p>
+
+                        <h2>Variable Visibility</h2>
+                        <p>Two types exist based on naming conventions:</p>
+
+                        <h3>Public Visibility</h3>
+                        <p>Uppercase-starting names are accessible across packages:</p>
+<pre><code class="language-go">package mypackage
+
+var MyVariable int = 10
+
+// Usage in another package
+package main
+
+import "mypackage"
+
+func main() {
+    fmt.Println(mypackage.MyVariable)
+}</code></pre>
+
+                        <h3>Private Visibility</h3>
+                        <p>Lowercase-starting names are package-restricted:</p>
+<pre><code class="language-go">package mypackage
+
+var myVariable int = 10
+// myVariable only accessible within mypackage</code></pre>
+
+                        <h2>Pointers</h2>
+                        <p>Variables containing memory addresses of other variables.</p>
+
+                        <h3>Pointer Declaration and Usage</h3>
+<pre><code class="language-go">var p *int
+
+var x int = 42
+var p *int = &amp;x
+
+fmt.Println(*p)
+
+// Create new value in memory
+p := new(int)
+
+// Using pointers in functions
+func double(x *int) {
+    *x *= 2
+}
+
+func main() {
+    x := 42
+    double(&amp;x)
+    fmt.Println(x)
+}</code></pre>
+                    </div>
+                </div>
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="go-advanced-concurrency.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Advanced Concurrency Patterns in Go</div>
+                            <span class="sidebar-link-meta">Jun 2025</span>
+                        </a>
+                        <a href="go-performance-tuning.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Go Performance Tuning</div>
+                            <span class="sidebar-link-meta">Dec 2025</span>
+                        </a>
+                        <a href="go-rest-apis.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Calling REST APIs in Go</div>
+                            <span class="sidebar-link-meta">Nov 2023</span>
+                        </a>
+                        <a href="go-generic-data-structures.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Building Generic Data Structures in Go</div>
+                            <span class="sidebar-link-meta">Mar 2025</span>
+                        </a>
+                        <a href="go-memory-gc-internals.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Go Memory Model, GC &amp; Internals</div>
+                            <span class="sidebar-link-meta">May 2025</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+
+</body>
+</html>

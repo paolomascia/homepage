@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transformers: The Architecture That Revolutionized Deep Learning — Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="ai-tech-insights.html" class="back-link">&larr; Back to Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Mar 2025</span>
+                            <span class="post-reading">5 min read</span>
+                        </div>
+                        <h1>Transformers: The Architecture That Revolutionized Deep Learning</h1>
+                        <div class="post-tags">
+                            <span>Transformers</span>
+                            <span>Self-Attention</span>
+                            <span>Deep Learning</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">The Transformer architecture has redefined artificial intelligence. From language translation and chatbots to image generation and protein folding, transformers are the foundation of modern AI models — including BERT, GPT, T5, and ViT.</p>
+
+                        <p>Introduced in the landmark 2017 paper <em>"Attention is All You Need"</em> by Vaswani et al., transformers replaced recurrent networks with a more powerful and parallelizable mechanism: <strong>self-attention</strong>.</p>
+
+                        <h2>Why Transformers?</h2>
+                        <p>Before transformers, sequence models like <strong>RNNs</strong> and <strong>LSTMs</strong> processed data sequentially — making them slow and inefficient for long sequences. Transformers instead use attention to model dependencies between all elements in a sequence simultaneously, enabling parallel processing and better long-range context understanding.</p>
+
+                        <h2>Key Components of a Transformer</h2>
+                        <p>A transformer is composed of an <strong>encoder</strong> and a <strong>decoder</strong> stack:</p>
+                        <ul>
+                            <li><strong>Encoder:</strong> reads the input sequence and builds contextual representations.</li>
+                            <li><strong>Decoder:</strong> generates output step-by-step using encoder outputs and prior predictions.</li>
+                        </ul>
+                        <p>Each encoder and decoder layer includes:</p>
+                        <ul>
+                            <li><strong>Multi-Head Self-Attention</strong></li>
+                            <li><strong>Feed-Forward Network</strong></li>
+                            <li><strong>Residual Connections and Layer Normalization</strong></li>
+                        </ul>
+
+                        <h2>The Attention Mechanism</h2>
+                        <p>The attention mechanism computes how much focus each element in a sequence should give to others. Given queries (<code>Q</code>), keys (<code>K</code>), and values (<code>V</code>), attention is defined as:</p>
+                        <pre><code class="language-python">Attention(Q, K, V) = softmax((QK^T) / sqrt(d_k)) V</code></pre>
+                        <p>Here:</p>
+                        <ul>
+                            <li><code>Q</code> — represents what we're trying to match.</li>
+                            <li><code>K</code> — represents what's available for comparison.</li>
+                            <li><code>V</code> — represents the information to aggregate.</li>
+                        </ul>
+                        <p>This allows the model to dynamically weigh different parts of the input, focusing on the most relevant ones for each token.</p>
+
+                        <h2>Multi-Head Attention</h2>
+                        <p>Instead of computing a single attention distribution, transformers use multiple attention "heads" to capture different types of relationships.</p>
+                        <pre><code class="language-python">import tensorflow as tf
+from tensorflow.keras.layers import Dense, Layer
+
+class MultiHeadAttention(Layer):
+    def __init__(self, num_heads, d_model):
+        super().__init__()
+        assert d_model % num_heads == 0
+        self.num_heads = num_heads
+        self.d_model = d_model
+        self.depth = d_model // num_heads
+
+        self.wq = Dense(d_model)
+        self.wk = Dense(d_model)
+        self.wv = Dense(d_model)
+        self.dense = Dense(d_model)
+
+    def split_heads(self, x, batch_size):
+        x = tf.reshape(x, (batch_size, -1, self.num_heads, self.depth))
+        return tf.transpose(x, perm=[0, 2, 1, 3])
+
+    def call(self, v, k, q, mask=None):
+        batch_size = tf.shape(q)[0]
+        q = self.split_heads(self.wq(q), batch_size)
+        k = self.split_heads(self.wk(k), batch_size)
+        v = self.split_heads(self.wv(v), batch_size)
+
+        scaled = tf.matmul(q, k, transpose_b=True)
+        scaled /= tf.math.sqrt(tf.cast(self.depth, tf.float32))
+        if mask is not None:
+            scaled += (mask * -1e9)
+
+        weights = tf.nn.softmax(scaled, axis=-1)
+        output = tf.matmul(weights, v)
+        output = tf.transpose(output, perm=[0, 2, 1, 3])
+        concat = tf.reshape(output, (batch_size, -1, self.d_model))
+        return self.dense(concat)</code></pre>
+                        <p>Each head learns different relationships — syntactic, semantic, or positional — making the representation richer and more robust.</p>
+
+                        <h2>Positional Encoding</h2>
+                        <p>Since transformers process sequences in parallel (not sequentially), they need a way to represent the order of tokens. This is done using <strong>positional encodings</strong> added to input embeddings.</p>
+                        <pre><code class="language-python">import numpy as np
+
+def positional_encoding(position, d_model):
+    angle_rads = np.arange(position)[:, np.newaxis] / \
+        np.power(10000, (2 * (np.arange(d_model)[np.newaxis, :] // 2))
+        / np.float32(d_model))
+    sines = np.sin(angle_rads[:, 0::2])
+    cosines = np.cos(angle_rads[:, 1::2])
+    pos_encoding = np.concatenate([sines, cosines], axis=-1)
+    return pos_encoding[np.newaxis, ...]</code></pre>
+                        <p>These encodings give each position a unique pattern of sinusoidal values, allowing the model to infer relative and absolute positions.</p>
+
+                        <h2>Encoder and Decoder Architecture</h2>
+                        <p>The encoder stack processes input through multiple layers of self-attention and feed-forward networks:</p>
+                        <pre><code class="language-python">Input Embeddings + Positional Encoding
+→ Multi-Head Self-Attention
+→ Feed-Forward Network
+→ Output Representation</code></pre>
+                        <p>The decoder uses <strong>masked attention</strong> to prevent looking ahead at future tokens during training:</p>
+                        <pre><code class="language-python">Masked Multi-Head Self-Attention
+→ Encoder-Decoder Attention
+→ Feed-Forward Network
+→ Output Prediction</code></pre>
+
+                        <h2>Example: Using a Pretrained Transformer (BERT)</h2>
+                        <p>Instead of training from scratch, you can leverage pretrained transformer models using the <strong>Hugging Face Transformers</strong> library.</p>
+                        <pre><code class="language-python">from transformers import pipeline
+
+classifier = pipeline("sentiment-analysis")
+result = classifier("Transformers completely changed deep learning.")
+print(result)</code></pre>
+                        <p>This one-liner loads a pretrained transformer model and performs sentiment analysis instantly — showing the power and accessibility of modern NLP.</p>
+
+                        <h2>Transformer Applications</h2>
+                        <ul>
+                            <li><strong>Natural Language Processing:</strong> translation, summarization, sentiment analysis.</li>
+                            <li><strong>Computer Vision:</strong> Vision Transformers (ViT) model image patches as tokens.</li>
+                            <li><strong>Speech and Audio:</strong> used in ASR and music generation.</li>
+                            <li><strong>Multimodal AI:</strong> models like CLIP and DALL-E combine text and images.</li>
+                            <li><strong>Biology and Chemistry:</strong> predicting protein structures and molecular properties.</li>
+                        </ul>
+
+                        <h2>Advantages of Transformers</h2>
+                        <ul>
+                            <li>Parallelizable training — no sequential dependencies.</li>
+                            <li>Handles long-range dependencies effectively.</li>
+                            <li>Scales easily with data and model size.</li>
+                            <li>Flexible across domains (text, images, audio, multimodal).</li>
+                        </ul>
+
+                        <h2>Limitations</h2>
+                        <ul>
+                            <li>Computationally expensive (especially self-attention for long sequences).</li>
+                            <li>Requires massive datasets for pretraining.</li>
+                            <li>Less interpretable than simpler architectures.</li>
+                        </ul>
+
+                        <h2>Key Takeaways</h2>
+                        <ul>
+                            <li><strong>Self-attention</strong> allows models to relate all tokens simultaneously, replacing RNNs.</li>
+                            <li><strong>Multi-head attention</strong> captures diverse relationships in parallel.</li>
+                            <li>Transformers are the foundation for most state-of-the-art NLP and vision models.</li>
+                            <li>The architecture's scalability and adaptability made it the universal deep learning backbone.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI & Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing large-scale distributed systems. Specialized in Generative AI, AI Agents, and cloud-native architectures.</p>
+                        <div class="sidebar-author-links">
+                            <a href="https://www.linkedin.com/in/paolo-mascia-italy" target="_blank" aria-label="LinkedIn">
+                                <svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                            </a>
+                            <a href="https://github.com/paolomascia" target="_blank" aria-label="GitHub">
+                                <svg viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+                            </a>
+                            <a href="https://www.kaggle.com/paolomascia" target="_blank" aria-label="Kaggle">
+                                <svg viewBox="0 0 24 24"><path d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.233-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.075.378z"/></svg>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="post-rnn.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">RNN</span>
+                            <div class="sidebar-link-title">Recurrent Neural Networks (RNNs): Learning from Sequences</div>
+                            <span class="sidebar-link-meta">Apr 2025</span>
+                        </a>
+                        <a href="post-cnn.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">CNN</span>
+                            <div class="sidebar-link-title">Convolutional Neural Networks (CNNs): The Brains Behind Computer Vision</div>
+                            <span class="sidebar-link-meta">Jan 2025</span>
+                        </a>
+                        <a href="post-autoencoders.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Autoencoders</span>
+                            <div class="sidebar-link-title">Autoencoders: Learning Efficient Data Representations</div>
+                            <span class="sidebar-link-meta">Dec 2024</span>
+                        </a>
+                        <a href="post-rag.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">RAG</span>
+                            <div class="sidebar-link-title">Retrieval-Augmented Generation (RAG)</div>
+                            <span class="sidebar-link-meta">Feb 2025</span>
+                        </a>
+                        <a href="post-pca.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">PCA</span>
+                            <div class="sidebar-link-title">Principal Component Analysis (PCA) in Python</div>
+                            <span class="sidebar-link-meta">May 2024</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+</body>
+</html>

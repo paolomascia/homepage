@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calling REST APIs in Go &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="golang-tech-insights.html" class="back-link">&larr; Back to Go Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Nov 2023</span>
+                            <span class="post-reading">12 min read</span>
+                        </div>
+                        <h1>Calling REST APIs in Go</h1>
+                        <div class="post-tags">
+                            <span>Go</span>
+                            <span>REST API</span>
+                            <span>HTTP Client</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Modern applications frequently need to interact with external REST APIs. Go provides built-in support through the <code>net/http</code> package for making HTTP requests, handling responses, and implementing various authentication methods including Basic Auth, Bearer Token, and API Key authentication.</p>
+
+                        <h2>Making a Simple GET Request</h2>
+
+                        <p>The simplest way to call a REST API is with <code>http.Get()</code>. This sends a GET request and returns the response.</p>
+
+<pre><code class="language-go">package main
+
+import (
+    "fmt"
+    "io/ioutil"
+    "net/http"
+)
+
+func main() {
+    resp, err := http.Get("https://api.github.com")
+    if err != nil {
+        fmt.Println("Error:", err)
+        return
+    }
+    defer resp.Body.Close()
+
+    body, _ := ioutil.ReadAll(resp.Body)
+    fmt.Println(string(body))
+}</code></pre>
+
+                        <p><strong>Key point:</strong> Always close response bodies with <code>defer resp.Body.Close()</code> to free network resources.</p>
+
+                        <h2>Sending a POST Request with JSON</h2>
+
+                        <p>This section shows creating requests with <code>http.NewRequest()</code> and encoding Go structs using <code>json.Marshal()</code>.</p>
+
+<pre><code class="language-go">package main
+
+import (
+    "bytes"
+    "encoding/json"
+    "fmt"
+    "net/http"
+)
+
+type Message struct {
+    Title string `json:"title"`
+    Body  string `json:"body"`
+}
+
+func main() {
+    msg := Message{Title: "Hello", Body: "Go REST client"}
+    jsonData, _ := json.Marshal(msg)
+
+    req, _ := http.NewRequest("POST", "https://jsonplaceholder.typicode.com/posts", bytes.NewBuffer(jsonData))
+    req.Header.Set("Content-Type", "application/json")
+
+    client := &amp;http.Client{}
+    resp, err := client.Do(req)
+    if err != nil {
+        fmt.Println("Error:", err)
+        return
+    }
+    defer resp.Body.Close()
+
+    fmt.Println("Status:", resp.Status)
+}</code></pre>
+
+                        <h2>Handling HTTP Headers</h2>
+
+                        <p>Headers pass metadata like authentication credentials and content type. They&rsquo;re set using the <code>http.Request</code> object:</p>
+
+<pre><code class="language-go">req.Header.Set("Accept", "application/json")
+req.Header.Set("User-Agent", "Go-Client/1.0")</code></pre>
+
+                        <h2>Basic Authentication</h2>
+
+                        <p>The <code>SetBasicAuth()</code> method encodes username and password in Base64:</p>
+
+<pre><code class="language-go">package main
+
+import (
+    "fmt"
+    "net/http"
+)
+
+func main() {
+    req, _ := http.NewRequest("GET", "https://api.example.com/secure", nil)
+    req.SetBasicAuth("username", "password")
+
+    client := &amp;http.Client{}
+    resp, err := client.Do(req)
+    if err != nil {
+        fmt.Println("Error:", err)
+        return
+    }
+    defer resp.Body.Close()
+
+    fmt.Println("Response Status:", resp.Status)
+}</code></pre>
+
+                        <h2>Bearer Token Authentication (OAuth2 / JWT)</h2>
+
+                        <p>Bearer tokens are included in the Authorization header. This is the most common authentication method for modern APIs using OAuth2 or JWT.</p>
+
+<pre><code class="language-go">req, _ := http.NewRequest("GET", "https://api.example.com/data", nil)
+req.Header.Set("Authorization", "Bearer YOUR_ACCESS_TOKEN")</code></pre>
+
+                        <p>Store tokens in environment variables or secret managers &mdash; never hard-code them in source code.</p>
+
+                        <h2>API Key Authentication</h2>
+
+                        <p>API keys can be provided in headers or query parameters:</p>
+
+                        <p>As a header:</p>
+
+<pre><code class="language-go">req, _ := http.NewRequest("GET", "https://api.example.com/items", nil)
+req.Header.Set("X-API-Key", "YOUR_API_KEY")</code></pre>
+
+                        <p>Or as a query parameter:</p>
+
+<pre><code class="language-go">req, _ := http.NewRequest("GET", "https://api.example.com/items?api_key=YOUR_API_KEY", nil)</code></pre>
+
+                        <h2>Handling JSON Responses</h2>
+
+                        <p>Use <code>json.NewDecoder()</code> to decode responses directly into Go structs:</p>
+
+<pre><code class="language-go">package main
+
+import (
+    "encoding/json"
+    "fmt"
+    "net/http"
+)
+
+type Todo struct {
+    UserID int    `json:"userId"`
+    ID     int    `json:"id"`
+    Title  string `json:"title"`
+    Done   bool   `json:"completed"`
+}
+
+func main() {
+    resp, _ := http.Get("https://jsonplaceholder.typicode.com/todos/1")
+    defer resp.Body.Close()
+
+    var todo Todo
+    json.NewDecoder(resp.Body).Decode(&amp;todo)
+
+    fmt.Printf("Task: %s (Done: %v)\n", todo.Title, todo.Done)
+}</code></pre>
+
+                        <h2>Best Practices for REST API Calls in Go</h2>
+
+                        <ul>
+                            <li><strong>Reuse a single <code>http.Client</code></strong> for multiple requests for efficient connection pooling.</li>
+                            <li><strong>Always close response bodies</strong> with <code>defer resp.Body.Close()</code>.</li>
+                            <li><strong>Use timeouts</strong> to prevent hanging requests: <code>http.Client{Timeout: 10 * time.Second}</code>.</li>
+                            <li><strong>Keep secrets out of code</strong> &mdash; store them securely in environment variables or secret managers.</li>
+                            <li><strong>Handle HTTP status codes explicitly</strong> by checking <code>resp.StatusCode</code>.</li>
+                        </ul>
+
+                        <h2>Conclusion</h2>
+
+                        <p>Go&rsquo;s <code>net/http</code> package provides comprehensive tools for working with REST APIs, whether you&rsquo;re making GET or POST requests, handling JSON, or implementing authentication methods. The standard library gives you everything you need to build robust HTTP clients without requiring third-party dependencies.</p>
+                    </div>
+                </div>
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="go-goroutines.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Goroutines</div>
+                            <span class="sidebar-link-meta">Jan 2024</span>
+                        </a>
+                        <a href="go-error-handling.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Error Handling in Go</div>
+                            <span class="sidebar-link-meta">May 2024</span>
+                        </a>
+                        <a href="go-scheduler-internals.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Go Scheduler Internals</div>
+                            <span class="sidebar-link-meta">Jul 2025</span>
+                        </a>
+                        <a href="go-zero-copy-io.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Zero-Copy I/O and Memory Efficiency in Go</div>
+                            <span class="sidebar-link-meta">Aug 2024</span>
+                        </a>
+                        <a href="go-goroutine-leaks.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Detecting and Preventing Goroutine Leaks</div>
+                            <span class="sidebar-link-meta">Sep 2025</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+
+</body>
+</html>

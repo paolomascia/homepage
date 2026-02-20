@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Polynomial Regression in Python &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="ai-tech-insights.html" class="back-link">&larr; Back to Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Sep 2023</span>
+                            <span class="post-reading">12 min read</span>
+                        </div>
+                        <h1>Polynomial Regression in Python</h1>
+                        <div class="post-tags">
+                            <span>Polynomial</span>
+                            <span>Regression</span>
+                            <span>Scikit-Learn</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+
+                        <p class="lead">Polynomial regression extends ordinary linear regression by adding powers and interaction terms of the original features. The model remains <strong>linear in its parameters</strong> &mdash; it is still solved with the same least-squares machinery &mdash; but it can capture curved, non-linear relationships between features and target. This makes it one of the simplest ways to model curvature without leaving the familiar linear regression framework.</p>
+
+                        <p>In this guide we will cover the mechanics of polynomial regression, how to choose the degree, how regularization tames high-degree models, how to build multi-feature pipelines with interaction terms, how to diagnose model quality, and the pitfalls you need to watch out for. By the end you will have a reusable end-to-end template for your own projects.</p>
+
+                        <!-- Section 1 -->
+                        <h2>What Polynomial Regression Is</h2>
+
+                        <p>Standard linear regression fits a model of the form <code>y = b0 + b1*x</code>. Polynomial regression extends this by adding higher-order terms:</p>
+
+                        <ul>
+                            <li><strong>Degree 2:</strong> <code>y = b0 + b1*x + b2*x&sup2;</code></li>
+                            <li><strong>Degree 3:</strong> <code>y = b0 + b1*x + b2*x&sup2; + b3*x&sup3;</code></li>
+                            <li><strong>Degree d:</strong> <code>y = b0 + b1*x + b2*x&sup2; + ... + bd*x^d</code></li>
+                        </ul>
+
+                        <p>The key insight is that this is still a linear model &mdash; linear in the <em>parameters</em> (the b coefficients), not in the features. We simply create new features (x&sup2;, x&sup3;, ...) and feed them into ordinary linear regression. Scikit-Learn&rsquo;s <code>PolynomialFeatures</code> transformer handles this feature engineering automatically.</p>
+
+                        <pre><code class="language-python">from sklearn.preprocessing import PolynomialFeatures
+import numpy as np
+
+X = np.array([[2], [3], [4]])
+
+# Degree 2: creates [1, x, x^2]
+poly = PolynomialFeatures(degree=2, include_bias=False)
+X_poly = poly.fit_transform(X)
+print(X_poly)
+# [[  2.   4.]
+#  [  3.   9.]
+#  [  4.  16.]]
+
+print(poly.get_feature_names_out())
+# ['x0', 'x0^2']</code></pre>
+
+                        <p>With multiple input features, <code>PolynomialFeatures</code> also generates all cross-terms (interactions). For two features x1 and x2 at degree 2, you get: <code>[x1, x2, x1&sup2;, x1*x2, x2&sup2;]</code>.</p>
+
+                        <!-- Section 2 -->
+                        <h2>Why Use Polynomial Regression</h2>
+
+                        <p>Polynomial regression is useful when:</p>
+
+                        <ul>
+                            <li><strong>The relationship has curvature:</strong> a scatter plot shows a clear curve that a straight line cannot capture.</li>
+                            <li><strong>You want to stay within the linear regression framework:</strong> polynomial features keep the model interpretable and solvable with closed-form OLS or standard gradient descent.</li>
+                            <li><strong>Interactions matter:</strong> the effect of one feature depends on the value of another, and polynomial features naturally capture these interactions.</li>
+                            <li><strong>You need a quick baseline:</strong> before reaching for complex models like neural networks or gradient boosting, polynomial regression can tell you how much curvature exists in your data.</li>
+                        </ul>
+
+                        <blockquote>Polynomial regression is the bridge between simple linear regression and fully non-parametric methods. It captures curvature while remaining linear in its parameters, which means you get closed-form solutions, straightforward confidence intervals, and all the statistical machinery of linear regression.</blockquote>
+
+                        <!-- Section 3 -->
+                        <h2>Bias&ndash;Variance Tradeoff</h2>
+
+                        <p>The degree of the polynomial controls the bias&ndash;variance tradeoff:</p>
+
+                        <ul>
+                            <li><strong>Low degree (underfitting):</strong> the model is too simple to capture the underlying pattern. High bias, low variance.</li>
+                            <li><strong>Right degree:</strong> the model captures the true relationship without fitting noise. Balanced bias and variance.</li>
+                            <li><strong>High degree (overfitting):</strong> the model fits the training noise, producing wild oscillations between data points. Low bias, high variance.</li>
+                        </ul>
+
+                        <pre><code class="language-python">import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.linear_model import LinearRegression
+from sklearn.pipeline import Pipeline
+from sklearn.metrics import mean_squared_error
+
+# Generate data with a quadratic relationship
+np.random.seed(42)
+X = np.sort(np.random.uniform(0, 5, 50)).reshape(-1, 1)
+y = 0.5 * X.ravel()**2 - 2 * X.ravel() + 3 + np.random.normal(0, 1, 50)
+
+fig, axes = plt.subplots(1, 3, figsize=(15, 4))
+X_plot = np.linspace(0, 5, 200).reshape(-1, 1)
+
+for ax, degree in zip(axes, [1, 2, 10]):
+    pipe = Pipeline([
+        ('poly', PolynomialFeatures(degree=degree, include_bias=False)),
+        ('lr', LinearRegression())
+    ])
+    pipe.fit(X, y)
+    y_plot = pipe.predict(X_plot)
+    mse = mean_squared_error(y, pipe.predict(X))
+
+    ax.scatter(X, y, alpha=0.5, s=20, label='Data')
+    ax.plot(X_plot, y_plot, color='red', linewidth=2, label=f'Degree {degree}')
+    ax.set_title(f'Degree {degree} (Train MSE = {mse:.2f})')
+    ax.legend(fontsize=8)
+    ax.set_ylim(-5, 20)
+
+plt.tight_layout()
+plt.show()</code></pre>
+
+                        <p>In this example, degree 1 misses the curvature, degree 2 fits the true quadratic relationship, and degree 10 produces wild oscillations at the boundaries. The degree-2 model has the best generalization despite not having the lowest training error.</p>
+
+                        <!-- Section 4 -->
+                        <h2>Simple 1-D Example: Degrees 1 Through 3</h2>
+
+                        <p>Let us build polynomial regression models step by step, comparing degrees 1, 2, and 3 on a single feature:</p>
+
+                        <pre><code class="language-python">import numpy as np
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.linear_model import LinearRegression
+from sklearn.pipeline import Pipeline
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_absolute_error, r2_score
+
+# Generate synthetic data with a cubic relationship
+np.random.seed(42)
+X = np.sort(np.random.uniform(-3, 3, 200)).reshape(-1, 1)
+y = 0.3 * X.ravel()**3 - X.ravel()**2 + 2 * X.ravel() + np.random.normal(0, 2, 200)
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Compare degrees
+results = []
+for degree in [1, 2, 3]:
+    pipe = Pipeline([
+        ('poly', PolynomialFeatures(degree=degree, include_bias=False)),
+        ('lr', LinearRegression())
+    ])
+    pipe.fit(X_train, y_train)
+    y_pred = pipe.predict(X_test)
+
+    mae = mean_absolute_error(y_test, y_pred)
+    r2 = r2_score(y_test, y_pred)
+    results.append((degree, mae, r2))
+
+    # Print coefficients
+    coeffs = pipe.named_steps['lr'].coef_
+    intercept = pipe.named_steps['lr'].intercept_
+    print(f"\nDegree {degree}:")
+    print(f"  Intercept: {intercept:.4f}")
+    print(f"  Coefficients: {coeffs}")
+    print(f"  MAE: {mae:.4f}, R&sup2;: {r2:.4f}")
+
+# Summary
+print("\n--- Summary ---")
+print(f"{'Degree':>6} {'MAE':>8} {'R&sup2;':>8}")
+for degree, mae, r2 in results:
+    print(f"{degree:>6} {mae:>8.4f} {r2:>8.4f}")</code></pre>
+
+                        <p>You should see that degree 3 fits best because the true generating function is cubic. Degree 1 underfits (cannot capture curvature), degree 2 captures the quadratic component but misses the cubic term, and degree 3 captures the full shape.</p>
+
+                        <!-- Section 5 -->
+                        <h2>Selecting Degree with Cross-Validation</h2>
+
+                        <p>In practice, you do not know the true degree. Cross-validation is the principled way to choose it:</p>
+
+                        <pre><code class="language-python">import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.linear_model import LinearRegression
+from sklearn.pipeline import Pipeline
+from sklearn.model_selection import cross_val_score
+
+degrees = range(1, 12)
+cv_scores = []
+
+for degree in degrees:
+    pipe = Pipeline([
+        ('poly', PolynomialFeatures(degree=degree, include_bias=False)),
+        ('lr', LinearRegression())
+    ])
+    scores = cross_val_score(pipe, X_train, y_train, cv=5, scoring='neg_mean_squared_error')
+    cv_scores.append(-scores.mean())
+
+best_degree = degrees[np.argmin(cv_scores)]
+print(f"Best degree: {best_degree}")
+print(f"Best CV MSE: {min(cv_scores):.4f}")
+
+# Plot
+plt.figure(figsize=(8, 4))
+plt.plot(list(degrees), cv_scores, marker='o', markersize=5)
+plt.xlabel('Polynomial Degree')
+plt.ylabel('Mean Squared Error (CV)')
+plt.title('Selecting Polynomial Degree with Cross-Validation')
+plt.axvline(x=best_degree, color='red', linestyle='--', label=f'Best degree = {best_degree}')
+plt.legend()
+plt.tight_layout()
+plt.show()</code></pre>
+
+                        <p>The CV error typically drops as you increase degree (capturing more curvature), reaches a minimum, then rises as overfitting kicks in. Choose the degree at the minimum &mdash; or the simplest degree within one standard error of the minimum, following the &ldquo;one-SE rule.&rdquo;</p>
+
+                        <!-- Section 6 -->
+                        <h2>Regularization with Ridge for High-Degree Polynomials</h2>
+
+                        <p>When you use a high polynomial degree, the coefficients can become very large, leading to wild oscillations. <strong>Ridge regression</strong> (L2 regularization) shrinks the coefficients toward zero, stabilizing the model even with many polynomial features.</p>
+
+                        <pre><code class="language-python">from sklearn.preprocessing import PolynomialFeatures, StandardScaler
+from sklearn.linear_model import Ridge, RidgeCV
+from sklearn.pipeline import Pipeline
+from sklearn.model_selection import cross_val_score
+import numpy as np
+
+# High-degree polynomial without regularization &mdash; overfits
+pipe_no_reg = Pipeline([
+    ('poly', PolynomialFeatures(degree=10, include_bias=False)),
+    ('scaler', StandardScaler()),
+    ('lr', LinearRegression())
+])
+score_no_reg = cross_val_score(pipe_no_reg, X_train, y_train, cv=5, scoring='r2').mean()
+
+# Same degree with Ridge regularization &mdash; much better
+pipe_ridge = Pipeline([
+    ('poly', PolynomialFeatures(degree=10, include_bias=False)),
+    ('scaler', StandardScaler()),
+    ('ridge', Ridge(alpha=1.0))
+])
+score_ridge = cross_val_score(pipe_ridge, X_train, y_train, cv=5, scoring='r2').mean()
+
+print(f"Degree 10, no regularization: R&sup2; = {score_no_reg:.4f}")
+print(f"Degree 10, Ridge (alpha=1.0): R&sup2; = {score_ridge:.4f}")</code></pre>
+
+                        <p>To find the best regularization strength, use <code>RidgeCV</code> which performs efficient leave-one-out cross-validation:</p>
+
+                        <pre><code class="language-python">from sklearn.linear_model import RidgeCV
+
+pipe_ridgecv = Pipeline([
+    ('poly', PolynomialFeatures(degree=10, include_bias=False)),
+    ('scaler', StandardScaler()),
+    ('ridge', RidgeCV(alphas=np.logspace(-4, 4, 50)))
+])
+pipe_ridgecv.fit(X_train, y_train)
+
+best_alpha = pipe_ridgecv.named_steps['ridge'].alpha_
+print(f"Best alpha: {best_alpha:.4f}")
+
+y_pred = pipe_ridgecv.predict(X_test)
+print(f"Test R&sup2;: {r2_score(y_test, y_pred):.4f}")</code></pre>
+
+                        <blockquote>Regularization is the antidote to degree creep. Instead of agonizing over the exact polynomial degree, you can use a moderately high degree (say, 5&ndash;10) and let Ridge or Lasso shrink the unnecessary coefficients toward zero. The regularizer effectively performs automatic model selection.</blockquote>
+
+                        <!-- Section 7 -->
+                        <h2>Learning Curves</h2>
+
+                        <p>Learning curves plot training and validation performance as a function of training set size. They help you diagnose whether your polynomial model is overfitting (high degree, few samples) or underfitting (low degree).</p>
+
+                        <pre><code class="language-python">from sklearn.model_selection import learning_curve
+from sklearn.preprocessing import PolynomialFeatures, StandardScaler
+from sklearn.linear_model import Ridge
+from sklearn.pipeline import Pipeline
+import matplotlib.pyplot as plt
+import numpy as np
+
+pipe = Pipeline([
+    ('poly', PolynomialFeatures(degree=3, include_bias=False)),
+    ('scaler', StandardScaler()),
+    ('ridge', Ridge(alpha=0.1))
+])
+
+train_sizes, train_scores, val_scores = learning_curve(
+    pipe, X_train, y_train,
+    train_sizes=np.linspace(0.1, 1.0, 10),
+    cv=5, scoring='neg_mean_squared_error',
+    n_jobs=-1
+)
+
+train_mse = -train_scores.mean(axis=1)
+val_mse = -val_scores.mean(axis=1)
+
+plt.figure(figsize=(8, 5))
+plt.plot(train_sizes, train_mse, 'o-', label='Training MSE')
+plt.plot(train_sizes, val_mse, 'o-', label='Validation MSE')
+plt.xlabel('Training Set Size')
+plt.ylabel('Mean Squared Error')
+plt.title('Learning Curve &mdash; Polynomial Degree 3 + Ridge')
+plt.legend()
+plt.tight_layout()
+plt.show()</code></pre>
+
+                        <p>What to look for:</p>
+                        <ul>
+                            <li><strong>Large gap between training and validation:</strong> overfitting. Reduce degree, increase regularization, or get more data.</li>
+                            <li><strong>Both curves plateau at high error:</strong> underfitting. Increase degree or add features.</li>
+                            <li><strong>Curves converge at low error:</strong> good fit. The model has found the right complexity.</li>
+                        </ul>
+
+                        <!-- Section 8 -->
+                        <h2>Multiple Features and Interactions</h2>
+
+                        <p>Polynomial features become much more powerful &mdash; and much more numerous &mdash; with multiple input features. For <code>d</code> features at degree <code>p</code>, the number of polynomial terms grows combinatorially.</p>
+
+                        <pre><code class="language-python">from sklearn.preprocessing import PolynomialFeatures
+import numpy as np
+
+# 3 features at degree 2
+X_demo = np.array([[1, 2, 3]])
+poly = PolynomialFeatures(degree=2, include_bias=False)
+X_poly = poly.fit_transform(X_demo)
+print(f"Original features: {X_demo.shape[1]}")
+print(f"Polynomial features: {X_poly.shape[1]}")
+print(f"Feature names: {poly.get_feature_names_out()}")
+# Original features: 3
+# Polynomial features: 9
+# ['x0', 'x1', 'x2', 'x0^2', 'x0 x1', 'x0 x2', 'x1^2', 'x1 x2', 'x2^2']</code></pre>
+
+                        <p>The formula for the number of features is <code>C(d + p, p) - 1</code> (without bias). For 10 features at degree 3, this gives 285 polynomial terms! This is why regularization becomes essential with multiple features.</p>
+
+                        <pre><code class="language-python">import pandas as pd
+import numpy as np
+from sklearn.preprocessing import PolynomialFeatures, StandardScaler
+from sklearn.linear_model import Ridge
+from sklearn.pipeline import Pipeline
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.metrics import mean_absolute_error, r2_score
+
+# Simulated multi-feature dataset
+np.random.seed(42)
+n = 500
+df = pd.DataFrame({
+    'x1': np.random.uniform(0, 10, n),
+    'x2': np.random.uniform(0, 5, n),
+    'x3': np.random.uniform(-2, 2, n),
+})
+# Target with quadratic terms and an interaction
+df['y'] = (
+    3 * df['x1']
+    + 0.5 * df['x1']**2
+    - 2 * df['x2']
+    + 4 * df['x1'] * df['x3']  # interaction term
+    + np.random.normal(0, 5, n)
+)
+
+X = df[['x1', 'x2', 'x3']]
+y = df['y']
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Degree 2 with Ridge
+pipe = Pipeline([
+    ('poly', PolynomialFeatures(degree=2, include_bias=False)),
+    ('scaler', StandardScaler()),
+    ('ridge', Ridge(alpha=1.0))
+])
+
+scores = cross_val_score(pipe, X_train, y_train, cv=5, scoring='r2')
+print(f"R&sup2; (5-fold CV): {scores.mean():.4f} &plusmn; {scores.std():.4f}")
+
+pipe.fit(X_train, y_train)
+y_pred = pipe.predict(X_test)
+print(f"Test R&sup2;: {r2_score(y_test, y_pred):.4f}")
+print(f"Test MAE: {mean_absolute_error(y_test, y_pred):.2f}")</code></pre>
+
+                        <p>If you only want interaction terms without higher powers, use <code>interaction_only=True</code>:</p>
+
+                        <pre><code class="language-python"># Only interactions, no squared terms
+poly_interact = PolynomialFeatures(degree=2, interaction_only=True, include_bias=False)
+X_interact = poly_interact.fit_transform(X_demo)
+print(poly_interact.get_feature_names_out())
+# ['x0', 'x1', 'x2', 'x0 x1', 'x0 x2', 'x1 x2']</code></pre>
+
+                        <!-- Section 9 -->
+                        <h2>From-Scratch Vandermonde Matrix Fit</h2>
+
+                        <p>To understand what Scikit-Learn is doing under the hood, let us implement polynomial regression from scratch using a Vandermonde matrix. For a single feature, the Vandermonde matrix has columns <code>[1, x, x&sup2;, ..., x^d]</code>.</p>
+
+                        <pre><code class="language-python">import numpy as np
+
+# Generate data
+np.random.seed(42)
+x = np.sort(np.random.uniform(0, 5, 30))
+y = 0.5 * x**2 - 2 * x + 3 + np.random.normal(0, 1, 30)
+
+# Build the Vandermonde matrix
+degree = 2
+V = np.vander(x, N=degree + 1, increasing=True)
+print(f"Vandermonde matrix shape: {V.shape}")
+print(f"First row: {V[0]}")  # [1, x0, x0^2]
+
+# Solve the normal equations: (V^T V) beta = V^T y
+beta = np.linalg.lstsq(V, y, rcond=None)[0]
+print(f"\nCoefficients (from scratch):")
+print(f"  Intercept: {beta[0]:.4f}")
+print(f"  x^1 coeff: {beta[1]:.4f}")
+print(f"  x^2 coeff: {beta[2]:.4f}")
+
+# Compare with Scikit-Learn
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.linear_model import LinearRegression
+
+poly = PolynomialFeatures(degree=2, include_bias=True)
+X_poly = poly.fit_transform(x.reshape(-1, 1))
+lr = LinearRegression(fit_intercept=False)
+lr.fit(X_poly, y)
+print(f"\nCoefficients (Scikit-Learn):")
+print(f"  {lr.coef_}")
+
+# Predictions
+y_pred_scratch = V @ beta
+y_pred_sklearn = lr.predict(X_poly)
+print(f"\nMax difference: {np.abs(y_pred_scratch - y_pred_sklearn).max():.2e}")</code></pre>
+
+                        <p>The Vandermonde approach is mathematically equivalent to what <code>PolynomialFeatures</code> + <code>LinearRegression</code> does. Understanding this helps you see why scaling matters: the columns of the Vandermonde matrix have vastly different magnitudes (e.g., x vs. x^10), which causes numerical conditioning problems.</p>
+
+                        <!-- Section 10 -->
+                        <h2>Scaling and Numerical Conditioning</h2>
+
+                        <p>Polynomial features amplify scale differences exponentially. If <code>x</code> ranges from 0 to 100, then <code>x^5</code> ranges from 0 to 10 billion. This creates an <strong>ill-conditioned</strong> design matrix, leading to numerically unstable coefficient estimates.</p>
+
+                        <pre><code class="language-python">import numpy as np
+from sklearn.preprocessing import PolynomialFeatures, StandardScaler
+from sklearn.linear_model import LinearRegression
+from sklearn.pipeline import Pipeline
+
+# Large-scale feature
+np.random.seed(42)
+X_large = np.random.uniform(50, 150, (100, 1))
+y_large = 0.01 * X_large.ravel()**2 + np.random.normal(0, 10, 100)
+
+# Without scaling &mdash; potentially unstable
+pipe_no_scale = Pipeline([
+    ('poly', PolynomialFeatures(degree=5, include_bias=False)),
+    ('lr', LinearRegression())
+])
+pipe_no_scale.fit(X_large, y_large)
+print("Coefficients (no scaling):")
+print(pipe_no_scale.named_steps['lr'].coef_)
+
+# With scaling &mdash; numerically stable
+pipe_scaled = Pipeline([
+    ('poly', PolynomialFeatures(degree=5, include_bias=False)),
+    ('scaler', StandardScaler()),
+    ('lr', LinearRegression())
+])
+pipe_scaled.fit(X_large, y_large)
+print("\nCoefficients (with scaling):")
+print(pipe_scaled.named_steps['lr'].coef_)</code></pre>
+
+                        <p>The rule is simple: <strong>always scale after generating polynomial features</strong>. Place the <code>StandardScaler</code> between <code>PolynomialFeatures</code> and the regression model in your pipeline.</p>
+
+                        <pre><code class="language-python"># Recommended pipeline order
+pipe = Pipeline([
+    ('poly', PolynomialFeatures(degree=3, include_bias=False)),
+    ('scaler', StandardScaler()),  # always after poly
+    ('model', Ridge(alpha=1.0))    # regularized regression
+])</code></pre>
+
+                        <!-- Section 11 -->
+                        <h2>Residual Diagnostics</h2>
+
+                        <p>After fitting a polynomial model, inspect the residuals to check whether the model is adequate:</p>
+
+                        <pre><code class="language-python">import matplotlib.pyplot as plt
+import numpy as np
+from scipy import stats
+
+# Fit the model
+pipe.fit(X_train, y_train)
+y_pred = pipe.predict(X_test)
+residuals = y_test - y_pred
+
+fig, axes = plt.subplots(1, 3, figsize=(15, 4))
+
+# 1. Residuals vs Predicted
+axes[0].scatter(y_pred, residuals, alpha=0.5, s=20)
+axes[0].axhline(y=0, color='red', linestyle='--')
+axes[0].set_xlabel('Predicted')
+axes[0].set_ylabel('Residual')
+axes[0].set_title('Residuals vs Predicted')
+
+# 2. Histogram of residuals
+axes[1].hist(residuals, bins=25, edgecolor='black', alpha=0.7)
+axes[1].set_xlabel('Residual')
+axes[1].set_ylabel('Frequency')
+axes[1].set_title('Residual Distribution')
+
+# 3. Q-Q plot
+stats.probplot(residuals, dist="norm", plot=axes[2])
+axes[2].set_title('Q-Q Plot')
+
+plt.tight_layout()
+plt.show()
+
+# Shapiro-Wilk test for normality
+stat, p_value = stats.shapiro(residuals[:50])  # use subset for large n
+print(f"Shapiro-Wilk test: statistic={stat:.4f}, p-value={p_value:.4f}")</code></pre>
+
+                        <p>What to look for:</p>
+                        <ul>
+                            <li><strong>Residuals vs. predicted:</strong> should show no pattern. A curved pattern means you need a higher degree. A fan shape suggests heteroscedasticity.</li>
+                            <li><strong>Histogram:</strong> residuals should be approximately normal and centered at zero.</li>
+                            <li><strong>Q-Q plot:</strong> points should follow the diagonal line. Deviations at the tails indicate non-normality.</li>
+                        </ul>
+
+                        <!-- Section 12 -->
+                        <h2>Common Pitfalls</h2>
+
+                        <h3>1. Extrapolation Danger</h3>
+                        <p>Polynomial models are <strong>notoriously bad at extrapolation</strong>. Outside the training range, polynomial curves diverge wildly &mdash; a degree-3 polynomial will shoot to plus or minus infinity. Never use polynomial regression for predictions far outside the training domain.</p>
+
+                        <pre><code class="language-python">import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.linear_model import LinearRegression
+from sklearn.pipeline import Pipeline
+
+# Fit on [0, 5]
+np.random.seed(42)
+X_train = np.sort(np.random.uniform(0, 5, 50)).reshape(-1, 1)
+y_train = np.sin(X_train.ravel()) + np.random.normal(0, 0.2, 50)
+
+pipe = Pipeline([
+    ('poly', PolynomialFeatures(degree=5, include_bias=False)),
+    ('lr', LinearRegression())
+])
+pipe.fit(X_train, y_train)
+
+# Predict on [-2, 8] &mdash; extrapolation outside [0, 5]
+X_plot = np.linspace(-2, 8, 200).reshape(-1, 1)
+y_plot = pipe.predict(X_plot)
+
+plt.figure(figsize=(8, 4))
+plt.scatter(X_train, y_train, alpha=0.5, s=20, label='Training data')
+plt.plot(X_plot, y_plot, color='red', linewidth=2, label='Degree 5 fit')
+plt.axvspan(-2, 0, alpha=0.1, color='orange', label='Extrapolation zone')
+plt.axvspan(5, 8, alpha=0.1, color='orange')
+plt.legend()
+plt.title('Polynomial Extrapolation Danger')
+plt.tight_layout()
+plt.show()</code></pre>
+
+                        <h3>2. Degree Creep</h3>
+                        <p>It is tempting to keep increasing the degree until training error drops to near zero. Resist this urge. Always validate with cross-validation or a holdout set. A degree-15 polynomial that fits 50 data points perfectly is almost certainly memorizing noise.</p>
+
+                        <h3>3. Numerical Instability</h3>
+                        <p>High-degree polynomials with unscaled features lead to enormous column values in the design matrix, causing floating-point precision issues. The normal equations become ill-conditioned, and coefficients become unreliable. The fix is straightforward: always scale features after polynomial expansion.</p>
+
+                        <h3>4. Feature Explosion with Multiple Variables</h3>
+                        <p>For <code>d</code> features at degree <code>p</code>, the number of terms is <code>C(d+p, p) - 1</code>. With 10 features and degree 4, that is 1,000+ polynomial features. This can cause memory issues, slow training, and severe overfitting. Use regularization (Ridge/Lasso) and consider limiting to <code>interaction_only=True</code> or reducing the degree.</p>
+
+                        <pre><code class="language-python">from sklearn.preprocessing import PolynomialFeatures
+from math import comb
+
+# How many features for d original features at degree p?
+for d in [3, 5, 10, 20]:
+    for p in [2, 3, 4]:
+        n_features = comb(d + p, p) - 1
+        print(f"d={d:>2}, degree={p}: {n_features:>6} features")</code></pre>
+
+                        <h3>5. Forgetting the Intercept</h3>
+                        <p>By default, <code>PolynomialFeatures</code> includes a bias column (column of ones). If you also set <code>fit_intercept=True</code> in the regressor (the default), you end up with a redundant intercept. Either set <code>include_bias=False</code> in <code>PolynomialFeatures</code> (recommended) or set <code>fit_intercept=False</code> in the regressor.</p>
+
+                        <!-- Section 13 -->
+                        <h2>End-to-End Pattern</h2>
+
+                        <p>Here is a complete, copy-paste-ready template for polynomial regression with cross-validated degree selection and regularization:</p>
+
+                        <pre><code class="language-python">import numpy as np
+import pandas as pd
+from sklearn.preprocessing import PolynomialFeatures, StandardScaler
+from sklearn.linear_model import Ridge, RidgeCV
+from sklearn.pipeline import Pipeline
+from sklearn.model_selection import train_test_split, cross_val_score, GridSearchCV
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+
+# ----- 1. Load Data -----
+# df = pd.read_csv('your_data.csv')
+# For demo, generate synthetic data
+np.random.seed(42)
+n = 500
+X = np.random.uniform(-5, 5, (n, 3))
+y = (
+    2 * X[:, 0]**2
+    + 0.5 * X[:, 1]**2
+    - 3 * X[:, 0] * X[:, 2]
+    + X[:, 2]
+    + np.random.normal(0, 5, n)
+)
+feature_names = ['x1', 'x2', 'x3']
+
+# ----- 2. Train/Test Split -----
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+
+# ----- 3. Pipeline -----
+pipe = Pipeline([
+    ('poly', PolynomialFeatures(include_bias=False)),
+    ('scaler', StandardScaler()),
+    ('ridge', Ridge())
+])
+
+# ----- 4. Hyperparameter Search -----
+param_grid = {
+    'poly__degree': [1, 2, 3, 4, 5],
+    'ridge__alpha': np.logspace(-3, 3, 20),
+}
+
+search = GridSearchCV(
+    pipe, param_grid, cv=5,
+    scoring='neg_mean_squared_error',
+    n_jobs=-1, verbose=1
+)
+search.fit(X_train, y_train)
+
+print(f"Best params: {search.best_params_}")
+print(f"Best CV MSE: {-search.best_score_:.4f}")
+
+# ----- 5. Evaluate on Test Set -----
+y_pred = search.predict(X_test)
+print(f"\nTest MAE:  {mean_absolute_error(y_test, y_pred):.4f}")
+print(f"Test RMSE: {np.sqrt(mean_squared_error(y_test, y_pred)):.4f}")
+print(f"Test R&sup2;:   {r2_score(y_test, y_pred):.4f}")
+
+# ----- 6. Inspect Coefficients -----
+best_pipe = search.best_estimator_
+poly_names = best_pipe.named_steps['poly'].get_feature_names_out(feature_names)
+ridge_coefs = best_pipe.named_steps['ridge'].coef_
+
+coef_df = pd.DataFrame({
+    'Feature': poly_names,
+    'Coefficient': ridge_coefs
+}).sort_values('Coefficient', key=abs, ascending=False)
+
+print(f"\nTop 10 coefficients (degree={search.best_params_['poly__degree']}):")
+print(coef_df.head(10).to_string(index=False))</code></pre>
+
+                        <!-- Section 14 -->
+                        <h2>Key Takeaways</h2>
+
+                        <ul>
+                            <li><strong>Polynomial regression is linear regression with engineered features.</strong> You create powers and interactions of the original features, then fit a standard linear model. This captures curvature while keeping the model mathematically tractable.</li>
+                            <li><strong>The degree controls the bias&ndash;variance tradeoff.</strong> Too low = underfitting (misses curvature). Too high = overfitting (fits noise). Use cross-validation to find the right degree.</li>
+                            <li><strong>Regularization is essential for high degrees.</strong> Ridge regression shrinks polynomial coefficients toward zero, preventing the wild oscillations that plague high-degree unregularized models. Use <code>RidgeCV</code> for efficient alpha selection.</li>
+                            <li><strong>Always scale after polynomial expansion.</strong> Polynomial features amplify scale differences exponentially, creating ill-conditioned matrices. Place <code>StandardScaler</code> between <code>PolynomialFeatures</code> and the regressor.</li>
+                            <li><strong>Feature count explodes with multiple variables.</strong> The number of polynomial terms grows combinatorially with both the number of features and the degree. Keep the degree low (2&ndash;3) for multi-feature problems, or use <code>interaction_only=True</code>.</li>
+                            <li><strong>Extrapolation is dangerous.</strong> Polynomial curves diverge wildly outside the training range. Never trust polynomial predictions beyond the domain of your data.</li>
+                            <li><strong>Residual diagnostics validate the model.</strong> Check residuals for patterns, normality, and homoscedasticity. If residuals show curvature, you may need a higher degree or a different model family.</li>
+                            <li><strong>Use pipelines for clean, leak-proof code.</strong> Wrap polynomial expansion, scaling, and regression in a single Pipeline so that all transformations are fitted on training data only.</li>
+                        </ul>
+
+                    </div>
+                </div>
+
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing large-scale distributed systems. Specialized in Generative AI, AI Agents, and cloud-native architectures.</p>
+                        <div class="sidebar-author-links">
+                            <a href="https://www.linkedin.com/in/paolo-mascia-italy" target="_blank" aria-label="LinkedIn">
+                                <svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                            </a>
+                            <a href="https://github.com/paolomascia" target="_blank" aria-label="GitHub">
+                                <svg viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+                            </a>
+                            <a href="https://www.kaggle.com/paolomascia" target="_blank" aria-label="Kaggle">
+                                <svg viewBox="0 0 24 24"><path d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.233-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.075.378z"/></svg>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <ul>
+                            <li><a href="post-simple-linear-regression.html">Simple Linear Regression</a><span class="sidebar-meta">Linear Regression &middot; Feb 2023</span></li>
+                            <li><a href="post-multiple-linear-regression.html">Multiple Linear Regression</a><span class="sidebar-meta">Linear Regression &middot; May 2023</span></li>
+                            <li><a href="post-regularization.html">Regularization: Ridge, Lasso, Elastic Net</a><span class="sidebar-meta">Regularization &middot; Jul 2023</span></li>
+                            <li><a href="post-regression-trees.html">Regression Trees in Python</a><span class="sidebar-meta">Decision Tree &middot; Aug 2023</span></li>
+                            <li><a href="post-logistic-regression.html">Logistic Regression in Python</a><span class="sidebar-meta">Logistic Regression &middot; Jan 2024</span></li>
+                        </ul>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+</body>
+</html>

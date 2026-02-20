@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Messaging Queues in Go &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="golang-tech-insights.html" class="back-link">&larr; Back to Go Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">October 2025</span>
+                            <span class="post-reading">18 min read</span>
+                        </div>
+                        <h1>Messaging Queues in Go</h1>
+                        <div class="post-tags">
+                            <span>Go</span>
+                            <span>RabbitMQ</span>
+                            <span>Kafka</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Messaging queues decouple producers and consumers, smooth traffic spikes, and add resilience with retries. This guide compares two major systems&mdash;RabbitMQ (a broker-based AMQP system) and Apache Kafka (a distributed commit log)&mdash;and shows how to integrate both into production Go services.</p>
+
+                        <h2>Delivery Semantics</h2>
+
+                        <p>Before diving into code, it&rsquo;s important to understand the three delivery guarantees:</p>
+
+                        <ul>
+                            <li><strong>At-most-once:</strong> Process without retry; messages may be lost on failure.</li>
+                            <li><strong>At-least-once:</strong> Manual acks/offset commits; duplicates possible&mdash;requires <strong>idempotent consumers</strong>.</li>
+                            <li><strong>Exactly-once:</strong> Complex; Kafka supports transactional producers with idempotent semantics within limits.</li>
+                        </ul>
+
+                        <h2>RabbitMQ in Go (AMQP 0-9-1)</h2>
+
+                        <p>RabbitMQ is a broker-based AMQP system featuring queues, exchanges, bindings, manual acknowledgments, dead-lettering, and priorities.</p>
+
+                        <h3>Installation</h3>
+
+<pre><code class="language-bash">go get github.com/streadway/amqp</code></pre>
+
+                        <h3>Quick Consumer Example</h3>
+
+<pre><code class="language-go">package main
+
+import (
+    "fmt"
+    "log"
+    "github.com/streadway/amqp"
+)
+
+func main() {
+    conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
+    if err != nil { log.Fatalf("connect: %v", err) }
+    defer conn.Close()
+
+    ch, err := conn.Channel()
+    if err != nil { log.Fatalf("channel: %v", err) }
+    defer ch.Close()
+
+    q, err := ch.QueueDeclare("myqueue", false, false, false, false, nil)
+    if err != nil { log.Fatalf("declare: %v", err) }
+
+    msgs, err := ch.Consume(q.Name, "", true, false, false, false, nil)
+    if err != nil { log.Fatalf("consume: %v", err) }
+
+    forever := make(chan struct{})
+    go func() { for d := range msgs { log.Printf("msg: %s", d.Body) } }()
+    fmt.Println("Waiting for messages...")
+    &lt;-forever
+}</code></pre>
+
+                        <p><strong>Limitation:</strong> Auto-ack risks message loss on consumer crash.</p>
+
+                        <h3>Production-Ready RabbitMQ Consumer</h3>
+
+                        <p>Key features of a production-ready consumer include manual acknowledgments, QoS prefetch control, Dead Letter Queue (DLQ) setup, automatic reconnection, and graceful shutdown.</p>
+
+<pre><code class="language-go">package main
+
+import (
+    "context"
+    "errors"
+    "fmt"
+    "log"
+    "os"
+    "os/signal"
+    "syscall"
+    "time"
+    "github.com/streadway/amqp"
+)
+
+type RabbitCfg struct {
+    URL           string
+    Exchange      string
+    ExchangeType  string
+    Queue         string
+    RoutingKey    string
+    Prefetch      int
+    DLX           string
+    DLQName       string
+}
+
+func main() {
+    cfg := RabbitCfg{
+        URL:          "amqp://guest:guest@localhost:5672/",
+        Exchange:     "events",
+        ExchangeType: "topic",
+        Queue:        "events.q",
+        RoutingKey:   "events.*",
+        Prefetch:     10,
+        DLX:          "events.dlx",
+        DLQName:      "events.dlq",
+    }
+
+    ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+    defer stop()
+
+    for {
+        if err := run(ctx, cfg); err != nil {
+            log.Printf("consumer error: %v (reconnect in 5s)", err)
+            select {
+            case &lt;-ctx.Done():
+                return
+            case &lt;-time.After(5 * time.Second):
+            }
+        } else {
+            return
+        }
+    }
+}
+
+func run(ctx context.Context, cfg RabbitCfg) error {
+    conn, err := amqp.Dial(cfg.URL)
+    if err != nil { return fmt.Errorf("dial: %w", err) }
+    defer conn.Close()
+
+    ch, err := conn.Channel()
+    if err != nil { return fmt.Errorf("channel: %w", err) }
+    defer ch.Close()
+
+    // DLX + DLQ setup
+    if err := ch.ExchangeDeclare(cfg.DLX, "fanout", true, false, false, false, nil); err != nil {
+        return fmt.Errorf("declare dlx: %w", err)
+    }
+    if _, err := ch.QueueDeclare(cfg.DLQName, true, false, false, false, nil); err != nil {
+        return fmt.Errorf("declare dlq: %w", err)
+    }
+    if err := ch.QueueBind(cfg.DLQName, "", cfg.DLX, false, nil); err != nil {
+        return fmt.Errorf("bind dlq: %w", err)
+    }
+
+    // Main exchange/queue
+    if err := ch.ExchangeDeclare(cfg.Exchange, cfg.ExchangeType, true, false, false, false, nil); err != nil {
+        return fmt.Errorf("declare exchange: %w", err)
+    }
+    args := amqp.Table{
+        "x-dead-letter-exchange": cfg.DLX,
+    }
+    q, err := ch.QueueDeclare(cfg.Queue, true, false, false, false, args)
+    if err != nil { return fmt.Errorf("declare queue: %w", err) }
+    if err := ch.QueueBind(q.Name, cfg.RoutingKey, cfg.Exchange, false, nil); err != nil {
+        return fmt.Errorf("bind: %w", err)
+    }
+
+    if err := ch.Qos(cfg.Prefetch, 0, false); err != nil {
+        return fmt.Errorf("qos: %w", err)
+    }
+
+    deliveries, err := ch.Consume(q.Name, "", false, false, false, false, nil)
+    if err != nil { return fmt.Errorf("consume: %w", err) }
+
+    for {
+        select {
+        case &lt;-ctx.Done():
+            return nil
+        case d, ok := &lt;-deliveries:
+            if !ok {
+                return errors.New("deliveries closed")
+            }
+            if err := handleMessage(d.Body); err != nil {
+                log.Printf("handler err: %v; nacking requeue=false", err)
+                _ = d.Nack(false, false)
+                continue
+            }
+            _ = d.Ack(false)
+        }
+    }
+}
+
+func handleMessage(b []byte) error {
+    log.Printf("processing: %s", string(b))
+    if string(b) == "bad" { return fmt.Errorf("bad message") }
+    return nil
+}</code></pre>
+
+                        <h3>Best Practices for RabbitMQ</h3>
+
+                        <ul>
+                            <li><strong>Durability:</strong> Declare queues with <code>durable=true</code>; publish with <code>DeliveryMode=2</code> for persistent messages.</li>
+                            <li><strong>Manual acks</strong> with <strong>QoS prefetch</strong> to control concurrency.</li>
+                            <li><strong>DLQ:</strong> Reject with <code>Nack requeue=false</code> to route poisoned messages.</li>
+                            <li><strong>Reconnect loop:</strong> Wrap with retry logic for connection/channel closures.</li>
+                            <li><strong>Idempotency:</strong> Use unique message keys and deduplicate before side effects.</li>
+                        </ul>
+
+                        <h3>Publisher Confirms</h3>
+
+<pre><code class="language-go">ch.Confirm(false)
+acks := ch.NotifyPublish(make(chan amqp.Confirmation, 1))
+err = ch.Publish("events", "events.user", false, false, amqp.Publishing{
+    DeliveryMode: amqp.Persistent,
+    ContentType:  "application/json",
+    Body:         []byte(`{"id":123}`),
+})
+if err != nil { /* handle */ }
+conf := &lt;-acks
+if !conf.Ack { /* handle negative confirm */ }</code></pre>
+
+                        <h2>Apache Kafka in Go</h2>
+
+                        <p>Kafka organizes data into <strong>topics</strong> split across <strong>partitions</strong>. Consumers join a <strong>group</strong>; Kafka assigns partitions, with each partition processed sequentially by a single group member.</p>
+
+                        <h3>Common Go Clients</h3>
+
+                        <ul>
+                            <li><strong>kafka-go</strong> (segmentio): Idiomatic, familiar to stdlib users.</li>
+                            <li><strong>Sarama</strong> (Shopify): Mature, extensive features.</li>
+                        </ul>
+
+                        <h3>Installation</h3>
+
+<pre><code class="language-bash">go get github.com/segmentio/kafka-go
+# or
+go get github.com/Shopify/sarama</code></pre>
+
+                        <h3>Kafka Consumer with kafka-go</h3>
+
+<pre><code class="language-go">package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+    "os"
+    "os/signal"
+    "syscall"
+    "time"
+    "github.com/segmentio/kafka-go"
+)
+
+func main() {
+    ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+    defer stop()
+
+    reader := kafka.NewReader(kafka.ReaderConfig{
+        Brokers:           []string{"localhost:9092"},
+        GroupID:           "email-worker",
+        Topic:             "emails",
+        MinBytes:          10e3,
+        MaxBytes:          10e6,
+        CommitInterval:    0,
+        StartOffset:       kafka.FirstOffset,
+        HeartbeatInterval: 3 * time.Second,
+        SessionTimeout:    30 * time.Second,
+        RebalanceTimeout:  30 * time.Second,
+    })
+    defer reader.Close()
+
+    for {
+        m, err := reader.ReadMessage(ctx)
+        if err != nil {
+            if err == context.Canceled { break }
+            log.Printf("read error: %v", err)
+            continue
+        }
+
+        if err := handle(m); err != nil {
+            log.Printf("handler error: %v (key=%s, offset=%d)", err, string(m.Key), m.Offset)
+            continue
+        }
+    }
+
+    fmt.Println("shutdown")
+}
+
+func handle(m kafka.Message) error {
+    log.Printf("topic=%s partition=%d offset=%d key=%s value=%s",
+        m.Topic, m.Partition, m.Offset, string(m.Key), string(m.Value))
+    return nil
+}</code></pre>
+
+                        <p><strong>Notes:</strong></p>
+                        <ul>
+                            <li><code>CommitInterval=0</code>: Per-message commits (safer, slower).</li>
+                            <li>On handler error, avoid committing to trigger redelivery.</li>
+                            <li>Optionally send to DLQ topic after N failures.</li>
+                        </ul>
+
+                        <h3>Kafka Consumer with Sarama</h3>
+
+<pre><code class="language-go">package main
+
+import (
+    "context"
+    "log"
+    "os"
+    "os/signal"
+    "syscall"
+    "github.com/Shopify/sarama"
+)
+
+type consumerGroupHandler struct{}
+
+func (consumerGroupHandler) Setup(s sarama.ConsumerGroupSession) error   { return nil }
+func (consumerGroupHandler) Cleanup(s sarama.ConsumerGroupSession) error { return nil }
+func (consumerGroupHandler) ConsumeClaim(s sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
+    for msg := range claim.Messages() {
+        if err := handle(msg); err != nil {
+            continue
+        }
+        s.MarkMessage(msg, "")
+    }
+    return nil
+}
+
+func handle(m *sarama.ConsumerMessage) error {
+    log.Printf("topic=%s partition=%d offset=%d key=%s value=%s",
+        m.Topic, m.Partition, m.Offset, string(m.Key), string(m.Value))
+    return nil
+}
+
+func main() {
+    cfg := sarama.NewConfig()
+    cfg.Version = sarama.V3_5_0_0
+    cfg.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategyRange
+    cfg.Consumer.Offsets.Initial = sarama.OffsetNewest
+    cfg.Consumer.Return.Errors = true
+
+    group, err := sarama.NewConsumerGroup([]string{"localhost:9092"}, "email-worker", cfg)
+    if err != nil { panic(err) }
+    defer group.Close()
+
+    ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+    defer stop()
+
+    go func() {
+        for err := range group.Errors() {
+            log.Printf("group error: %v", err)
+        }
+    }()
+
+    handler := consumerGroupHandler{}
+    topics := []string{"emails"}
+    for {
+        if err := group.Consume(ctx, topics, handler); err != nil {
+            log.Printf("consume error: %v", err)
+        }
+        if ctx.Err() != nil { return }
+    }
+}</code></pre>
+
+                        <h3>Kafka with TLS/SASL</h3>
+
+                        <p><strong>kafka-go example:</strong></p>
+
+<pre><code class="language-go">import "crypto/tls"
+dialer := &amp;kafka.Dialer{
+    Timeout:       10 * time.Second,
+    DualStack:     true,
+    TLS:           &amp;tls.Config{ /* RootCAs, InsecureSkipVerify:false, etc. */ },
+    SASLMechanism: kafka.Plain{Username: "user", Password: "pass"},
+}
+reader := kafka.NewReader(kafka.ReaderConfig{
+    Brokers: []string{"broker1:9093"},
+    GroupID: "worker",
+    Topic:   "events",
+    Dialer:  dialer,
+})</code></pre>
+
+                        <p><strong>Sarama example:</strong></p>
+
+<pre><code class="language-go">cfg := sarama.NewConfig()
+cfg.Net.TLS.Enable = true
+cfg.Net.TLS.Config = &amp;tls.Config{ /* RootCAs... */ }
+cfg.Net.SASL.Enable = true
+cfg.Net.SASL.Mechanism = sarama.SASLTypePlaintext
+cfg.Net.SASL.User = "user"
+cfg.Net.SASL.Password = "pass"</code></pre>
+
+                        <h2>Retries &amp; Dead Letter Queues</h2>
+
+                        <p><strong>RabbitMQ:</strong> Nack without requeue to send to DLQ; use per-message/per-queue TTL to delay and re-enqueue via retry exchange (exponential backoff using multiple retry queues: 5s, 30s, 5m).</p>
+
+                        <p><strong>Kafka:</strong> Keep consumer simple&mdash;on failure, do not commit. For non-blocking retries, produce to a <code>retries</code> topic with delay mechanism and <code>dlq</code> topic after N attempts (track attempt count in headers).</p>
+
+                        <h2>Idempotency &amp; Exactly-Once Behavior</h2>
+
+                        <ul>
+                            <li>Design handlers to be <strong>idempotent</strong> (check a processed table keyed by message ID; use upsert operations; conditional updates).</li>
+                            <li>For Kafka, &ldquo;exactly-once&rdquo; requires transactional producers + idempotent processing to the sink; complex and bounded&mdash;only adopt if truly necessary.</li>
+                        </ul>
+
+                        <h2>Observability &amp; Operations</h2>
+
+                        <ul>
+                            <li><strong>Log/metrics:</strong> per-topic/queue, lag/backlog, consume rate, processing latency, failures, retry counts, DLQ volume.</li>
+                            <li>Expose a <code>/health</code> endpoint; track last processed offset/seq and last successful time.</li>
+                            <li><strong>Backpressure:</strong> Limit concurrency (goroutines, worker pools), batch when appropriate.</li>
+                        </ul>
+
+                        <h2>Local Development: Docker &amp; Kubernetes</h2>
+
+                        <h3>RabbitMQ (Docker)</h3>
+
+<pre><code class="language-bash">docker run -d --name rabbit -p 5672:5672 -p 15672:15672 rabbitmq:3-management
+# UI on http://localhost:15672 (guest/guest)</code></pre>
+
+                        <h3>Kafka (Docker Compose)</h3>
+
+<pre><code class="language-bash">version: "3.8"
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    ports: ["9092:9092"]
+    environment:
+      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    depends_on: [zookeeper]</code></pre>
+
+                        <h2>Production Checklist</h2>
+
+                        <h3>RabbitMQ</h3>
+                        <ul>
+                            <li>Durable queues</li>
+                            <li>Persistent messages</li>
+                            <li>Manual acks</li>
+                            <li>QoS prefetch</li>
+                            <li>DLQs</li>
+                            <li>Reconnect logic</li>
+                            <li>Publisher confirms</li>
+                        </ul>
+
+                        <h3>Kafka</h3>
+                        <ul>
+                            <li>Consumer groups</li>
+                            <li>Commit after processing</li>
+                            <li>Monitor consumer lag</li>
+                            <li>Handle rebalances</li>
+                            <li>Retry/DLQ topics</li>
+                        </ul>
+
+                        <h3>General</h3>
+                        <ul>
+                            <li>Idempotency for at-least-once</li>
+                            <li>Store processed keys or use upserts</li>
+                            <li>Security: TLS/SASL</li>
+                            <li>Least privilege access</li>
+                            <li>Scaling: partitions (Kafka) and consumer count</li>
+                            <li>Prefetch &amp; concurrency (RabbitMQ)</li>
+                            <li>Observability: logs/metrics/traces</li>
+                            <li>Alarms on DLQ growth and lag</li>
+                            <li>Graceful shutdown: drain loops on SIGTERM; close readers/channels cleanly</li>
+                        </ul>
+                    </div>
+                </div>
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="go-json.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Working with JSON in Go</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-file-handling.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">File Handling in Go</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-http-server.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Creating an HTTP Server</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-logging.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Application Logging in Go</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-generic-data-structures.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Building Generic Data Structures in Go</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+
+</body>
+</html>

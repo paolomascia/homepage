@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IA-32 and Intel 64 ISA Assembly Language (Part 9) &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="cybersecurity-tech-insights.html" class="back-link">&larr; Back to Cybersecurity</a>
+                        <div class="post-meta">
+                            <span class="post-date">Oct 2024</span>
+                            <span class="post-reading">14 min read</span>
+                        </div>
+                        <h1>IA-32 and Intel 64 ISA Assembly Language (Part 9)</h1>
+                        <div class="post-tags">
+                            <span>Assembly</span>
+                            <span>NASM</span>
+                            <span>Control Flow</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">High-level constructs such as <em>for</em>, <em>if/else</em>, and <em>switch</em> do not exist natively in assembly. Instead, developers compose them using comparisons (<code>CMP</code>), flag-sensitive conditional jumps (<code>Jcc</code>), and labels. This post expands each construct with fully annotated NASM examples (Linux x86 32-bit syscall exit shown), explains how the flags drive control flow, and highlights common pitfalls and 64-bit considerations.</p>
+
+                        <h2>Implementing a Loop</h2>
+                        <p>A classic count-down loop uses a register as the loop counter, tests against zero, executes the body, decrements, and jumps back. Below, <code>ECX</code> holds the loop count loaded from <code>counter</code>. The loop continues while <code>ECX != 0</code>.</p>
+
+<pre><code class="language-nasm">section .data
+    counter dd 10          ; initial loop count
+
+section .text
+    global _start
+
+_start:
+    mov  ecx, [counter]    ; ECX = remaining iterations
+
+start_loop:
+    cmp  ecx, 0            ; set ZF if ECX == 0
+    je   end_loop           ; if zero, we're done
+
+    ; --- loop body (work) ---
+    ; ... your code using EAX/EBX/EDX/etc. ...
+    ; avoid clobbering ECX unless reloaded
+
+    dec  ecx               ; ECX = ECX - 1
+    jmp  start_loop
+
+end_loop:
+    ; exit(0) via int 0x80 (Linux 32-bit)
+    mov  eax, 1            ; sys_exit
+    xor  ebx, ebx          ; status = 0
+    int  0x80</code></pre>
+
+                        <p><code>CMP ecx, 0</code> subtracts 0 from <code>ECX</code> and sets flags. <code>JE</code> checks ZF. You can also use <code>TEST ECX, ECX</code> (faster on some CPUs) to set ZF/SF based on ECX without changing ECX.</p>
+
+                        <h3>Variations</h3>
+                        <ul>
+                            <li><strong>Count-up:</strong> initialize <code>ECX = 0</code>, compare against a limit, <code>INC ECX</code>.</li>
+                            <li><strong>While(predicate):</strong> compute predicate flags first, jump to end if false.</li>
+                            <li><strong>Do/while:</strong> execute body once, then test at bottom before looping.</li>
+                        </ul>
+
+                        <h2>Implementing <em>if&ndash;then&ndash;else</em></h2>
+                        <p>Compare a value and branch to the appropriate block. After executing the <em>then</em> part, jump over the <em>else</em> part.</p>
+
+<pre><code class="language-nasm">section .text
+    global _start
+
+_start:
+    mov  eax, 5            ; value under test
+    cmp  eax, 5            ; sets ZF if EAX == 5
+    jne  else_block        ; if not equal, go to else
+
+then_block:
+    ; ... code when (eax == 5) ...
+    jmp  end_if
+
+else_block:
+    ; ... code when (eax != 5) ...
+
+end_if:
+    mov  eax, 1            ; sys_exit
+    xor  ebx, ebx
+    int  0x80</code></pre>
+
+                        <p><strong>Flag choice matters:</strong> after <code>CMP a, b</code>, use signed jumps (<code>JL</code>/<code>JG</code>/...) when treating operands as signed, unsigned jumps (<code>JB</code>/<code>JA</code>/...) for size comparisons.</p>
+
+                        <h2>Implementing a <em>switch</em> Construct</h2>
+                        <p>A straightforward approach chains <code>CMP</code>/<code>JE</code> tests. For dense small ranges, a jump table is more efficient (shown after).</p>
+
+<pre><code class="language-nasm">section .text
+    global _start
+
+_start:
+    mov  eax, 2            ; switch (EAX)
+
+    cmp  eax, 1
+    je   case_1
+    cmp  eax, 2
+    je   case_2
+    cmp  eax, 3
+    je   case_3
+    jmp  default_case
+
+case_1:
+    ; ... case 1 ...
+    jmp  end_switch
+
+case_2:
+    ; ... case 2 ...
+    jmp  end_switch
+
+case_3:
+    ; ... case 3 ...
+    jmp  end_switch
+
+default_case:
+    ; ... default ...
+
+end_switch:
+    ; fall-through after switch</code></pre>
+
+                        <h3>Jump Table (Dense Keys, Faster)</h3>
+                        <p>If cases are 0..N, use an index to jump via an address table. Guard out-of-range first.</p>
+
+<pre><code class="language-nasm">section .rodata
+jt:
+    dd  case0, case1, case2, default_case  ; addresses (32-bit)
+
+section .text
+; assume EAX in 0..3
+cmp  eax, 3
+ja   default_case
+jmp  dword [jt + eax*4]   ; indirect jump via table
+
+case0: ; ...
+case1: ; ...
+case2: ; ...
+default_case: ; ...</code></pre>
+
+                        <h2>Arrays in Assembly</h2>
+                        <p>Arrays are contiguous memory blocks. Use <code>db</code>/<code>dw</code>/<code>dd</code>/<code>dq</code> based on element size. Compute addresses by <code>base + index*elem_size + displacement</code>.</p>
+
+<pre><code class="language-nasm">section .data
+    int_array  dd 10, 20, 30, 40, 50   ; 5 x 32-bit ints
+    array_size equ 5
+
+section .text
+    global _start
+
+_start:
+    ; direct addressing by byte offset
+    mov  eax, [int_array]        ; 1st (offset 0)
+    mov  ebx, [int_array + 4]    ; 2nd (offset 4)
+    mov  ecx, [int_array + 8]    ; 3rd (offset 8)
+
+    ; store 99 into 3rd element
+    mov  dword [int_array + 8], 99
+
+    ; iterate by index
+    xor  esi, esi                ; i = 0
+    mov  edi, array_size
+.loop:
+    cmp  esi, edi
+    jge  .done
+    mov  eax, [int_array + esi*4] ; element i (4 bytes each)
+    ; ... process EAX ...
+    inc  esi
+    jmp  .loop
+.done:
+    mov  eax, 1
+    xor  ebx, ebx
+    int  0x80</code></pre>
+
+                        <p>Element-size scaling factors are restricted to 1, 2, 4, or 8. For 64-bit code, prefer RIP-relative addressing: <code>mov eax, [rel int_array + rsi*4]</code>.</p>
+
+                        <h2>Subroutine Parameter Passing (Stack)</h2>
+                        <p>On 32-bit Linux (cdecl), pass arguments right-to-left on the stack. The caller cleans the stack after <code>CALL</code>. Use a frame pointer (<code>EBP</code>) for easy parameter access at positive offsets.</p>
+
+<pre><code class="language-nasm">section .text
+    global _start
+
+_start:
+    ; call sum(10, 20)
+    push dword 20            ; 2nd argument
+    push dword 10            ; 1st argument
+    call sum
+    add  esp, 8              ; pop arguments
+
+    ; exit(result)
+    mov  ebx, eax            ; result in EAX
+    mov  eax, 1
+    int  0x80
+
+; int sum(int a, int b)
+sum:
+    push ebp
+    mov  ebp, esp
+    mov  eax, [ebp + 8]      ; a
+    add  eax, [ebp + 12]     ; a + b
+    pop  ebp
+    ret</code></pre>
+
+                        <h3>64-bit Notes</h3>
+                        <ul>
+                            <li><strong>System V AMD64 (Linux/BSD/macOS):</strong> args in <code>RDI, RSI, RDX, RCX, R8, R9</code>; return in <code>RAX</code>.</li>
+                            <li><strong>Windows x64:</strong> args in <code>RCX, RDX, R8, R9</code>, caller allocates 32-byte shadow space on stack; return in <code>RAX</code>.</li>
+                            <li>Keep stack 16-byte aligned at each <code>CALL</code>.</li>
+                        </ul>
+
+                        <h2>How the Flags Drive Control Flow</h2>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Instruction</th>
+                                    <th>Effect</th>
+                                    <th>Typical Jcc</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><code>CMP a, b</code></td>
+                                    <td>Sets flags as if computing <code>a - b</code></td>
+                                    <td><code>JE/JNE</code> (ZF), <code>JL/JG/JLE/JGE</code> (signed: SF/OF/ZF), <code>JB/JA/JBE/JAE</code> (unsigned: CF/ZF)</td>
+                                </tr>
+                                <tr>
+                                    <td><code>TEST x, x</code></td>
+                                    <td>AND without storing result</td>
+                                    <td><code>JZ/JNZ</code> depending on zero/non-zero</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <h2>Building and Running (Linux Examples)</h2>
+<pre><code class="language-bash"># Assemble to 32-bit object
+nasm -f elf prog.asm -o prog.o
+# Link for 32-bit ELF
+ld -m elf_i386 -o prog prog.o
+./prog</code></pre>
+
+                        <p>On 64-bit Linux, you can still assemble 32-bit but need multilib support. For native 64-bit, switch to <code>-f elf64</code> and use <code>syscall</code> instead of <code>int 0x80</code>.</p>
+
+                        <h2>Common Pitfalls</h2>
+                        <ul>
+                            <li><strong>Clobbering loop counters:</strong> if you must use <code>ECX</code> for other work, save/restore it around the body.</li>
+                            <li><strong>Signed vs unsigned jumps:</strong> choose the correct Jcc family for your data interpretation.</li>
+                            <li><strong>Stack alignment (x86-64):</strong> maintain 16-byte alignment prior to calls, and on Windows x64 reserve 32-byte shadow space.</li>
+                            <li><strong>Memory addressing:</strong> scale factors are restricted to 1, 2, 4, 8; choose correct element-size in load/store (e.g., <code>dword</code> for 32-bit ints).</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing large-scale distributed systems. Specialized in Generative AI, AI Agents, and cloud-native architectures.</p>
+                        <div class="sidebar-author-links">
+                            <a href="https://www.linkedin.com/in/paolo-mascia-italy" target="_blank" aria-label="LinkedIn"><svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg></a>
+                            <a href="https://github.com/paolomascia" target="_blank" aria-label="GitHub"><svg viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg></a>
+                            <a href="https://www.kaggle.com/paolomascia" target="_blank" aria-label="Kaggle"><svg viewBox="0 0 24 24"><path d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.233-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.075.378z"/></svg></a>
+                        </div>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="cs-assembly-part8.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Assembly</span>
+                            <div class="sidebar-link-title">IA-32 and Intel 64 ISA Assembly Language (Part 8)</div>
+                            <span class="sidebar-link-meta">Jul 2024</span>
+                        </a>
+                        <a href="cs-assembly-part10.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Assembly</span>
+                            <div class="sidebar-link-title">IA-32 and Intel 64 ISA Assembly Language (Part 10)</div>
+                            <span class="sidebar-link-meta">Dec 2024</span>
+                        </a>
+                        <a href="cs-assembly-part7.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Assembly</span>
+                            <div class="sidebar-link-title">IA-32 and Intel 64 ISA Assembly Language (Part 7)</div>
+                            <span class="sidebar-link-meta">Apr 2024</span>
+                        </a>
+                        <a href="cs-reverse-engineering.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Reverse Engineering</span>
+                            <div class="sidebar-link-title">Reverse Engineering</div>
+                            <span class="sidebar-link-meta">Aug 2024</span>
+                        </a>
+                        <a href="cs-buffer-overflow.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Exploitation</span>
+                            <div class="sidebar-link-title">Buffer Overflow</div>
+                            <span class="sidebar-link-meta">Sep 2023</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-nasm.min.js"></script>
+</body>
+</html>

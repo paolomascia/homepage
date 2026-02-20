@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reverse Engineering &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="cybersecurity-tech-insights.html" class="back-link">&larr; Back to Cybersecurity</a>
+                        <div class="post-meta">
+                            <span class="post-date">Aug 2024</span>
+                            <span class="post-reading">18 min read</span>
+                        </div>
+                        <h1>Reverse Engineering</h1>
+                        <div class="post-tags">
+                            <span>Reverse Engineering</span>
+                            <span>Malware Analysis</span>
+                            <span>Cybersecurity</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Reverse engineering studies compiled software to determine design, control flow, and behaviors &mdash; including concealed or malicious ones. It &ldquo;reverses&rdquo; the development process: from executable artifacts back to useful representations like assembly, intermediate representation, or decompiled source-like code. This comprehensive guide covers core tooling, executable formats, malware analysis workflows, and the ethical principles that govern the practice.</p>
+
+                        <blockquote>
+                            <p><strong>Disclaimer:</strong> This resource is intended for <strong>educational and defensive cybersecurity</strong> purposes. Techniques described should only be used in authorized testing, research, or forensic contexts. Unauthorized software analysis may breach laws or licensing agreements &mdash; always obtain written permission.</p>
+                        </blockquote>
+
+                        <h2>The Challenge of Reverse Engineering</h2>
+
+                        <p>Reverse engineering studies compiled software to determine design, control flow, and behaviors &mdash; including concealed or malicious ones. It &ldquo;reverses&rdquo; the development process: from executable artifacts back to useful representations like assembly, intermediate representation, or decompiled source-like code.</p>
+
+                        <h2>Core Tooling Paradigms</h2>
+
+                        <ul>
+                            <li><strong>Decompilers:</strong> Attempt to rebuild high-level constructs (functions, loops, types) from binaries into C/C++/C#-like code. Output is approximate and may not perfectly match the original source.</li>
+                            <li><strong>Disassemblers:</strong> Convert machine code to assembly (ISA-specific), maintaining precise control flow and operands but without high-level structure unless inferred by the tool.</li>
+                        </ul>
+
+                        <h2>Why Reverse Engineering Is Hard</h2>
+
+                        <ul>
+                            <li><strong>Compilation is lossy:</strong> Symbol names, comments, types, and abstractions are often stripped or optimized away during compilation.</li>
+                            <li><strong>Many-to-many mapping:</strong> Multiple source patterns compile to similar machine code; conversely, one source construct can compile differently depending on flags and optimizations.</li>
+                            <li><strong>Compiler/ABI variation:</strong> Calling conventions, inlining, link-time optimization (LTO), and optimization levels change the shape of emitted code.</li>
+                            <li><strong>Anti-RE measures:</strong> Packing, obfuscation, VM-based protectors, control flow flattening, opaque predicates, and anti-debug techniques all complicate analysis.</li>
+                        </ul>
+
+                        <h2>Programming Languages &amp; Executable Production</h2>
+
+                        <h3>By Abstraction Level</h3>
+
+                        <ul>
+                            <li><strong>First Generation (machine code):</strong> Raw opcodes and hex values; unreadable for humans.</li>
+                            <li><strong>Second Generation (assembly):</strong> Mnemonics that map 1:1 to opcodes; readable but low-level.</li>
+                            <li><strong>Third Generation (C, C++, Fortran, etc.):</strong> Portable and expressive; compiled to native code or hybrid formats.</li>
+                        </ul>
+
+                        <h3>By Execution Model</h3>
+
+                        <ul>
+                            <li><strong>Interpreted:</strong> Source code executed directly by an interpreter; decompilation is moot (you have the source), but code can still be obfuscated.</li>
+                            <li><strong>Compiled:</strong> Compiler emits native machine code as object files and executables.</li>
+                            <li><strong>Hybrid:</strong> Compiled to bytecode/IL for a virtual machine (Java class &rarr; JVM, .NET IL &rarr; CLR). Rich metadata often eases reverse engineering.</li>
+                        </ul>
+
+                        <h2>Executable File Formats</h2>
+
+                        <h3>Windows Portable Executable (PE/COFF)</h3>
+
+                        <p>PE packages code and data plus metadata for the Windows loader. &ldquo;Portable&rdquo; refers to supporting multiple architectures (x86, x64, ARM).</p>
+
+                        <p><strong>Layout (simplified):</strong></p>
+
+                        <ul>
+                            <li><strong>MS-DOS header (<code>MZ</code>):</strong> Legacy compatibility header with a pointer to the PE signature.</li>
+                            <li><strong>PE header (<code>PE\0\0</code>):</strong> Machine type, number of sections, entry point, and timestamps.</li>
+                            <li><strong>Optional header:</strong> Sizes, subsystem type, <em>ImageBase</em>, <em>AddressOfEntryPoint</em>, and data directories (IAT, relocations, resources, TLS, etc.).</li>
+                            <li><strong>Section table + sections:</strong> Common names include <code>.text</code> (code), <code>.rdata</code> (imports/read-only data), <code>.data</code> (read-write data), <code>.rsrc</code> (resources), <code>.reloc</code> (relocations).</li>
+                        </ul>
+
+                        <p><strong>Import Address Table (IAT):</strong> A thunk table that the loader fills with function addresses from DLLs; inspecting the IAT reveals which APIs the binary uses.</p>
+
+                        <p><strong>Relocations:</strong> If the preferred base (<em>ImageBase</em>) is unavailable (common with ASLR), the loader applies relocations from <code>.reloc</code> to fix absolute addresses.</p>
+
+                        <p><strong>Resources:</strong> Dialogs, icons, manifests, and version information stored in <code>.rsrc</code>.</p>
+
+                        <p><strong>Debug symbols (optional):</strong> Separate <code>.pdb</code> files on Windows; when present, they greatly assist reverse engineering.</p>
+
+                        <h3>ELF (Executable and Linkable Format)</h3>
+
+                        <p>ELF is the standard binary format on Unix-like systems. It separates concerns for linking and runtime loading.</p>
+
+                        <ul>
+                            <li><strong>ELF Header:</strong> Architecture, endianness, entry point, and header offsets.</li>
+                            <li><strong>Program Headers (loader-facing):</strong> Segments to map into memory (e.g., <code>PT_LOAD</code>), dynamic section (<code>PT_DYNAMIC</code>), interpreter (<code>PT_INTERP</code>).</li>
+                            <li><strong>Section Headers (linker-facing):</strong> <code>.text</code>, <code>.rodata</code>, <code>.data</code>, <code>.bss</code>, <code>.dynsym</code>/<code>.symtab</code>, <code>.rela.*</code>, <code>.plt</code>/<code>.got</code>, <code>.comment</code>, etc.</li>
+                            <li><strong>PLT/GOT:</strong> Indirection tables for dynamic linking; useful for tracing external library calls.</li>
+                        </ul>
+
+                        <h2>File Type Triage</h2>
+
+                        <h3>Magic Numbers</h3>
+
+                        <p>Every binary format starts with a distinctive byte sequence (&ldquo;magic number&rdquo;) for identification:</p>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Format</th>
+                                    <th>Magic Bytes</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>GIF</td>
+                                    <td><code>47 49 46 38 37|39 61</code> (<code>GIF87a</code>/<code>GIF89a</code>)</td>
+                                </tr>
+                                <tr>
+                                    <td>Java .class</td>
+                                    <td><code>CA FE BA BE</code></td>
+                                </tr>
+                                <tr>
+                                    <td>ZIP/JAR</td>
+                                    <td><code>50 4B</code> (<code>PK</code>)</td>
+                                </tr>
+                                <tr>
+                                    <td>ELF</td>
+                                    <td><code>7F 45 4C 46</code></td>
+                                </tr>
+                                <tr>
+                                    <td>PE</td>
+                                    <td><code>4D 5A</code> (<code>MZ</code>)</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <h3>The <code>file</code> Utility (Linux)</h3>
+
+<pre><code class="language-bash"># Identify binary type via filesystem / magic / language checks
+file sample.bin
+file -k --mime sample.bin       # keep going, show mime</code></pre>
+
+                        <h3>Windows Executable Extensions (Risk Awareness)</h3>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Extension</th>
+                                    <th>Meaning</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><code>BAT</code></td>
+                                    <td>Batch script</td>
+                                </tr>
+                                <tr>
+                                    <td><code>CMD</code></td>
+                                    <td>Command script</td>
+                                </tr>
+                                <tr>
+                                    <td><code>COM</code></td>
+                                    <td>Legacy command image</td>
+                                </tr>
+                                <tr>
+                                    <td><code>CPL</code></td>
+                                    <td>Control Panel item</td>
+                                </tr>
+                                <tr>
+                                    <td><code>EXE</code></td>
+                                    <td>Executable</td>
+                                </tr>
+                                <tr>
+                                    <td><code>MSI</code></td>
+                                    <td>Windows Installer package</td>
+                                </tr>
+                                <tr>
+                                    <td><code>PS1</code></td>
+                                    <td>PowerShell script</td>
+                                </tr>
+                                <tr>
+                                    <td><code>REG</code></td>
+                                    <td>Registry import file</td>
+                                </tr>
+                                <tr>
+                                    <td><code>SCR</code></td>
+                                    <td>Screensaver (PE format)</td>
+                                </tr>
+                                <tr>
+                                    <td><code>VBS</code></td>
+                                    <td>VBScript</td>
+                                </tr>
+                                <tr>
+                                    <td><code>WSF</code></td>
+                                    <td>Windows Script File</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <p><strong>Note:</strong> File extensions are advisory only; always verify using magic bytes and structural analysis.</p>
+
+                        <h2>Essential Reverse Engineering Tools</h2>
+
+                        <h3>CLI / Quick-Triage</h3>
+
+                        <p><strong>strings:</strong> Extract printable strings (useful for URLs, paths, error messages).</p>
+
+<pre><code class="language-bash">strings -a -n 4 sample.bin | less
+strings -el sample.exe     # UTF-16LE (common on Windows)</code></pre>
+
+                        <p><strong>objdump (ELF):</strong> Disassembly, headers, and relocations.</p>
+
+<pre><code class="language-bash">objdump -f -h -p sample.elf
+objdump -d -M intel sample.elf | less
+readelf -a sample.elf</code></pre>
+
+                        <p><strong>dumpbin (PE, Windows):</strong> Headers, imports/exports, and disassembly.</p>
+
+<pre><code class="language-bash">dumpbin /headers /imports sample.exe
+dumpbin /exports sample.dll
+dumpbin /disasm sample.exe</code></pre>
+
+                        <p><strong>PE tools:</strong> PE header parsers and viewers to inspect sections, IAT, relocations, and resources.</p>
+
+                        <h3>Interactive Suites</h3>
+
+                        <ul>
+                            <li><strong>Ghidra:</strong> Free disassembler + decompiler from the NSA with powerful program analysis and scripting capabilities. Cross-platform (Java).</li>
+                            <li><strong>IDA Free/Pro:</strong> Industry-standard disassembler with decompiler modules (commercial license).</li>
+                            <li><strong>radare2 / Cutter:</strong> Open-source framework + GUI with analysis and decompilation features.</li>
+                        </ul>
+
+                        <h3>Installing Ghidra (Conceptual)</h3>
+
+                        <ol>
+                            <li>Download the distribution (ZIP) from the official site.</li>
+                            <li>Unpack into a directory you control.</li>
+                            <li>Launch <code>ghidraRun</code> (Linux/macOS) or <code>ghidraRun.bat</code> (Windows).</li>
+                            <li>Point to a supported Java runtime if prompted; accept the license; create a project and import your sample.</li>
+                        </ol>
+
+                        <h3>Ghidra Interface Primer</h3>
+
+                        <ul>
+                            <li><strong>CodeBrowser:</strong> Central view for listing, decompiler, data types, and references.</li>
+                            <li><strong>Listing:</strong> Disassembly (assembly view) with cross-references and function boundaries.</li>
+                            <li><strong>Decompiler:</strong> High-level pseudocode; rename variables, retype, and apply structures.</li>
+                            <li><strong>Symbol Tree:</strong> Functions, globals, and labels for quick navigation and organization.</li>
+                        </ul>
+
+                        <h2>Malware Analysis: Phases &amp; Environments</h2>
+
+                        <h3>Typical Workflow</h3>
+
+                        <ol>
+                            <li><strong>Identification/Triage:</strong> File type, packing, architecture, signatures (AV, YARA), strings, entropy analysis.</li>
+                            <li><strong>Static Analysis:</strong> Headers, imports, control flow, and decompiled views &mdash; without executing the sample.</li>
+                            <li><strong>Dynamic Analysis:</strong> Execute in an isolated sandbox/VM; monitor filesystem, registry, process tree, and network activity.</li>
+                        </ol>
+
+                        <h3>Sandboxes &amp; Lab Stacks</h3>
+
+                        <ul>
+                            <li><strong>Sandbox:</strong> Isolated VM(s) with instrumentation (snapshots, network sinkhole, TLS intercept for telemetry).</li>
+                            <li><strong>Cuckoo:</strong> Open-source dynamic analysis platform supporting Windows and Linux guests.</li>
+                            <li><strong>REMnux:</strong> Linux distribution curated for malware forensics and reverse engineering tooling.</li>
+                            <li><strong>FLARE VM:</strong> Windows VM toolkit preloaded for reverse engineering and dynamic analysis.</li>
+                        </ul>
+
+                        <h2>Scripts &amp; Macros in the Threat Landscape</h2>
+
+                        <h3>PowerShell</h3>
+
+                        <p>PowerShell scripts can administer systems &mdash; and be abused for &ldquo;living-off-the-land&rdquo; attacks. In reverse engineering, focus on decoding payloads, resolving <code>Invoke-*</code> download/execute patterns, and recovering IOCs (Indicators of Compromise).</p>
+
+                        <ul>
+                            <li><strong>ISE:</strong> Integrated Scripting Environment for composing and testing scripts.</li>
+                            <li><strong>Obfuscation techniques:</strong> Concatenation, Base64 encoding, compression, string character codes, whitespace removal, and staged loaders.</li>
+                        </ul>
+
+                        <h3>VBA Macros (Office)</h3>
+
+                        <p>Macros automate Office tasks, but attackers may embed staged payloads triggered by document events (e.g., <code>AutoOpen</code>). Analysis tools include:</p>
+
+                        <ul>
+                            <li><strong>oletools suite:</strong> <code>oleid</code> (risk flags), <code>olevba</code> (extract/deobfuscate macros), <code>macrodump</code>, <code>emldump</code>.</li>
+                        </ul>
+
+                        <h2>Managed Runtimes</h2>
+
+                        <h3>.NET (CLR)</h3>
+
+                        <p>.NET assemblies (PE format) contain IL (Intermediate Language) and rich metadata (types, methods, properties). Reverse engineering is often high-fidelity due to the metadata richness.</p>
+
+                        <ul>
+                            <li>Explore with <strong>dotPeek</strong>, <strong>ILSpy</strong>, or <strong>dnSpy</strong> (decompile to C#).</li>
+                            <li>Inspect manifests, resources, and embedded assemblies; note strong-name and signing information.</li>
+                        </ul>
+
+                        <h3>Java (JAR/Class)</h3>
+
+                        <p>JARs are ZIP archives containing class files with JVM bytecode, constant pools, and attributes (LineNumber, LocalVariableTable).</p>
+
+                        <ul>
+                            <li>Use <strong>JD-GUI</strong>, <strong>Bytecode Viewer</strong>, <strong>procyon</strong>, or <strong>cfr</strong> to decompile.</li>
+                        </ul>
+
+                        <h2>Safe, Systematic Tactics</h2>
+
+                        <ul>
+                            <li><strong>Begin read-only:</strong> Hash the sample (e.g., SHA-256), record provenance, and copy to an isolated lab environment.</li>
+                            <li><strong>Check packing:</strong> Entropy spikes, few imports, and section names like <code>.upx</code> suggest packing &mdash; attempt benign unpacking first (if authorized).</li>
+                            <li><strong>Map imports:</strong> Network APIs (<code>WinInet</code>/<code>WinHTTP</code>), process management (<code>CreateProcess</code>), registry access, and crypto usage provide hints on the binary&rsquo;s capabilities.</li>
+                            <li><strong>Follow the money:</strong> Strings and resources often reveal C2 domains, file names, mutexes, and campaign identifiers.</li>
+                            <li><strong>Respect legal boundaries:</strong> Licenses, EULAs, and local laws (e.g., anti-circumvention statutes) may apply even during research.</li>
+                        </ul>
+
+                        <h2>Worked Mini-Examples (Non-destructive)</h2>
+
+                        <h3>Quick PE/ELF Headers</h3>
+
+<pre><code class="language-bash"># ELF
+readelf -h -lW sample.elf
+objdump -x sample.elf
+
+# PE (Windows)
+dumpbin /headers sample.exe</code></pre>
+
+                        <h3>Strings &amp; Encodings</h3>
+
+<pre><code class="language-bash">strings -a -n 6 sample.bin | grep -Ei 'http|dns|key|pass|user'
+strings -el sample.exe | head</code></pre>
+
+                        <h3>Function Map (ELF)</h3>
+
+<pre><code class="language-bash">nm -C --defined-only sample.elf
+objdump -d -M intel sample.elf | less</code></pre>
+
+                        <h2>Common Obstacles &amp; How to Think About Them</h2>
+
+                        <ul>
+                            <li><strong>Packing/Compression:</strong> The binary unpacks at runtime; consider memory dumps after unpacking stubs execute (legally and safely in an isolated lab).</li>
+                            <li><strong>Obfuscation:</strong> Renaming, junk code, and control-flow flattening complicate analysis. Lean on the decompiler, control flow graph (CFG), and data-flow analysis; rename variables meaningfully as you work.</li>
+                            <li><strong>Anti-debug:</strong> Timing checks and API probes detect debugger presence. Countermeasures include VMs with stealth configurations, patching (in a lab only), and trace-based tools.</li>
+                            <li><strong>ASLR/PIE:</strong> Addresses differ per run; rely on relative offsets and symbols when available.</li>
+                            <li><strong>Stripped binaries:</strong> No symbols are present; infer function prototypes via calling convention patterns and import usage analysis.</li>
+                        </ul>
+
+                        <h2>Ethics and Compliance</h2>
+
+                        <ul>
+                            <li>Obtain explicit authorization; keep detailed notes and preserve chain-of-custody where forensics matter.</li>
+                            <li>Prefer isolated networks (no bridge to production); sinkhole external communications.</li>
+                            <li>Share indicators responsibly; follow coordinated disclosure when applicable.</li>
+                            <li>The techniques discussed are intended for legitimate cybersecurity, research, and educational use. Always ensure proper authorization and comply with all applicable laws, licenses, and organizational policies before analyzing software.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing large-scale distributed systems. Specialized in Generative AI, AI Agents, and cloud-native architectures.</p>
+                        <div class="sidebar-author-links">
+                            <a href="https://www.linkedin.com/in/paolo-mascia-italy" target="_blank" aria-label="LinkedIn">
+                                <svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                            </a>
+                            <a href="https://github.com/paolomascia" target="_blank" aria-label="GitHub">
+                                <svg viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+                            </a>
+                            <a href="https://www.kaggle.com/paolomascia" target="_blank" aria-label="Kaggle">
+                                <svg viewBox="0 0 24 24"><path d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.233-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.075.378z"/></svg>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="cs-assembly-part1.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Assembly</span>
+                            <div class="sidebar-link-title">IA-32 Assembly (Part 1)</div>
+                            <span class="sidebar-link-meta">Feb 2023</span>
+                        </a>
+                        <a href="cs-buffer-overflow.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cybersecurity</span>
+                            <div class="sidebar-link-title">Buffer Overflow</div>
+                            <span class="sidebar-link-meta">Sep 2023</span>
+                        </a>
+                        <a href="cs-computer-viruses.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cybersecurity</span>
+                            <div class="sidebar-link-title">Computer Viruses</div>
+                            <span class="sidebar-link-meta">Mar 2024</span>
+                        </a>
+                        <a href="cs-keyloggers.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cybersecurity</span>
+                            <div class="sidebar-link-title">Windows Keyloggers</div>
+                            <span class="sidebar-link-meta">Nov 2024</span>
+                        </a>
+                        <a href="cs-intro-cryptography.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cryptography</span>
+                            <div class="sidebar-link-title">Introduction to Cryptography</div>
+                            <span class="sidebar-link-meta">May 2023</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-nasm.min.js"></script>
+</body>
+</html>

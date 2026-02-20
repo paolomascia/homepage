@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mastering NumPy: The Foundation of Scientific Computing in Python &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="ai-tech-insights.html" class="back-link">&larr; Back to Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Mar 2023</span>
+                            <span class="post-reading">15 min read</span>
+                        </div>
+                        <h1>Mastering NumPy: The Foundation of Scientific Computing in Python</h1>
+                        <div class="post-tags">
+                            <span>NumPy</span>
+                            <span>Python</span>
+                            <span>Scientific Computing</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">NumPy is the backbone of scientific computing in Python. It provides fast, memory-efficient multidimensional arrays and a vast library of mathematical functions &mdash; forming the foundation for pandas, scikit-learn, TensorFlow, and virtually every data science tool in the Python ecosystem.</p>
+
+                        <p>Whether you&rsquo;re normalizing datasets, performing linear algebra, or building machine learning models from scratch, NumPy is the library you&rsquo;ll reach for first. This guide walks through the core concepts, practical patterns, and performance tips every data professional should know.</p>
+
+                        <h2>Core Concepts &mdash; Array Creation</h2>
+                        <p>The central object in NumPy is the <code>ndarray</code> &mdash; a fast, fixed-type, multidimensional array. There are many ways to create one:</p>
+
+                        <pre><code class="language-python">import numpy as np
+
+# From a Python list
+a = np.array([1, 2, 3, 4, 5])
+print(a)  # [1 2 3 4 5]
+
+# 2D array (matrix)
+b = np.array([[1, 2, 3], [4, 5, 6]])
+print(b)
+# [[1 2 3]
+#  [4 5 6]]
+
+# Zeros and ones
+zeros = np.zeros((3, 4))        # 3x4 matrix of 0s
+ones = np.ones((2, 3))          # 2x3 matrix of 1s
+full = np.full((2, 2), 7)       # 2x2 matrix filled with 7
+
+# Ranges
+r = np.arange(0, 10, 2)         # [0 2 4 6 8]
+lin = np.linspace(0, 1, 5)      # [0.   0.25 0.5  0.75 1.  ]
+
+# Identity matrix
+eye = np.eye(3)                  # 3x3 identity matrix</code></pre>
+
+                        <p>Every array has key properties you can inspect:</p>
+
+                        <pre><code class="language-python">arr = np.array([[1, 2, 3], [4, 5, 6]])
+
+print(arr.shape)      # (2, 3)
+print(arr.ndim)       # 2
+print(arr.dtype)      # int64
+print(arr.size)       # 6
+print(arr.itemsize)   # 8 (bytes per element)</code></pre>
+
+                        <p>Understanding these properties is essential for debugging shape mismatches and optimizing memory usage.</p>
+
+                        <h2>Indexing and Slicing</h2>
+                        <p>NumPy supports powerful indexing that goes far beyond Python lists.</p>
+
+                        <pre><code class="language-python"># 1D indexing
+a = np.array([10, 20, 30, 40, 50])
+print(a[0])       # 10
+print(a[-1])      # 50
+print(a[1:4])     # [20 30 40]
+
+# 2D indexing
+b = np.array([[1, 2, 3],
+              [4, 5, 6],
+              [7, 8, 9]])
+
+print(b[0, 2])    # 3  (row 0, col 2)
+print(b[:, 1])    # [2 5 8]  (all rows, col 1)
+print(b[1:, :2])  # [[4 5] [7 8]]  (rows 1+, cols 0-1)
+
+# Boolean indexing
+scores = np.array([85, 42, 91, 67, 73])
+passed = scores[scores >= 70]
+print(passed)     # [85 91 73]
+
+# Fancy indexing
+indices = np.array([0, 2, 4])
+print(scores[indices])  # [85 91 73]</code></pre>
+
+                        <p>Boolean indexing is particularly useful for filtering data without writing loops &mdash; a pattern you&rsquo;ll use constantly in data analysis.</p>
+
+                        <h2>Element-wise Operations and Broadcasting</h2>
+                        <p>One of NumPy&rsquo;s greatest strengths is that arithmetic operations are applied element-wise by default, and <strong>broadcasting</strong> extends this to arrays of different shapes.</p>
+
+                        <pre><code class="language-python">a = np.array([1, 2, 3])
+b = np.array([10, 20, 30])
+
+# Element-wise operations
+print(a + b)    # [11 22 33]
+print(a * b)    # [10 40 90]
+print(a ** 2)   # [1 4 9]
+print(np.sqrt(b))  # [3.162 4.472 5.477]
+
+# Broadcasting: scalar with array
+print(a * 10)   # [10 20 30]
+
+# Broadcasting: different shapes
+matrix = np.array([[1, 2, 3],
+                   [4, 5, 6]])
+row = np.array([10, 20, 30])
+
+print(matrix + row)
+# [[11 22 33]
+#  [14 25 36]]
+
+# Broadcasting rules:
+# 1. Arrays are compared element-wise from trailing dimensions
+# 2. Dimensions are compatible if they are equal or one of them is 1
+# 3. Arrays with fewer dimensions are padded with 1s on the left
+
+col = np.array([[100], [200]])
+print(matrix + col)
+# [[101 102 103]
+#  [204 205 206]]</code></pre>
+
+                        <h2>Aggregation Functions</h2>
+                        <p>NumPy provides fast aggregation functions that operate over entire arrays or along specific axes.</p>
+
+                        <pre><code class="language-python">data = np.array([[10, 20, 30],
+                 [40, 50, 60]])
+
+# Global aggregation
+print(np.sum(data))     # 210
+print(np.mean(data))    # 35.0
+print(np.max(data))     # 60
+print(np.min(data))     # 10
+print(np.std(data))     # 17.078
+
+# Axis-based aggregation
+# axis=0 &rarr; collapse rows (operate down columns)
+print(np.sum(data, axis=0))   # [50 70 90]
+print(np.mean(data, axis=0))  # [25. 35. 45.]
+
+# axis=1 &rarr; collapse columns (operate across rows)
+print(np.sum(data, axis=1))   # [ 60 150]
+print(np.mean(data, axis=1))  # [20. 50.]
+
+# Useful companions
+print(np.argmax(data))         # 5 (flat index of max)
+print(np.argmax(data, axis=1)) # [2 2] (col index of max per row)
+print(np.cumsum(data, axis=1))
+# [[ 10  30  60]
+#  [ 40  90 150]]</code></pre>
+
+                        <p>The <code>axis</code> parameter is one of the most important concepts in NumPy &mdash; master it and you&rsquo;ll avoid countless bugs.</p>
+
+                        <h2>Reshaping and Manipulation</h2>
+                        <p>Reshaping arrays is a daily operation in data science and deep learning workflows.</p>
+
+                        <pre><code class="language-python">a = np.arange(12)
+print(a)  # [ 0  1  2  3  4  5  6  7  8  9 10 11]
+
+# Reshape to 3x4 matrix
+b = a.reshape(3, 4)
+print(b)
+# [[ 0  1  2  3]
+#  [ 4  5  6  7]
+#  [ 8  9 10 11]]
+
+# Use -1 to auto-calculate one dimension
+c = a.reshape(2, -1)  # 2x6
+print(c.shape)  # (2, 6)
+
+# Flatten back to 1D
+print(b.flatten())   # [ 0  1 ... 11]  (returns a copy)
+print(b.ravel())     # [ 0  1 ... 11]  (returns a view when possible)
+
+# Transpose
+print(b.T)
+# [[ 0  4  8]
+#  [ 1  5  9]
+#  [ 2  6 10]
+#  [ 3  7 11]]
+
+# Stacking arrays
+x = np.array([1, 2, 3])
+y = np.array([4, 5, 6])
+
+print(np.vstack([x, y]))  # [[1 2 3] [4 5 6]]
+print(np.hstack([x, y]))  # [1 2 3 4 5 6]
+print(np.column_stack([x, y]))
+# [[1 4]
+#  [2 5]
+#  [3 6]]
+
+# Splitting
+arr = np.arange(9)
+parts = np.split(arr, 3)
+print(parts)  # [array([0,1,2]), array([3,4,5]), array([6,7,8])]</code></pre>
+
+                        <h2>Random Number Generation</h2>
+                        <p>NumPy&rsquo;s random module is essential for simulations, sampling, and reproducible experiments. The modern API uses <code>Generator</code> objects.</p>
+
+                        <pre><code class="language-python"># Modern API (recommended)
+rng = np.random.default_rng(seed=42)
+
+# Uniform distribution [0, 1)
+print(rng.random(5))
+
+# Uniform integers
+print(rng.integers(1, 100, size=5))  # 5 random ints in [1, 100)
+
+# Normal distribution (mean=0, std=1)
+samples = rng.normal(loc=0, scale=1, size=1000)
+print(f"Mean: {samples.mean():.4f}, Std: {samples.std():.4f}")
+
+# Specific distributions
+uniform = rng.uniform(low=10, high=20, size=5)
+print(uniform)
+
+# Random choice
+labels = ["cat", "dog", "bird"]
+picks = rng.choice(labels, size=5, replace=True)
+print(picks)
+
+# Shuffle in place
+deck = np.arange(52)
+rng.shuffle(deck)
+print(deck[:5])  # first 5 cards after shuffle
+
+# Permutation (returns new array, does not modify original)
+perm = rng.permutation(10)
+print(perm)</code></pre>
+
+                        <p>Always set a <code>seed</code> when reproducibility matters &mdash; this ensures your experiments produce identical results across runs.</p>
+
+                        <h2>Linear Algebra</h2>
+                        <p>NumPy&rsquo;s <code>linalg</code> submodule provides the building blocks for machine learning, computer graphics, and engineering computations.</p>
+
+                        <pre><code class="language-python">A = np.array([[1, 2], [3, 4]])
+B = np.array([[5, 6], [7, 8]])
+
+# Dot product (matrix multiplication)
+C = np.dot(A, B)       # or A @ B
+print(C)
+# [[19 22]
+#  [43 50]]
+
+# Determinant
+det = np.linalg.det(A)
+print(f"Determinant: {det:.1f}")  # -2.0
+
+# Inverse
+A_inv = np.linalg.inv(A)
+print(A_inv)
+# [[-2.   1. ]
+#  [ 1.5 -0.5]]
+
+# Verify: A @ A_inv should be identity
+print(np.round(A @ A_inv))
+# [[1. 0.]
+#  [0. 1.]]
+
+# Eigenvalues and eigenvectors
+eigenvalues, eigenvectors = np.linalg.eig(A)
+print(f"Eigenvalues: {eigenvalues}")
+print(f"Eigenvectors:\n{eigenvectors}")
+
+# Solving linear systems: Ax = b
+b = np.array([5, 11])
+x = np.linalg.solve(A, b)
+print(f"Solution: {x}")  # [1. 2.]
+
+# Matrix norm
+print(np.linalg.norm(A))           # Frobenius norm
+print(np.linalg.norm(A, ord=2))    # Spectral norm (largest singular value)</code></pre>
+
+                        <h2>Performance: Vectorization vs Loops</h2>
+                        <p>The single most important performance insight in NumPy is: <strong>avoid Python loops over array elements</strong>. Vectorized operations run in optimized C code and are typically 10&ndash;100x faster.</p>
+
+                        <pre><code class="language-python">import time
+
+size = 1_000_000
+a = np.random.random(size)
+b = np.random.random(size)
+
+# --- Python loop ---
+start = time.time()
+result_loop = np.empty(size)
+for i in range(size):
+    result_loop[i] = a[i] + b[i]
+loop_time = time.time() - start
+
+# --- Vectorized ---
+start = time.time()
+result_vec = a + b
+vec_time = time.time() - start
+
+print(f"Loop:       {loop_time:.4f}s")
+print(f"Vectorized: {vec_time:.6f}s")
+print(f"Speedup:    {loop_time / vec_time:.0f}x")</code></pre>
+
+                        <p>On a typical machine, you&rsquo;ll see the vectorized version run <strong>~100x faster</strong>. This is because NumPy delegates the computation to pre-compiled C routines that operate on contiguous memory blocks, bypassing Python&rsquo;s interpreter overhead entirely.</p>
+
+                        <p>Rules of thumb for fast NumPy code:</p>
+                        <ul>
+                            <li>Replace explicit loops with vectorized operations</li>
+                            <li>Use broadcasting instead of manual tiling</li>
+                            <li>Prefer in-place operations (<code>+=</code>, <code>*=</code>) to reduce memory allocation</li>
+                            <li>Use <code>np.where()</code> instead of if/else loops</li>
+                        </ul>
+
+                        <pre><code class="language-python"># np.where example
+scores = np.array([85, 42, 91, 67, 73])
+labels = np.where(scores >= 70, "pass", "fail")
+print(labels)  # ['pass' 'fail' 'pass' 'fail' 'pass']</code></pre>
+
+                        <h2>Practical Example: Data Normalization</h2>
+                        <p>Min-max scaling is one of the most common preprocessing steps in machine learning. NumPy makes it a one-liner.</p>
+
+                        <pre><code class="language-python"># Min-Max Normalization: scale values to [0, 1]
+data = np.array([[100, 0.5, 30],
+                 [200, 1.5, 60],
+                 [150, 1.0, 45]])
+
+# Column-wise normalization
+data_min = data.min(axis=0)
+data_max = data.max(axis=0)
+normalized = (data - data_min) / (data_max - data_min)
+
+print("Original:\n", data)
+print("\nNormalized:\n", normalized)
+# [[0.  0.  0. ]
+#  [1.  1.  1. ]
+#  [0.5 0.5 0.5]]
+
+# Z-score standardization (mean=0, std=1)
+standardized = (data - data.mean(axis=0)) / data.std(axis=0)
+print("\nStandardized:\n", np.round(standardized, 3))</code></pre>
+
+                        <p>Both operations are fully vectorized and work on datasets of any size without modification.</p>
+
+                        <h2>File I/O</h2>
+                        <p>NumPy provides efficient methods for saving and loading array data.</p>
+
+                        <pre><code class="language-python"># Save and load binary format (.npy)
+arr = np.array([[1, 2, 3], [4, 5, 6]])
+np.save("my_array.npy", arr)
+loaded = np.load("my_array.npy")
+print(loaded)
+
+# Save multiple arrays (.npz)
+np.savez("arrays.npz", x=arr, y=arr * 2)
+data = np.load("arrays.npz")
+print(data["x"])
+print(data["y"])
+
+# Compressed version (useful for large arrays)
+np.savez_compressed("arrays_compressed.npz", x=arr, y=arr * 2)
+
+# Text formats (CSV-like)
+np.savetxt("data.csv", arr, delimiter=",", header="a,b,c", comments="")
+loaded_txt = np.loadtxt("data.csv", delimiter=",", skiprows=1)
+print(loaded_txt)
+
+# Load with genfromtxt (handles missing values)
+data = np.genfromtxt("data.csv", delimiter=",",
+                      skip_header=1, filling_values=0)
+print(data)</code></pre>
+
+                        <p>For large datasets, <code>.npy</code> and <code>.npz</code> formats are significantly faster than text-based formats like CSV, because they store data in a compact binary representation.</p>
+
+                        <h2>Key Takeaways</h2>
+                        <ul>
+                            <li><strong>ndarray</strong> is the core data structure &mdash; understand its shape, dtype, and memory layout</li>
+                            <li><strong>Vectorization</strong> is the key to performance &mdash; replace Python loops with array operations</li>
+                            <li><strong>Broadcasting</strong> lets you combine arrays of different shapes without copying data</li>
+                            <li><strong>Axis parameter</strong> controls the direction of aggregation &mdash; axis=0 for columns, axis=1 for rows</li>
+                            <li><strong>Boolean indexing</strong> is the idiomatic way to filter data</li>
+                            <li><strong>Linear algebra</strong> routines power everything from PCA to neural networks</li>
+                            <li><strong>Random generators</strong> with seeds ensure reproducible experiments</li>
+                            <li><strong>Binary I/O</strong> (<code>.npy</code> / <code>.npz</code>) is the fastest way to persist arrays</li>
+                            <li>NumPy is the <strong>foundation</strong> &mdash; mastering it makes every library built on top of it easier to learn</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI & Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing large-scale distributed systems. Specialized in Generative AI, AI Agents, and cloud-native architectures.</p>
+                        <div class="sidebar-author-links">
+                            <a href="https://www.linkedin.com/in/paolo-mascia-italy" target="_blank" aria-label="LinkedIn">
+                                <svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                            </a>
+                            <a href="https://github.com/paolomascia" target="_blank" aria-label="GitHub">
+                                <svg viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+                            </a>
+                            <a href="https://www.kaggle.com/paolomascia" target="_blank" aria-label="Kaggle">
+                                <svg viewBox="0 0 24 24"><path d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.233-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.075.378z"/></svg>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="post-pandas.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Pandas</span>
+                            <div class="sidebar-link-title">Getting Started with Pandas</div>
+                            <span class="sidebar-link-meta">Jun 2023</span>
+                        </a>
+                        <a href="post-advanced-pandas.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Pandas</span>
+                            <div class="sidebar-link-title">Advanced Pandas: Method Chaining, MultiIndex, Time Series, and Performance</div>
+                            <span class="sidebar-link-meta">Nov 2023</span>
+                        </a>
+                        <a href="post-simple-linear-regression.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Linear Regression</span>
+                            <div class="sidebar-link-title">Simple Linear Regression in Python</div>
+                            <span class="sidebar-link-meta">Feb 2023</span>
+                        </a>
+                        <a href="post-pca.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">PCA</span>
+                            <div class="sidebar-link-title">Principal Component Analysis (PCA) in Python</div>
+                            <span class="sidebar-link-meta">May 2024</span>
+                        </a>
+                        <a href="post-ml-pipelines.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Pipelines</span>
+                            <div class="sidebar-link-title">Building Machine Learning Pipelines in Python</div>
+                            <span class="sidebar-link-meta">Nov 2025</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+</body>
+</html>

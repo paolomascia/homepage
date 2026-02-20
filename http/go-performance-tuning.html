@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Go Performance Tuning &mdash; Benchmarking, Profiling &amp; Reducing GC Pauses &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="golang-tech-insights.html" class="back-link">&larr; Back to Go Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">October 2025</span>
+                            <span class="post-reading">13 min read</span>
+                        </div>
+                        <h1>Go Performance Tuning &mdash; Benchmarking, Profiling &amp; Reducing GC Pauses</h1>
+                        <div class="post-tags">
+                            <span>Go</span>
+                            <span>Performance</span>
+                            <span>Profiling</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Performance optimization requires measuring what matters rather than making assumptions about bottlenecks. Go provides powerful, built-in performance tools including benchmarking, profiling, and GC control, enabling developers to achieve significant improvements while maintaining code clarity and safety.</p>
+
+                        <h2>Why Performance Tuning Matters</h2>
+
+                        <p>Premature optimization is the root of all evil, but ignoring performance is a recipe for production outages. The key is to measure first, optimize second, and verify always. Go&rsquo;s toolchain makes this workflow straightforward.</p>
+
+                        <h2>Benchmarking in Go</h2>
+
+                        <p>Go&rsquo;s <code>testing</code> package provides micro-benchmarking capabilities out of the box:</p>
+
+<pre><code class="language-go">package main
+
+import (
+    "strings"
+    "testing"
+)
+
+// Run with: go test -bench=. -benchmem
+func BenchmarkStringConcat(b *testing.B) {
+    for i := 0; i &lt; b.N; i++ {
+        _ = "Hello" + " " + "World"
+    }
+}
+
+func BenchmarkStringBuilder(b *testing.B) {
+    for i := 0; i &lt; b.N; i++ {
+        var sb strings.Builder
+        sb.WriteString("Hello")
+        sb.WriteString(" ")
+        sb.WriteString("World")
+        _ = sb.String()
+    }
+}</code></pre>
+
+                        <p>Run benchmarks with:</p>
+
+<pre><code class="language-bash">go test -bench=. -benchmem</code></pre>
+
+                        <h2>Profiling with pprof</h2>
+
+                        <h3>CPU Profile</h3>
+
+<pre><code class="language-bash">go test -bench=BenchmarkStringBuilder -cpuprofile=cpu.out
+go tool pprof cpu.out</code></pre>
+
+                        <h3>Heap Profile</h3>
+
+<pre><code class="language-bash">go test -bench=. -memprofile=mem.out
+go tool pprof mem.out</code></pre>
+
+                        <h2>Using pprof in Running Applications</h2>
+
+<pre><code class="language-go">package main
+
+import (
+    "log"
+    "net/http"
+    _ "net/http/pprof"
+)
+
+func main() {
+    log.Println("pprof server running on http://localhost:6060/debug/pprof/")
+    log.Fatal(http.ListenAndServe("localhost:6060", nil))
+}</code></pre>
+
+                        <p>Available endpoints:</p>
+
+                        <ul>
+                            <li><code>/debug/pprof/goroutine</code></li>
+                            <li><code>/debug/pprof/heap</code></li>
+                            <li><code>/debug/pprof/profile</code> (CPU)</li>
+                            <li><code>/debug/pprof/block</code></li>
+                        </ul>
+
+                        <h2>Reducing Garbage Collection Pauses</h2>
+
+                        <p>Key principles:</p>
+
+                        <ul>
+                            <li>Fewer allocations lead to fewer GC cycles.</li>
+                            <li>Larger object reuse leads to fewer heap expansions.</li>
+                            <li>Use <code>sync.Pool</code> for reusable buffers.</li>
+                        </ul>
+
+                        <h3>sync.Pool Example</h3>
+
+<pre><code class="language-go">package main
+
+import (
+    "bytes"
+    "sync"
+)
+
+var pool = sync.Pool{
+    New: func() any { return new(bytes.Buffer) },
+}
+
+func getBuffer() *bytes.Buffer {
+    buf := pool.Get().(*bytes.Buffer)
+    buf.Reset()
+    return buf
+}
+
+func putBuffer(buf *bytes.Buffer) {
+    pool.Put(buf)
+}</code></pre>
+
+                        <h2>Tuning GC with GOGC and GOMEMLIMIT</h2>
+
+                        <p>Environment variables:</p>
+
+<pre><code class="language-bash">GOGC=200 ./myapp   # less frequent GC, higher memory
+GOGC=50 ./myapp    # more frequent GC, lower memory</code></pre>
+
+                        <p>Code-based tuning:</p>
+
+<pre><code class="language-go">import "runtime/debug"
+
+func main() {
+    debug.SetMemoryLimit(512 * 1024 * 1024) // 512MB soft limit
+    debug.SetGCPercent(150)
+}</code></pre>
+
+                        <h2>Reducing Allocation Hotspots</h2>
+
+                        <p>Strategies:</p>
+
+                        <ul>
+                            <li>Use <code>make([]T, 0, N)</code> for slice preallocation.</li>
+                            <li>Use <code>strings.Builder</code> for concatenation.</li>
+                            <li>Avoid unnecessary <code>interface{}</code> and reflection.</li>
+                            <li>Reuse structs and buffers.</li>
+                            <li>Minimize pointer escapes.</li>
+                        </ul>
+
+                        <h2>Analyzing CPU Bottlenecks</h2>
+
+<pre><code class="language-bash">go test -bench=. -cpuprofile=cpu.out
+go tool pprof cpu.out
+(pprof) top
+(pprof) web</code></pre>
+
+                        <h2>Using the Race Detector</h2>
+
+<pre><code class="language-bash">go run -race main.go</code></pre>
+
+                        <h2>Practical Optimization Workflow</h2>
+
+                        <ol>
+                            <li>Start with real-world benchmarks.</li>
+                            <li>Profile CPU and memory with pprof.</li>
+                            <li>Identify allocation-heavy functions.</li>
+                            <li>Apply targeted optimizations.</li>
+                            <li>Re-benchmark and verify improvements.</li>
+                        </ol>
+
+                        <h2>Example: Real Optimization</h2>
+
+                        <p><strong>Before (naive approach):</strong></p>
+
+<pre><code class="language-go">package main
+
+import (
+    "encoding/json"
+)
+
+func encodeData(v any) ([]byte, error) {
+    return json.Marshal(v) // allocates new []byte each time
+}</code></pre>
+
+                        <p><strong>After (optimized with buffer reuse):</strong></p>
+
+<pre><code class="language-go">var bufPool = sync.Pool{
+    New: func() any { return new(bytes.Buffer) },
+}
+
+func encodeData(v any) ([]byte, error) {
+    buf := bufPool.Get().(*bytes.Buffer)
+    buf.Reset()
+    defer bufPool.Put(buf)
+
+    if err := json.NewEncoder(buf).Encode(v); err != nil {
+        return nil, err
+    }
+    return append([]byte(nil), buf.Bytes()...), nil
+}</code></pre>
+
+                        <h2>Conclusion</h2>
+
+                        <p>Go provides powerful, built-in performance tools including benchmarking, profiling, and GC control, enabling developers to achieve performance improvements while maintaining code clarity and safety. The workflow is simple: measure, profile, optimize, and verify. By following this disciplined approach, you can build Go services that are both fast and maintainable.</p>
+                    </div>
+                </div>
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="go-json.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Working with JSON in Go</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-file-handling.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">File Handling in Go</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-http-server.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Creating an HTTP Server</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-logging.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Application Logging in Go</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-generic-data-structures.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Building Generic Data Structures in Go</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+
+</body>
+</html>

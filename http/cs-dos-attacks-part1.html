@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DoS Attacks (Part 1): Understanding the Basics &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="cybersecurity-tech-insights.html" class="back-link">&larr; Back to Cybersecurity</a>
+                        <div class="post-meta">
+                            <span class="post-date">May 2024</span>
+                            <span class="post-reading">9 min read</span>
+                        </div>
+                        <h1>DoS Attacks (Part 1): Understanding the Basics</h1>
+                        <div class="post-tags">
+                            <span>Cybersecurity</span>
+                            <span>DoS/DDoS</span>
+                            <span>Network Security</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+
+                        <blockquote>
+                            <strong>Educational Disclaimer</strong><br>
+                            This document is for educational and defensive cybersecurity purposes only. The techniques described should only be used in authorized penetration-testing environments. Unauthorized use of these techniques may be illegal and could result in criminal charges. Always obtain proper written authorization before testing any systems. Use this knowledge responsibly to strengthen cybersecurity defenses.
+                        </blockquote>
+
+                        <p class="lead">A <strong>Denial-of-Service (DoS)</strong> attack aims to interrupt or degrade the normal operation of a server or network service by overwhelming it with fake or redundant traffic. When this attack is launched from multiple compromised systems, it becomes a <strong>Distributed Denial-of-Service (DDoS)</strong> attack.</p>
+
+                        <p>Attackers often infect machines with <em>malware</em>, turning them into remotely controlled <strong>bots</strong> or <strong>zombies</strong>. A coordinated network of such devices, called a <strong>botnet</strong>, can send enormous amounts of requests toward a single target, making it extremely difficult for the server to distinguish malicious traffic from legitimate users.</p>
+
+                        <h2>Classification of DoS and DDoS Attacks</h2>
+
+                        <p>These attacks can generally be divided into three main categories:</p>
+
+                        <h3>1) Volume-Based Attacks</h3>
+
+                        <p>These include <strong>UDP floods</strong>, <strong>ICMP floods</strong>, and other bandwidth-saturation techniques. The goal is to exhaust the target&rsquo;s network capacity, and attack strength is measured in <em>bits per second (bps)</em>.</p>
+
+                        <h3>2) Protocol Attacks</h3>
+
+                        <p>Protocol-level attacks, such as <strong>SYN floods</strong>, <strong>Ping of Death</strong>, and <strong>Smurf attacks</strong>, consume the actual server resources or those of intermediary devices like firewalls or load balancers. They are measured in <em>packets per second (pps)</em>.</p>
+
+                        <h3>3) Application-Layer Attacks</h3>
+
+                        <p>These target vulnerabilities at the web-application level (Layer 7). Examples include <strong>HTTP floods</strong>, <strong>Slowloris</strong>, and <strong>RUDY</strong> (&ldquo;R-U-Dead-Yet&rdquo;) attacks. Because they mimic normal user requests, they are difficult to detect and are measured in <em>requests per second (rps)</em>.</p>
+
+                        <h2>Common DoS Attack Types by OSI Layer</h2>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>OSI Layer</th>
+                                    <th>Attack Category</th>
+                                    <th>Examples</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Application (Layer 7)</td>
+                                    <td>Application Layer</td>
+                                    <td>HTTP Flood, Slowloris</td>
+                                </tr>
+                                <tr>
+                                    <td>Transport (Layer 4)</td>
+                                    <td>Protocol</td>
+                                    <td>SYN Flood, UDP Flood</td>
+                                </tr>
+                                <tr>
+                                    <td>Network (Layer 3)</td>
+                                    <td>Volume-Based</td>
+                                    <td>ICMP Flood, IP Fragment</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <h2>The Slowloris Attack Explained</h2>
+
+                        <p>The <strong>Slowloris</strong> attack demonstrates how even a single system can disrupt a web server without massive bandwidth. It works by sending many incomplete HTTP requests and keeping each connection open as long as possible.</p>
+
+                        <p>A standard HTTP request has three parts:</p>
+
+                        <p><strong>1. Start Line:</strong> defines the HTTP method and target resource</p>
+
+<pre><code class="language-bash">GET /index.html HTTP/1.1</code></pre>
+
+                        <p><strong>2. Headers:</strong> key&ndash;value pairs providing metadata</p>
+
+<pre><code class="language-bash">User-Agent: ExampleBrowser/1.0
+Content-Type: text/html; charset=utf-8</code></pre>
+
+                        <p><strong>3. Body (optional):</strong> data sent with POST requests (e.g., form fields)</p>
+
+                        <p>In a Slowloris scenario, the attacker sends only the start line and headers very slowly &mdash; delaying each line &mdash; so the server keeps the connection open, waiting for the request to complete. With enough open half-complete connections, the server eventually runs out of available sockets and cannot respond to legitimate clients.</p>
+
+                        <h3>Defense Techniques</h3>
+
+                        <ul>
+                            <li>Set strict timeouts for incomplete HTTP headers.</li>
+                            <li>Limit simultaneous connections per IP address.</li>
+                            <li>Use reverse proxies, load balancers, or web application firewalls (WAFs).</li>
+                            <li>Employ rate-limiting and behavior-based detection to identify slow or abnormal connections.</li>
+                        </ul>
+
+                        <h2>The RUDY Attack (&ldquo;R-U-Dead-Yet&rdquo;)</h2>
+
+                        <p>The <strong>RUDY</strong> attack is conceptually similar to Slowloris but targets the HTTP body instead of the headers. It opens multiple POST requests and transmits the request body <em>extremely slowly</em>, sending just a few bytes at a time.</p>
+
+                        <p>By keeping each connection alive for a prolonged period, RUDY consumes web server threads and resources until legitimate traffic can no longer be processed.</p>
+
+                        <h3>Defensive Countermeasures</h3>
+
+                        <ul>
+                            <li>Implement request-timeout limits for incomplete POST data.</li>
+                            <li>Use anomaly detection to identify clients that send data unusually slowly.</li>
+                            <li>Offload HTTP parsing to specialized reverse-proxy servers.</li>
+                            <li>Enable connection limits per source and enforce request-rate controls.</li>
+                        </ul>
+
+                        <h2>Summary</h2>
+
+                        <p>DoS and DDoS attacks exploit resource limitations &mdash; whether bandwidth, processing power, or connection capacity. Understanding how these attacks work at different layers of the OSI model is critical for building resilient, fault-tolerant systems.</p>
+
+                        <p>In upcoming sections, we will analyze more advanced DoS mitigation strategies and explore how content delivery networks (CDNs), rate-limiting, and AI-driven detection mechanisms can help neutralize such attacks before they cause disruption.</p>
+
+                        <blockquote>
+                            <strong>Educational Note:</strong> All examples and pseudocode in this article are for <em>defensive study</em> and system-hardening purposes only. Never deploy or test attack simulations outside a controlled and authorized environment.
+                        </blockquote>
+
+                    </div>
+                </div>
+
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing large-scale distributed systems. Specialized in Generative AI, AI Agents, and cloud-native architectures.</p>
+                        <div class="sidebar-author-links">
+                            <a href="https://www.linkedin.com/in/paolo-mascia-italy" target="_blank" aria-label="LinkedIn">
+                                <svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                            </a>
+                            <a href="https://github.com/paolomascia" target="_blank" aria-label="GitHub">
+                                <svg viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+                            </a>
+                            <a href="https://www.kaggle.com/paolomascia" target="_blank" aria-label="Kaggle">
+                                <svg viewBox="0 0 24 24"><path d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.233-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.075.378z"/></svg>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="cs-dos-attacks-part2.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cybersecurity</span>
+                            <div class="sidebar-link-title">DoS Attacks Part 2</div>
+                            <span class="sidebar-link-meta">Jun 2024</span>
+                        </a>
+                        <a href="cs-cyber-attacks.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cybersecurity</span>
+                            <div class="sidebar-link-title">Cyber Attacks: Types, Techniques, and Threat Landscape</div>
+                            <span class="sidebar-link-meta">Oct 2023</span>
+                        </a>
+                        <a href="cs-intro-cybersecurity.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cybersecurity</span>
+                            <div class="sidebar-link-title">Introduction to Cybersecurity</div>
+                            <span class="sidebar-link-meta">Apr 2023</span>
+                        </a>
+                        <a href="cs-network-security.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Networking</span>
+                            <div class="sidebar-link-title">Network Security</div>
+                            <span class="sidebar-link-meta">Feb 2025</span>
+                        </a>
+                        <a href="cs-network-architecture.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Networking</span>
+                            <div class="sidebar-link-title">Network Architecture</div>
+                            <span class="sidebar-link-meta">Mar 2023</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-nasm.min.js"></script>
+</body>
+</html>

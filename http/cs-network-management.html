@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Network Management &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="cybersecurity-tech-insights.html" class="back-link">&larr; Back to Cybersecurity</a>
+                        <div class="post-meta">
+                            <span class="post-date">Apr 2025</span>
+                            <span class="post-reading">12 min read</span>
+                        </div>
+                        <h1>Network Management</h1>
+                        <div class="post-tags">
+                            <span>Networking</span>
+                            <span>Monitoring</span>
+                            <span>Troubleshooting</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Network management involves the processes, tools, and practices used to monitor, maintain, configure, and optimize network infrastructure. Effective network management ensures reliability, availability, and performance while enabling rapid detection and resolution of issues.</p>
+
+                        <!-- Network Monitoring -->
+                        <h2>Network Monitoring</h2>
+
+                        <p>Network monitoring is the continuous observation of network components&mdash;such as routers, switches, servers, firewalls, and endpoints&mdash;to detect performance degradation, failures, or security anomalies. It provides visibility into the health, traffic, and behavior of the network.</p>
+
+                        <h3>Monitoring Objectives</h3>
+                        <ul>
+                            <li>Ensure uptime and availability of critical network devices</li>
+                            <li>Measure bandwidth usage, latency, packet loss, and jitter</li>
+                            <li>Detect abnormal traffic patterns and security threats</li>
+                            <li>Identify hardware or link failures before service disruption</li>
+                            <li>Provide data for capacity planning and optimization</li>
+                        </ul>
+
+                        <h3>Key Metrics</h3>
+                        <div class="table-wrapper">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Metric</th>
+                                        <th>Description</th>
+                                        <th>Purpose</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>Availability</td>
+                                        <td>Device/service uptime percentage</td>
+                                        <td>Reliability assessment</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Latency</td>
+                                        <td>Round-trip time between devices</td>
+                                        <td>Performance evaluation</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Packet Loss</td>
+                                        <td>Percentage of lost packets</td>
+                                        <td>Quality assurance for voice/video</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Throughput</td>
+                                        <td>Actual data transfer rate</td>
+                                        <td>Capacity monitoring</td>
+                                    </tr>
+                                    <tr>
+                                        <td>CPU/Memory Utilization</td>
+                                        <td>Resource usage on network devices</td>
+                                        <td>Hardware health tracking</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Interface Errors</td>
+                                        <td>CRC or input/output errors on ports</td>
+                                        <td>Physical link verification</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <h3>Monitoring Protocols and Tools</h3>
+                        <ul>
+                            <li><strong>SNMP (Simple Network Management Protocol)</strong> &mdash; Collects and organizes device information via MIBs (Management Information Bases).</li>
+                            <li><strong>NetFlow / sFlow / IPFIX</strong> &mdash; Provides traffic analytics and flow-level statistics.</li>
+                            <li><strong>ICMP (Ping, Traceroute)</strong> &mdash; Measures reachability and delay between hosts.</li>
+                            <li><strong>Syslog</strong> &mdash; Transmits log data from devices to centralized servers for auditing.</li>
+                            <li><strong>SNMP Traps</strong> &mdash; Asynchronous alerts triggered by device events (e.g., interface down).</li>
+                        </ul>
+
+                        <h3>Popular Monitoring Platforms</h3>
+                        <div class="table-wrapper">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Tool</th>
+                                        <th>Type</th>
+                                        <th>Key Features</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>Nagios / Icinga</td>
+                                        <td>Open-source</td>
+                                        <td>Health checks, alerting, extensible plugins</td>
+                                    </tr>
+                                    <tr>
+                                        <td>PRTG</td>
+                                        <td>Commercial</td>
+                                        <td>GUI dashboards, flow monitoring, sensors</td>
+                                    </tr>
+                                    <tr>
+                                        <td>SolarWinds NPM</td>
+                                        <td>Enterprise</td>
+                                        <td>Automatic discovery, deep analytics, visualization</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Zabbix</td>
+                                        <td>Open-source</td>
+                                        <td>Scalable, multi-platform agents, triggers</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Prometheus + Grafana</td>
+                                        <td>Modern stack</td>
+                                        <td>Time-series monitoring, visualization, alerting</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <h3>Sample SNMP Polling Configuration (Cisco)</h3>
+                        <pre><code class="language-bash">snmp-server community public RO
+snmp-server community private RW
+snmp-server host 192.168.10.100 version 2c public
+snmp-server enable traps</code></pre>
+
+                        <!-- Network Troubleshooting -->
+                        <h2>Network Troubleshooting</h2>
+
+                        <p>Network troubleshooting is the process of identifying, diagnosing, and resolving connectivity or performance issues. It combines systematic analysis, layered testing, and specialized diagnostic tools.</p>
+
+                        <h3>Troubleshooting Methodology</h3>
+                        <ol>
+                            <li><strong>Identify the Problem:</strong> Gather user reports, system alerts, and monitoring data.</li>
+                            <li><strong>Define the Scope:</strong> Determine affected devices, users, or subnets.</li>
+                            <li><strong>Hypothesize Potential Causes:</strong> Consider recent changes, failures, or configurations.</li>
+                            <li><strong>Test Hypotheses:</strong> Use diagnostic commands, packet captures, or isolation tests.</li>
+                            <li><strong>Implement a Fix:</strong> Apply corrective configurations or replace faulty components.</li>
+                            <li><strong>Verify Resolution:</strong> Retest connectivity, monitor performance.</li>
+                            <li><strong>Document Findings:</strong> Update logs, incident reports, and network diagrams.</li>
+                        </ol>
+
+                        <h3>Common Troubleshooting Tools</h3>
+                        <div class="table-wrapper">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Tool/Command</th>
+                                        <th>Purpose</th>
+                                        <th>Usage Example</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td><code>ping</code></td>
+                                        <td>Test basic connectivity</td>
+                                        <td><code>ping 8.8.8.8</code></td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>traceroute</code> / <code>tracert</code></td>
+                                        <td>Show path to destination</td>
+                                        <td><code>traceroute 8.8.8.8</code></td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>nslookup</code> / <code>dig</code></td>
+                                        <td>DNS resolution checks</td>
+                                        <td><code>nslookup www.example.com</code></td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>ipconfig</code> / <code>ifconfig</code></td>
+                                        <td>Display local IP settings</td>
+                                        <td><code>ipconfig /all</code></td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>netstat</code> / <code>ss</code></td>
+                                        <td>Show open connections</td>
+                                        <td><code>netstat -an</code></td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>tcpdump</code> / Wireshark</td>
+                                        <td>Packet-level capture and analysis</td>
+                                        <td><code>tcpdump -i eth0 port 80</code></td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>show interfaces</code></td>
+                                        <td>Check interface status and errors</td>
+                                        <td><code>show interfaces gig0/1</code></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <h3>Common Network Issues and Solutions</h3>
+                        <div class="table-wrapper">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Issue</th>
+                                        <th>Possible Cause</th>
+                                        <th>Solution</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>No Connectivity</td>
+                                        <td>Faulty cable, port disabled, wrong VLAN</td>
+                                        <td>Check link lights, replace cable, verify VLAN config</td>
+                                    </tr>
+                                    <tr>
+                                        <td>High Latency</td>
+                                        <td>Congested link, routing loop</td>
+                                        <td>Check interface utilization, review routing tables</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Intermittent Drops</td>
+                                        <td>Flapping interface, duplex mismatch</td>
+                                        <td>Check logs, align duplex/speed, replace NIC</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Slow Application</td>
+                                        <td>QoS misconfig, DNS delay</td>
+                                        <td>Review QoS policy, test DNS resolution</td>
+                                    </tr>
+                                    <tr>
+                                        <td>IP Conflict</td>
+                                        <td>Duplicate IPs assigned manually</td>
+                                        <td>Check DHCP leases, enforce static mapping policy</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <h3>Example: Troubleshooting Connectivity</h3>
+                        <pre><code class="language-bash"># Step 1: Check IP address and gateway
+ip addr show
+ip route
+
+# Step 2: Test reachability
+ping 192.168.1.1
+ping 8.8.8.8
+
+# Step 3: Verify DNS resolution
+nslookup www.example.com
+
+# Step 4: Trace route to destination
+traceroute www.example.com
+
+# Step 5: Inspect interface statistics
+show interfaces gigabitEthernet0/1</code></pre>
+
+                        <!-- Network Configuration -->
+                        <h2>Network Configuration</h2>
+
+                        <p>Network configuration management ensures consistent device setup, compliance with security standards, and rapid recovery from failures. It involves documenting, automating, and version-controlling configurations across all network elements.</p>
+
+                        <h3>Configuration Management Objectives</h3>
+                        <ul>
+                            <li>Maintain standardized configurations across routers, switches, firewalls, and access points</li>
+                            <li>Track and audit configuration changes for compliance</li>
+                            <li>Enable quick rollback in case of faulty updates</li>
+                            <li>Reduce manual errors through automation</li>
+                            <li>Centralize configuration backups</li>
+                        </ul>
+
+                        <h3>Configuration Management Tools</h3>
+                        <div class="table-wrapper">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Tool</th>
+                                        <th>Type</th>
+                                        <th>Key Features</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>Ansible</td>
+                                        <td>Automation / IaC</td>
+                                        <td>Agentless, YAML playbooks, multi-vendor support</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Puppet / Chef</td>
+                                        <td>Automation</td>
+                                        <td>Declarative configuration, infrastructure as code</td>
+                                    </tr>
+                                    <tr>
+                                        <td>NetBox</td>
+                                        <td>Source of truth</td>
+                                        <td>IPAM, DCIM, API integration</td>
+                                    </tr>
+                                    <tr>
+                                        <td>RANCID / Oxidized</td>
+                                        <td>Backup &amp; Versioning</td>
+                                        <td>Automatic config archiving via Git</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Cisco DNA Center / Juniper Apstra</td>
+                                        <td>Enterprise NMS</td>
+                                        <td>Automation, assurance, intent-based networking</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <h3>Configuration Best Practices</h3>
+                        <ul>
+                            <li>Use <strong>templates</strong> for consistent device setup</li>
+                            <li>Apply <strong>version control</strong> (e.g., Git) for configuration history</li>
+                            <li>Implement <strong>RBAC</strong> for configuration changes</li>
+                            <li>Schedule <strong>automated backups</strong> daily or after changes</li>
+                            <li>Use <strong>secure management protocols</strong> (SSH, HTTPS, SNMPv3)</li>
+                            <li>Document network topology and IP addressing schemes</li>
+                        </ul>
+
+                        <h3>Example: Basic Router Configuration (Cisco IOS)</h3>
+                        <pre><code class="language-bash">hostname Branch-Router
+service password-encryption
+enable secret cisco123
+
+interface GigabitEthernet0/0
+ description Link to ISP
+ ip address 203.0.113.1 255.255.255.252
+ no shutdown
+
+interface GigabitEthernet0/1
+ description Internal LAN
+ ip address 192.168.10.1 255.255.255.0
+ no shutdown
+
+ip route 0.0.0.0 0.0.0.0 203.0.113.2
+snmp-server community public RO
+line vty 0 4
+ transport input ssh
+ login local</code></pre>
+
+                        <h3>Example: Automating Configuration Deployment (Ansible)</h3>
+                        <pre><code class="language-python">---
+- name: Configure Cisco Router
+  hosts: routers
+  gather_facts: no
+  connection: network_cli
+
+  tasks:
+    - name: Set hostname
+      ios_config:
+        lines: hostname Branch-Router
+
+    - name: Configure interfaces
+      ios_config:
+        lines:
+          - interface GigabitEthernet0/1
+          - description Internal LAN
+          - ip address 192.168.10.1 255.255.255.0
+          - no shutdown
+
+    - name: Save configuration
+      ios_config:
+        save_when: modified</code></pre>
+
+                        <p>By combining continuous monitoring, systematic troubleshooting, and automated configuration management, network administrators can maintain stable, secure, and scalable infrastructures capable of supporting business-critical operations with minimal downtime.</p>
+                    </div>
+                </div>
+
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing large-scale distributed systems. Specialized in Generative AI, AI Agents, and cloud-native architectures.</p>
+                        <div class="sidebar-author-links">
+                            <a href="https://www.linkedin.com/in/paolo-mascia-italy" target="_blank" aria-label="LinkedIn"><svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg></a>
+                            <a href="https://github.com/paolomascia" target="_blank" aria-label="GitHub"><svg viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg></a>
+                            <a href="https://www.kaggle.com/paolomascia" target="_blank" aria-label="Kaggle"><svg viewBox="0 0 24 24"><path d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.233-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.075.378z"/></svg></a>
+                        </div>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="cs-network-architecture.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Networking</span>
+                            <div class="sidebar-link-title">Network Architecture</div>
+                            <span class="sidebar-link-meta">Mar 2023</span>
+                        </a>
+                        <a href="cs-routing-switching.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Networking</span>
+                            <div class="sidebar-link-title">Routing and Switching</div>
+                            <span class="sidebar-link-meta">Jul 2025</span>
+                        </a>
+                        <a href="cs-network-security.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Networking</span>
+                            <div class="sidebar-link-title">Network Security</div>
+                            <span class="sidebar-link-meta">Feb 2025</span>
+                        </a>
+                        <a href="cs-cloud-networking.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Networking</span>
+                            <div class="sidebar-link-title">Cloud Networking</div>
+                            <span class="sidebar-link-meta">Nov 2025</span>
+                        </a>
+                        <a href="cs-intro-cybersecurity.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cybersecurity</span>
+                            <div class="sidebar-link-title">Introduction to Cybersecurity</div>
+                            <span class="sidebar-link-meta">Apr 2023</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-nasm.min.js"></script>
+</body>
+</html>

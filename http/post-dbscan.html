@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DBSCAN and HDBSCAN in Python &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="ai-tech-insights.html" class="back-link">&larr; Back to Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Nov 2024</span>
+                            <span class="post-reading">14 min read</span>
+                        </div>
+                        <h1>DBSCAN and HDBSCAN in Python</h1>
+                        <div class="post-tags">
+                            <span>DBSCAN</span>
+                            <span>Clustering</span>
+                            <span>Unsupervised Learning</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">DBSCAN (Density-Based Spatial Clustering of Applications with Noise) is a fundamentally different approach to clustering compared to centroid-based methods like K-Means. Instead of assuming spherical clusters and requiring you to specify the number of groups upfront, DBSCAN discovers clusters of arbitrary shape by finding regions of high point density separated by regions of low density. Its natural ability to flag outliers as noise makes it a go-to algorithm for real-world datasets where anomalies are the norm, not the exception.</p>
+
+                        <h2>How DBSCAN Works</h2>
+
+                        <p>DBSCAN operates on two simple parameters that together define what &ldquo;dense&rdquo; means:</p>
+
+                        <ul>
+                            <li><strong>eps (&epsilon;)</strong> &mdash; the maximum distance between two points for them to be considered neighbors.</li>
+                            <li><strong>min_samples</strong> &mdash; the minimum number of points within <code>eps</code> distance to form a dense region (including the point itself).</li>
+                        </ul>
+
+                        <p>The algorithm classifies every point in the dataset into one of three categories:</p>
+
+                        <ul>
+                            <li><strong>Core points</strong> &mdash; points with at least <code>min_samples</code> neighbors within <code>eps</code>. These are the backbone of clusters.</li>
+                            <li><strong>Border points</strong> &mdash; points within <code>eps</code> of a core point but without enough neighbors to be core themselves. They belong to a cluster but sit on its edge.</li>
+                            <li><strong>Noise points</strong> &mdash; points that are neither core nor border. They don&rsquo;t belong to any cluster and are labeled <code>-1</code>.</li>
+                        </ul>
+
+                        <p>The clustering process is straightforward: pick an unvisited core point, expand the cluster by recursively adding all density-reachable points, then repeat for the next unvisited core point. No iteration, no convergence criteria &mdash; just a single pass through the data.</p>
+
+                        <h2>DBSCAN in scikit-learn</h2>
+
+                        <p>Running DBSCAN in Python is simple with scikit-learn. Let&rsquo;s start with a synthetic example to illustrate how it handles non-globular shapes:</p>
+
+<pre><code class="language-python">import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.cluster import DBSCAN
+from sklearn.datasets import make_moons
+from sklearn.preprocessing import StandardScaler
+
+# Generate crescent-shaped data with noise
+X, _ = make_moons(n_samples=500, noise=0.08, random_state=42)
+X = StandardScaler().fit_transform(X)
+
+# Fit DBSCAN
+db = DBSCAN(eps=0.25, min_samples=5)
+labels = db.fit_predict(X)
+
+# Results
+n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
+n_noise = list(labels).count(-1)
+print(f"Clusters found: {n_clusters}")
+print(f"Noise points:   {n_noise}")
+print(f"Core samples:   {len(db.core_sample_indices_)}")</code></pre>
+
+                        <p>Notice that we did not tell DBSCAN how many clusters to find &mdash; it discovered them automatically. The <code>labels_</code> array contains cluster IDs starting from <code>0</code>, with <code>-1</code> reserved for noise points. The <code>core_sample_indices_</code> attribute gives us the indices of all core points, which can be useful for understanding cluster structure.</p>
+
+                        <h2>Choosing eps with the k-Distance Plot</h2>
+
+                        <p>The most critical parameter in DBSCAN is <code>eps</code>. Too small and every point becomes noise; too large and all points merge into a single cluster. The <strong>k-distance plot</strong> provides a principled way to select it:</p>
+
+<pre><code class="language-python">from sklearn.neighbors import NearestNeighbors
+
+# Compute distance to k-th nearest neighbor (k = min_samples)
+k = 5
+nn = NearestNeighbors(n_neighbors=k)
+nn.fit(X)
+distances, _ = nn.kneighbors(X)
+
+# Sort distances to the k-th neighbor in ascending order
+k_distances = np.sort(distances[:, k - 1])
+
+# Plot
+plt.figure(figsize=(8, 4))
+plt.plot(k_distances)
+plt.xlabel("Points (sorted by distance)")
+plt.ylabel(f"Distance to {k}-th nearest neighbor")
+plt.title("k-Distance Plot for eps Selection")
+plt.axhline(y=0.25, color="r", linestyle="--", label="eps = 0.25")
+plt.legend()
+plt.tight_layout()
+plt.show()</code></pre>
+
+                        <p>Look for the <strong>&ldquo;elbow&rdquo;</strong> in the curve &mdash; the point where the slope changes sharply. Below the elbow, points are in dense regions (intra-cluster distances). Above the elbow, distances jump because you&rsquo;re reaching into empty space or noise. The y-value at the elbow is your candidate for <code>eps</code>.</p>
+
+                        <blockquote>
+                            <p><strong>Rule of thumb:</strong> set <code>min_samples &ge; dimensionality + 1</code>. For 2D data, <code>min_samples=5</code> is a common starting point. For higher dimensions, increase it proportionally &mdash; sparse high-dimensional spaces need stricter density thresholds.</p>
+                        </blockquote>
+
+                        <h2>Evaluating DBSCAN Clusters</h2>
+
+                        <p>Traditional metrics like inertia don&rsquo;t apply to DBSCAN. Instead, use metrics designed for arbitrary-shaped clusters:</p>
+
+<pre><code class="language-python">from sklearn.metrics import silhouette_score, calinski_harabasz_score
+
+# Exclude noise points for evaluation
+mask = labels != -1
+if len(set(labels[mask])) > 1:
+    sil = silhouette_score(X[mask], labels[mask])
+    ch = calinski_harabasz_score(X[mask], labels[mask])
+    print(f"Silhouette Score (no noise): {sil:.3f}")
+    print(f"Calinski-Harabasz Index:     {ch:.1f}")
+else:
+    print("Only one cluster found (excluding noise) &mdash; check parameters.")</code></pre>
+
+                        <p>Important caveats when evaluating DBSCAN:</p>
+
+                        <ul>
+                            <li>Always <strong>exclude noise points</strong> from silhouette and Calinski-Harabasz calculations &mdash; they would distort the scores.</li>
+                            <li>The silhouette score assumes convex clusters, so it may undervalue DBSCAN&rsquo;s non-convex groupings. Use it as a relative guide, not an absolute measure.</li>
+                            <li>Monitor the <strong>noise ratio</strong>. If more than 15&ndash;20% of your data is labeled as noise, <code>eps</code> may be too small or the data genuinely lacks dense structure.</li>
+                        </ul>
+
+                        <h2>HDBSCAN: The Adaptive Alternative</h2>
+
+                        <p>HDBSCAN (Hierarchical DBSCAN) eliminates the need to choose <code>eps</code> entirely. It builds a hierarchy of clusterings across all possible epsilon values and extracts the most persistent clusters using a stability-based criterion. This makes it far more robust to datasets where clusters have varying densities.</p>
+
+<pre><code class="language-python">import hdbscan
+
+# Fit HDBSCAN
+clusterer = hdbscan.HDBSCAN(
+    min_cluster_size=15,       # smallest group to consider a cluster
+    min_samples=5,             # conservative core-point threshold
+    cluster_selection_method="eom"  # Excess of Mass (default)
+)
+labels_h = clusterer.fit_predict(X)
+
+n_clusters_h = len(set(labels_h)) - (1 if -1 in labels_h else 0)
+n_noise_h = list(labels_h).count(-1)
+print(f"Clusters found: {n_clusters_h}")
+print(f"Noise points:   {n_noise_h}")</code></pre>
+
+                        <p>Key parameters for HDBSCAN:</p>
+
+                        <ul>
+                            <li><strong>min_cluster_size</strong> &mdash; the smallest group size you&rsquo;re willing to call a cluster. This is the most important parameter and should reflect your domain knowledge about what constitutes a meaningful group.</li>
+                            <li><strong>min_samples</strong> &mdash; controls how conservative the clustering is. Higher values produce fewer but denser clusters, pushing more borderline points to noise.</li>
+                            <li><strong>cluster_selection_method</strong> &mdash; <code>"eom"</code> (Excess of Mass) tends to find clusters of varying sizes; <code>"leaf"</code> produces more fine-grained, homogeneous clusters.</li>
+                        </ul>
+
+                        <h2>Membership Probabilities</h2>
+
+                        <p>One of HDBSCAN&rsquo;s most valuable features is <strong>soft clustering</strong> &mdash; each point gets a probability score indicating how confidently it belongs to its assigned cluster:</p>
+
+<pre><code class="language-python"># Membership probabilities
+probabilities = clusterer.probabilities_
+
+# Points with low probability are borderline &mdash; they could go either way
+borderline = (probabilities > 0) & (probabilities < 0.5)
+print(f"Borderline points: {borderline.sum()}")
+
+# Visualize confidence
+plt.figure(figsize=(8, 5))
+scatter = plt.scatter(X[:, 0], X[:, 1],
+                      c=labels_h,
+                      cmap="Spectral",
+                      alpha=probabilities,  # fade uncertain points
+                      s=20)
+plt.colorbar(scatter, label="Cluster")
+plt.title("HDBSCAN Clusters (opacity = confidence)")
+plt.tight_layout()
+plt.show()</code></pre>
+
+                        <p>Membership probabilities open up powerful downstream workflows:</p>
+
+                        <ul>
+                            <li>Filter out low-confidence assignments before profiling clusters.</li>
+                            <li>Use probabilities as sample weights in supervised models trained on cluster labels.</li>
+                            <li>Flag borderline points for manual review in human-in-the-loop systems.</li>
+                        </ul>
+
+                        <h2>Outlier Detection with DBSCAN</h2>
+
+                        <p>DBSCAN&rsquo;s noise label (<code>-1</code>) is inherently an outlier detector. For more nuanced outlier scoring, HDBSCAN provides the <code>outlier_scores_</code> attribute:</p>
+
+<pre><code class="language-python"># HDBSCAN outlier scores (higher = more anomalous)
+outlier_scores = clusterer.outlier_scores_
+
+# Flag top 5% as anomalies
+threshold = np.percentile(outlier_scores, 95)
+anomalies = outlier_scores > threshold
+print(f"Anomalies detected: {anomalies.sum()}")
+
+# Visualize
+plt.figure(figsize=(8, 5))
+plt.scatter(X[~anomalies, 0], X[~anomalies, 1],
+            c="steelblue", s=15, alpha=0.5, label="Normal")
+plt.scatter(X[anomalies, 0], X[anomalies, 1],
+            c="red", s=40, marker="x", label="Anomaly")
+plt.legend()
+plt.title("Outlier Detection with HDBSCAN")
+plt.tight_layout()
+plt.show()</code></pre>
+
+                        <p>The outlier score is based on the <strong>GLOSH</strong> (Global-Local Outlier Score from Hierarchies) algorithm. Unlike the binary noise label, it gives a continuous measure of how much a point deviates from its local density context, making it more useful for ranking anomalies.</p>
+
+                        <h2>Cosine Distance for Embeddings</h2>
+
+                        <p>When clustering text embeddings, image feature vectors, or any high-dimensional representation, <strong>cosine distance</strong> is often more meaningful than Euclidean distance because it measures the angle between vectors rather than their magnitude:</p>
+
+<pre><code class="language-python">from sklearn.metrics.pairwise import cosine_distances
+
+# Suppose X_emb contains 768-dimensional text embeddings
+# Precompute the distance matrix
+dist_matrix = cosine_distances(X_emb)
+
+# DBSCAN with precomputed distances
+db_cos = DBSCAN(eps=0.3, min_samples=5, metric="precomputed")
+labels_cos = db_cos.fit_predict(dist_matrix)
+
+print(f"Clusters: {len(set(labels_cos)) - (1 if -1 in labels_cos else 0)}")
+print(f"Noise:    {list(labels_cos).count(-1)}")</code></pre>
+
+                        <p>For HDBSCAN, you can pass the metric directly:</p>
+
+<pre><code class="language-python"># HDBSCAN with cosine metric (no precomputation needed)
+clusterer_cos = hdbscan.HDBSCAN(
+    min_cluster_size=10,
+    metric="cosine",
+    min_samples=5
+)
+labels_cos_h = clusterer_cos.fit_predict(X_emb)</code></pre>
+
+                        <blockquote>
+                            <p><strong>Tip:</strong> When using cosine distance with DBSCAN, remember that cosine distances range from 0 (identical) to 2 (opposite). Typical <code>eps</code> values for embeddings fall between 0.1 and 0.5, depending on how tightly your embeddings cluster in semantic space.</p>
+                        </blockquote>
+
+                        <h2>Dimension Reduction Before Clustering</h2>
+
+                        <p>In high-dimensional spaces, the notion of &ldquo;density&rdquo; breaks down &mdash; distances become uniformly large, making it nearly impossible for DBSCAN to find meaningful neighborhoods. Reducing dimensions before clustering can dramatically improve results:</p>
+
+<pre><code class="language-python">from sklearn.decomposition import PCA
+import umap
+
+# Option 1: PCA to retain 95% variance
+pca = PCA(n_components=0.95, random_state=42)
+X_pca = pca.fit_transform(X_emb)
+print(f"PCA reduced to {X_pca.shape[1]} dimensions")
+
+# Option 2: UMAP to 2-50 dimensions (better for non-linear structure)
+reducer = umap.UMAP(n_components=20, n_neighbors=15,
+                     min_dist=0.0, metric="cosine", random_state=42)
+X_umap = reducer.fit_transform(X_emb)
+
+# Cluster in reduced space
+clusterer_reduced = hdbscan.HDBSCAN(min_cluster_size=15, min_samples=5)
+labels_reduced = clusterer_reduced.fit_predict(X_umap)
+
+print(f"Clusters in UMAP space: "
+      f"{len(set(labels_reduced)) - (1 if -1 in labels_reduced else 0)}")</code></pre>
+
+                        <p>Guidelines for dimension reduction before clustering:</p>
+
+                        <ul>
+                            <li><strong>PCA</strong> is safe, fast, and preserves global structure. Use it as a first step to cut dimensionality from hundreds to tens.</li>
+                            <li><strong>UMAP</strong> with <code>min_dist=0.0</code> is specifically designed to preserve cluster structure. Set <code>n_components</code> between 10 and 50 for clustering (not 2 &mdash; that&rsquo;s for visualization).</li>
+                            <li>Avoid reducing too aggressively &mdash; if you go down to 2D and then cluster, you may lose fine-grained distinctions.</li>
+                            <li>Always evaluate clustering quality with and without reduction to ensure you&rsquo;re not introducing artifacts.</li>
+                        </ul>
+
+                        <h2>Common Pitfalls</h2>
+
+                        <ul>
+                            <li><strong>Forgetting to scale features.</strong> DBSCAN uses distance calculations. If features are on different scales, one feature can dominate the distance metric. Always standardize with <code>StandardScaler</code> before fitting.</li>
+                            <li><strong>Using default eps blindly.</strong> The default <code>eps=0.5</code> in scikit-learn is arbitrary and rarely correct. Always use the k-distance plot or a systematic grid search to choose it.</li>
+                            <li><strong>Ignoring varying densities.</strong> Standard DBSCAN uses a single global <code>eps</code>, so it struggles when clusters have different densities. Switch to HDBSCAN in these scenarios.</li>
+                            <li><strong>Clustering in very high dimensions.</strong> The curse of dimensionality makes density estimation unreliable above ~50 features. Apply PCA or UMAP first.</li>
+                            <li><strong>Treating noise as failure.</strong> Noise points are a feature, not a bug. They represent genuine outliers or points between clusters. Don&rsquo;t inflate <code>eps</code> just to eliminate noise.</li>
+                            <li><strong>Comparing silhouette scores across algorithms.</strong> Silhouette assumes convex clusters. A lower silhouette for DBSCAN vs. K-Means doesn&rsquo;t necessarily mean worse clustering &mdash; it may mean DBSCAN found a more truthful, non-convex structure.</li>
+                        </ul>
+
+                        <h2>Key Takeaways</h2>
+
+                        <ul>
+                            <li>DBSCAN finds clusters of <strong>arbitrary shape</strong> by following regions of high density, with no need to specify the number of clusters in advance.</li>
+                            <li>The two key parameters are <strong>eps</strong> (neighborhood radius) and <strong>min_samples</strong> (density threshold). Use the k-distance plot to select <code>eps</code> empirically.</li>
+                            <li>Points are classified as <strong>core</strong>, <strong>border</strong>, or <strong>noise</strong>. Noise points (label <code>-1</code>) provide built-in outlier detection.</li>
+                            <li><strong>HDBSCAN</strong> eliminates the eps parameter by building a density hierarchy, making it more robust to clusters with varying densities.</li>
+                            <li>HDBSCAN&rsquo;s <strong>membership probabilities</strong> and <strong>outlier scores</strong> provide richer, more nuanced output than hard cluster labels.</li>
+                            <li>Use <strong>cosine distance</strong> for embeddings and high-dimensional feature vectors where direction matters more than magnitude.</li>
+                            <li>Apply <strong>dimension reduction</strong> (PCA or UMAP) before clustering when working with more than ~50 features to avoid the curse of dimensionality.</li>
+                            <li>Always <strong>standardize features</strong> before DBSCAN, and always <strong>exclude noise points</strong> when computing cluster evaluation metrics.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing large-scale distributed systems. Specialized in Generative AI, AI Agents, and cloud-native architectures.</p>
+                        <div class="sidebar-author-links">
+                            <a href="https://www.linkedin.com/in/paolo-mascia-italy" target="_blank" aria-label="LinkedIn">
+                                <svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                            </a>
+                            <a href="https://github.com/paolomascia" target="_blank" aria-label="GitHub">
+                                <svg viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+                            </a>
+                            <a href="https://www.kaggle.com/paolomascia" target="_blank" aria-label="Kaggle">
+                                <svg viewBox="0 0 24 24"><path d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.233-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.075.378z"/></svg>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="post-kmeans-clustering.html" class="sidebar-link">
+                            <span class="sidebar-link-title">K-Means Clustering in Python</span>
+                            <span class="sidebar-link-meta">K-Means &middot; Sep 2024</span>
+                        </a>
+                        <a href="post-kmeans.html" class="sidebar-link">
+                            <span class="sidebar-link-title">K-Means Clustering Evaluation</span>
+                            <span class="sidebar-link-meta">Model Evaluation &middot; Feb 2024</span>
+                        </a>
+                        <a href="post-pca.html" class="sidebar-link">
+                            <span class="sidebar-link-title">Principal Component Analysis (PCA)</span>
+                            <span class="sidebar-link-meta">PCA &middot; May 2024</span>
+                        </a>
+                        <a href="post-tsne-umap.html" class="sidebar-link">
+                            <span class="sidebar-link-title">t-SNE and UMAP in Python</span>
+                            <span class="sidebar-link-meta">Dimension Reduction &middot; Jul 2024</span>
+                        </a>
+                        <a href="post-random-forest.html" class="sidebar-link">
+                            <span class="sidebar-link-title">Random Forest Model Evaluation</span>
+                            <span class="sidebar-link-meta">Model Evaluation &middot; Dec 2023</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+</body>
+</html>

@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Pandas: Method Chaining, MultiIndex, Time Series, and Performance &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="ai-tech-insights.html" class="back-link">&larr; Back to Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Nov 2023</span>
+                            <span class="post-reading">14 min read</span>
+                        </div>
+                        <h1>Advanced Pandas: Method Chaining, MultiIndex, Time Series, and Performance</h1>
+                        <div class="post-tags">
+                            <span>Pandas</span>
+                            <span>Python</span>
+                            <span>Data Engineering</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Building on foundational pandas knowledge, this guide explores advanced techniques for professional data workflows &mdash; from method chaining and hierarchical indexing to time series operations and performance optimization.</p>
+
+                        <p>These patterns are what separate quick prototypes from production-ready data pipelines. Mastering them will make your code more readable, your analyses more robust, and your workflows significantly faster.</p>
+
+                        <h2>Method Chaining</h2>
+                        <p>Method chaining is a style of writing pandas code where you link multiple operations together in a single, readable pipeline. Each method returns a DataFrame, allowing the next method to be called immediately.</p>
+
+                        <pre><code class="language-python">import pandas as pd
+import numpy as np
+
+df = pd.DataFrame({
+    "city": ["Paris", "Paris", "London", "London", "Tokyo", "Tokyo"],
+    "month": ["Jan", "Feb", "Jan", "Feb", "Jan", "Feb"],
+    "sales": [120, 150, 90, 110, 200, 210]
+})
+
+result = (
+    df
+    .query("sales > 100")
+    .assign(sales_k=lambda x: x["sales"] / 1000)
+    .groupby("city", as_index=False)
+    .agg(avg_sales_k=("sales_k", "mean"))
+    .sort_values("avg_sales_k", ascending=False)
+)
+print(result)</code></pre>
+
+                        <p>This chain filters rows, creates a new column, groups, aggregates, and sorts &mdash; all in a single expression. The parentheses allow multi-line formatting without backslash continuation.</p>
+
+                        <p>Using <code>.pipe()</code> for custom functions:</p>
+
+                        <pre><code class="language-python">def top_n(df, n=2):
+    return df.nlargest(n, "sales")
+
+(df
+ .pipe(top_n, n=3)
+ .assign(rank=lambda x: x["sales"].rank(ascending=False))
+)</code></pre>
+
+                        <p><code>.pipe()</code> lets you insert any custom function into the chain, keeping the pipeline style intact even when you need logic that isn&rsquo;t built into pandas.</p>
+
+                        <h2>Hierarchical Indexing (MultiIndex)</h2>
+                        <p>A <code>MultiIndex</code> (or hierarchical index) allows you to represent higher-dimensional data in a 2D DataFrame. It&rsquo;s essential for working with grouped or nested data.</p>
+
+                        <pre><code class="language-python">arrays = [
+    ["Europe", "Europe", "Asia", "Asia"],
+    ["Paris", "London", "Tokyo", "Osaka"]
+]
+index = pd.MultiIndex.from_arrays(arrays, names=["continent", "city"])
+df = pd.DataFrame({"sales": [200, 180, 250, 220]}, index=index)
+print(df)</code></pre>
+
+                        <p>Accessing data within a MultiIndex:</p>
+
+                        <pre><code class="language-python">df.loc["Europe"]
+df.loc[("Asia", "Tokyo")]
+df_swapped = df.swaplevel()
+df_reset = df.reset_index()
+df_back = df_reset.set_index(["continent", "city"])</code></pre>
+
+                        <p><code>.loc</code> works naturally with MultiIndex &mdash; pass a single label to select an entire level, or a tuple to drill down to a specific entry. Use <code>reset_index()</code> to flatten and <code>set_index()</code> to rebuild the hierarchy.</p>
+
+                        <h2>Pivot Tables and Crosstabs</h2>
+                        <p>Pivot tables reshape data for summary analysis, while crosstabs compute frequency tables or normalized proportions.</p>
+
+                        <pre><code class="language-python">pivot = pd.pivot_table(
+    df_reset, values="sales", index="continent",
+    columns="city", aggfunc="sum", margins=True
+)
+pd.crosstab(df_reset["continent"], df_reset["city"], normalize="index")</code></pre>
+
+                        <p>The <code>margins=True</code> parameter adds row and column totals. The <code>normalize</code> parameter in <code>crosstab</code> converts counts to proportions &mdash; use <code>"index"</code> for row-wise, <code>"columns"</code> for column-wise, or <code>"all"</code> for overall normalization.</p>
+
+                        <h2>Time Series and Date Handling</h2>
+                        <p>Pandas has first-class support for time series data, making it straightforward to resample, roll, shift, and convert time zones.</p>
+
+                        <pre><code class="language-python">dates = pd.date_range("2024-01-01", periods=10, freq="D")
+data = np.random.randint(50, 150, size=10)
+ts = pd.Series(data, index=dates)
+
+ts_weekly = ts.resample("W").mean()
+ts_rolling = ts.rolling(window=3).mean()
+ts_shifted = ts.shift(1)
+
+ts_utc = ts.tz_localize("UTC")
+ts_tokyo = ts_utc.tz_convert("Asia/Tokyo")</code></pre>
+
+                        <p>Key time series operations:</p>
+                        <ul>
+                            <li><strong>resample()</strong> &mdash; change frequency (daily &rarr; weekly, hourly &rarr; daily) with an aggregation function</li>
+                            <li><strong>rolling()</strong> &mdash; compute moving averages, sums, or custom window functions</li>
+                            <li><strong>shift()</strong> &mdash; offset data by N periods, useful for computing differences or lag features</li>
+                            <li><strong>tz_localize() / tz_convert()</strong> &mdash; handle time zone awareness and conversion</li>
+                        </ul>
+
+                        <h2>Handling Large Datasets</h2>
+                        <p>When working with datasets that push memory limits, several pandas techniques can dramatically reduce your footprint.</p>
+
+                        <pre><code class="language-python"># 1. Optimize dtypes at read time
+df = pd.read_csv("large_file.csv", dtype={
+    "id": "int32",
+    "category": "category",
+    "value": "float32"
+})
+
+# 2. Only read the columns you need
+df = pd.read_csv("large_file.csv", usecols=["id", "value", "date"])
+
+# 3. Read in chunks for processing
+chunks = pd.read_csv("large_file.csv", chunksize=100_000)
+results = []
+for chunk in chunks:
+    filtered = chunk.query("value > 50")
+    results.append(filtered)
+df = pd.concat(results, ignore_index=True)
+
+# 4. Use Parquet for fast I/O and compression
+df.to_parquet("data.parquet", engine="pyarrow")
+df = pd.read_parquet("data.parquet")
+
+# 5. Check memory usage
+print(df.memory_usage(deep=True))
+
+# 6. Downcast numeric columns
+df["value"] = pd.to_numeric(df["value"], downcast="float")</code></pre>
+
+                        <p>Switching from CSV to Parquet alone can reduce file size by 5&ndash;10x and loading time by 3&ndash;5x, thanks to columnar storage and built-in compression.</p>
+
+                        <h2>Advanced GroupBy</h2>
+                        <p>Beyond basic <code>groupby().mean()</code>, pandas supports named aggregations, transforms, and filters that keep your grouped operations expressive and powerful.</p>
+
+                        <pre><code class="language-python">grouped = df_reset.groupby("continent").agg(
+    count=("sales", "count"),
+    mean_sales=("sales", "mean"),
+    max_sales=("sales", "max")
+)
+
+df_reset["zscore"] = (
+    df_reset.groupby("continent")["sales"]
+    .transform(lambda x: (x - x.mean()) / x.std())
+)</code></pre>
+
+                        <p>Key GroupBy patterns:</p>
+                        <ul>
+                            <li><strong>Named aggregation</strong> &mdash; use keyword arguments in <code>.agg()</code> to produce clean, named output columns</li>
+                            <li><strong>transform()</strong> &mdash; applies a function per group but returns a Series aligned to the original DataFrame (same length). Perfect for adding group-level statistics as new columns</li>
+                            <li><strong>filter()</strong> &mdash; keeps only groups that satisfy a condition</li>
+                        </ul>
+
+                        <pre><code class="language-python"># Keep only groups where average sales exceed a threshold
+filtered = df_reset.groupby("continent").filter(
+    lambda x: x["sales"].mean() > 200
+)
+
+# Apply different aggregations to different columns
+multi_agg = df_reset.groupby("continent").agg({
+    "sales": ["sum", "mean", "std"],
+    "city": "nunique"
+})
+print(multi_agg)</code></pre>
+
+                        <h2>Performance Tips</h2>
+                        <p>Writing fast pandas code means working <em>with</em> the library&rsquo;s strengths rather than against them.</p>
+
+                        <pre><code class="language-python"># 1. Use vectorized string methods instead of apply
+df["city_upper"] = df["city"].str.upper()        # fast
+# df["city_upper"] = df["city"].apply(str.upper)  # slower
+
+# 2. Use .query() for readable, fast filtering
+result = df.query("sales > 100 and city == 'Paris'")
+
+# 3. Use eval() for complex column expressions
+df.eval("profit = sales * 0.3 - 10", inplace=True)
+
+# 4. Convert low-cardinality strings to categorical
+df["city"] = df["city"].astype("category")
+print(df["city"].cat.categories)
+
+# 5. Avoid iterrows() &mdash; use vectorized operations
+# Slow:
+# for idx, row in df.iterrows():
+#     df.at[idx, "doubled"] = row["sales"] * 2
+
+# Fast:
+df["doubled"] = df["sales"] * 2
+
+# 6. Use .values or .to_numpy() when you need raw speed
+arr = df["sales"].to_numpy()
+result = arr.sum()  # NumPy is faster for pure numeric ops</code></pre>
+
+                        <p>General rules of thumb:</p>
+                        <ul>
+                            <li>Vectorized operations &gt; <code>apply()</code> &gt; <code>itertuples()</code> &gt; <code>iterrows()</code></li>
+                            <li>Use <code>category</code> dtype for columns with few unique values &mdash; it reduces memory and speeds up groupby</li>
+                            <li>Prefer <code>.query()</code> and <code>.eval()</code> for complex expressions &mdash; they can be faster and are always more readable</li>
+                            <li>When performance truly matters, drop down to NumPy or consider libraries like Polars or Dask</li>
+                        </ul>
+
+                        <h2>Key Takeaways</h2>
+                        <ul>
+                            <li><strong>Method chaining</strong> produces cleaner, more readable data pipelines &mdash; use <code>.pipe()</code> for custom functions</li>
+                            <li><strong>MultiIndex</strong> enables hierarchical data representation without restructuring your DataFrame</li>
+                            <li><strong>Pivot tables</strong> and <strong>crosstabs</strong> are essential for summary analysis and reporting</li>
+                            <li><strong>Time series</strong> operations like <code>resample()</code>, <code>rolling()</code>, and <code>shift()</code> are built-in and highly optimized</li>
+                            <li><strong>Chunked reading</strong>, <strong>dtype optimization</strong>, and <strong>Parquet</strong> format are key for handling large datasets</li>
+                            <li><strong>Advanced GroupBy</strong> with <code>transform()</code> and <code>filter()</code> unlocks powerful group-level operations</li>
+                            <li><strong>Vectorized operations</strong> are always faster than <code>apply()</code> or iteration &mdash; design your code around them</li>
+                            <li>Use <strong>categorical types</strong> for low-cardinality columns to save memory and speed up grouping</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI & Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing large-scale distributed systems. Specialized in Generative AI, AI Agents, and cloud-native architectures.</p>
+                        <div class="sidebar-author-links">
+                            <a href="https://www.linkedin.com/in/paolo-mascia-italy" target="_blank" aria-label="LinkedIn">
+                                <svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                            </a>
+                            <a href="https://github.com/paolomascia" target="_blank" aria-label="GitHub">
+                                <svg viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+                            </a>
+                            <a href="https://www.kaggle.com/paolomascia" target="_blank" aria-label="Kaggle">
+                                <svg viewBox="0 0 24 24"><path d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.233-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.075.378z"/></svg>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="post-pandas.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Pandas</span>
+                            <div class="sidebar-link-title">Getting Started with Pandas</div>
+                            <span class="sidebar-link-meta">Jun 2023</span>
+                        </a>
+                        <a href="post-numpy.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">NumPy</span>
+                            <div class="sidebar-link-title">Mastering NumPy: The Foundation of Scientific Computing in Python</div>
+                            <span class="sidebar-link-meta">Mar 2023</span>
+                        </a>
+                        <a href="post-ml-pipelines.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Pipelines</span>
+                            <div class="sidebar-link-title">Building Machine Learning Pipelines in Python</div>
+                            <span class="sidebar-link-meta">Nov 2025</span>
+                        </a>
+                        <a href="post-simple-linear-regression.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Linear Regression</span>
+                            <div class="sidebar-link-title">Simple Linear Regression in Python</div>
+                            <span class="sidebar-link-meta">Feb 2023</span>
+                        </a>
+                        <a href="post-pca.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">PCA</span>
+                            <div class="sidebar-link-title">Principal Component Analysis (PCA) in Python</div>
+                            <span class="sidebar-link-meta">May 2024</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+</body>
+</html>

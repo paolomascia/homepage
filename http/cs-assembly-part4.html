@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IA-32 and Intel 64 ISA Assembly Language (Part 4) &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="cybersecurity-tech-insights.html" class="back-link">&larr; Back to Cybersecurity</a>
+                        <div class="post-meta">
+                            <span class="post-date">Aug 2023</span>
+                            <span class="post-reading">8 min read</span>
+                        </div>
+                        <h1>IA-32 and Intel 64 ISA Assembly Language (Part 4)</h1>
+                        <div class="post-tags">
+                            <span>Assembly</span>
+                            <span>IA-32</span>
+                            <span>Data Types</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Part 4 examines the data types supported by the IA-32 and Intel 64 architectures &mdash; from fundamental byte-level storage units and integer representations through floating-point formats and pointer types across different processor modes.</p>
+
+                        <!-- Data Types in IA-32 and Intel 64 Architectures -->
+                        <h2>Data Types in IA-32 and Intel 64 Architectures</h2>
+
+                        <h3>Fundamental Data Types</h3>
+
+                        <p>The x86 architecture defines a set of <strong>fundamental data units</strong> that serve as the building blocks for all higher-level data structures. These types are directly supported by the processor&rsquo;s instruction set.</p>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Data Type</th>
+                                    <th>Size</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>Byte</strong></td>
+                                    <td>8 bits</td>
+                                    <td>Basic unit of storage; smallest directly addressable data type.</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Word</strong></td>
+                                    <td>16 bits</td>
+                                    <td>Composed of two bytes; often used in 16-bit operations.</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Doubleword (DWORD)</strong></td>
+                                    <td>32 bits</td>
+                                    <td>Composed of four bytes; standard unit in 32-bit mode.</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Quadword (QWORD)</strong></td>
+                                    <td>64 bits</td>
+                                    <td>Composed of eight bytes; standard unit in 64-bit mode.</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Double Quadword (DQWORD)</strong></td>
+                                    <td>128 bits</td>
+                                    <td>Composed of sixteen bytes; used in SIMD and vector operations.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <p>These sizes correspond to the natural word size of the processor mode:</p>
+                        <ul>
+                            <li>16-bit processors operate on <strong>words</strong>.</li>
+                            <li>32-bit processors operate on <strong>doublewords</strong>.</li>
+                            <li>64-bit processors operate on <strong>quadwords</strong>.</li>
+                        </ul>
+
+                        <!-- Integer Data Types -->
+                        <h2>Integer Data Types</h2>
+
+                        <p>The Intel 64 and IA-32 architectures support two major classes of integers:</p>
+                        <ul>
+                            <li><strong>Unsigned integers:</strong> Non-negative binary values.</li>
+                            <li><strong>Signed integers:</strong> Two&rsquo;s complement binary values representing positive and negative numbers.</li>
+                        </ul>
+
+                        <h3>Unsigned Integers</h3>
+
+                        <p>Unsigned integers represent only non-negative values. The range depends on the number of bits available:</p>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Type</th>
+                                    <th>Range</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>Byte (8-bit)</td><td>0 to 255</td></tr>
+                                <tr><td>Word (16-bit)</td><td>0 to 65,535</td></tr>
+                                <tr><td>Doubleword (32-bit)</td><td>0 to 4,294,967,295 (2&sup3;&sup2; &minus; 1)</td></tr>
+                                <tr><td>Quadword (64-bit)</td><td>0 to 18,446,744,073,709,551,615 (2&sup6;&sup4; &minus; 1)</td></tr>
+                            </tbody>
+                        </table>
+
+                        <h3>Signed Integers</h3>
+
+                        <p>Signed integers use the <strong>two&rsquo;s complement</strong> representation, allowing for both positive and negative values. The highest-order bit represents the sign (0 = positive, 1 = negative).</p>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Type</th>
+                                    <th>Bit Used for Sign</th>
+                                    <th>Range</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>Byte</td><td>Bit 7</td><td>&minus;128 to +127</td></tr>
+                                <tr><td>Word</td><td>Bit 15</td><td>&minus;32,768 to +32,767</td></tr>
+                                <tr><td>Doubleword</td><td>Bit 31</td><td>&minus;2,147,483,648 to +2,147,483,647</td></tr>
+                                <tr><td>Quadword</td><td>Bit 63</td><td>&minus;9,223,372,036,854,775,808 to +9,223,372,036,854,775,807</td></tr>
+                            </tbody>
+                        </table>
+
+                        <p>Arithmetic operations automatically take sign into account, and flags in the <strong>EFLAGS/RFLAGS</strong> register (such as the <code>OF</code> and <code>SF</code> flags) are updated accordingly.</p>
+
+                        <!-- Floating-Point Data Types -->
+                        <h2>Floating-Point Data Types</h2>
+
+                        <p>Floating-point numbers represent real values using the IEEE 754 binary standard. The IA-32 architecture supports three floating-point formats through the <strong>x87 FPU</strong> and SIMD extensions:</p>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Type</th>
+                                    <th>Length</th>
+                                    <th>Precision</th>
+                                    <th>Normalized Range (Approximate)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Single Precision</td>
+                                    <td>32 bits</td>
+                                    <td>24 bits</td>
+                                    <td>1.18 &times; 10<sup>&minus;38</sup> to 3.40 &times; 10<sup>38</sup></td>
+                                </tr>
+                                <tr>
+                                    <td>Double Precision</td>
+                                    <td>64 bits</td>
+                                    <td>53 bits</td>
+                                    <td>2.23 &times; 10<sup>&minus;308</sup> to 1.79 &times; 10<sup>308</sup></td>
+                                </tr>
+                                <tr>
+                                    <td>Double Extended Precision</td>
+                                    <td>80 bits</td>
+                                    <td>64 bits</td>
+                                    <td>3.37 &times; 10<sup>&minus;4932</sup> to 1.18 &times; 10<sup>4932</sup></td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <p>Extended precision format (80 bits) is unique to x87 FPU operations and provides additional accuracy beyond standard IEEE single and double precision formats. SSE and AVX SIMD extensions, in contrast, operate only on single and double precision values.</p>
+
+                        <!-- Pointers and Memory Addresses -->
+                        <h2>Pointers and Memory Addresses</h2>
+
+                        <p>A <strong>pointer</strong> is a value representing the memory address of an object or instruction. Pointer sizes and structures depend on the processor&rsquo;s mode and memory model.</p>
+
+                        <h3>Pointer Types in Non-64-bit Modes</h3>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Pointer Type</th>
+                                    <th>Composition</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>Near Pointer</strong></td>
+                                    <td>16-bit or 32-bit offset</td>
+                                    <td>References an address within the current segment. Common in flat memory models and most 32-bit applications.</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Far Pointer</strong></td>
+                                    <td>16-bit segment selector + 16- or 32-bit offset</td>
+                                    <td>Used in segmented memory models where the segment must be explicitly identified.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <p>Near pointers are typical in protected-mode programs running with a flat address space (where all segments overlap). Far pointers are mostly historical and were used extensively in 16-bit DOS and early Windows programming.</p>
+
+                        <h3>Pointer Types in 64-bit Mode</h3>
+
+                        <p>In 64-bit mode, the memory model is simplified:</p>
+
+                        <ul>
+                            <li>A <strong>near pointer</strong> is a 64-bit effective address and represents any valid virtual address.</li>
+                            <li><strong>Far pointers</strong> still exist theoretically and can be 16:16, 16:32, or 16:64 (segment selector + offset) but are rarely used.</li>
+                        </ul>
+
+                        <p>Segment registers (<code>FS</code> and <code>GS</code>) can still provide base offsets, but the flat address space model makes most addressing &ldquo;near&rdquo; in practice.</p>
+
+                        <!-- Summary -->
+                        <h2>Summary</h2>
+
+                        <ul>
+                            <li>The architecture defines a hierarchy of data sizes from bytes (8-bit) to double quadwords (128-bit).</li>
+                            <li>Integer types may be signed or unsigned, with two&rsquo;s complement used for negative values.</li>
+                            <li>Floating-point data types adhere to IEEE 754 single, double, and extended formats, providing a wide dynamic range.</li>
+                            <li>Pointers represent memory locations, and their size and structure vary depending on mode (16-, 32-, or 64-bit).</li>
+                            <li>Modern 64-bit systems operate using a flat memory model with 64-bit near pointers and minimal segmentation.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing large-scale distributed systems. Specialized in Generative AI, AI Agents, and cloud-native architectures.</p>
+                        <div class="sidebar-author-links">
+                            <a href="https://www.linkedin.com/in/paolo-mascia-italy" target="_blank" aria-label="LinkedIn"><svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg></a>
+                            <a href="https://github.com/paolomascia" target="_blank" aria-label="GitHub"><svg viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg></a>
+                            <a href="https://www.kaggle.com/paolomascia" target="_blank" aria-label="Kaggle"><svg viewBox="0 0 24 24"><path d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.233-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.075.378z"/></svg></a>
+                        </div>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="cs-assembly-part3.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Assembly</span>
+                            <div class="sidebar-link-title">IA-32 and Intel 64 ISA Assembly Language (Part 3)</div>
+                            <span class="sidebar-link-meta">Jun 2023</span>
+                        </a>
+                        <a href="cs-assembly-part5.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Assembly</span>
+                            <div class="sidebar-link-title">IA-32 and Intel 64 ISA Assembly Language (Part 5)</div>
+                            <span class="sidebar-link-meta">Nov 2023</span>
+                        </a>
+                        <a href="cs-assembly-part6.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Assembly</span>
+                            <div class="sidebar-link-title">IA-32 and Intel 64 ISA Assembly Language (Part 6)</div>
+                            <span class="sidebar-link-meta">Jan 2024</span>
+                        </a>
+                        <a href="cs-reverse-engineering.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cybersecurity</span>
+                            <div class="sidebar-link-title">Reverse Engineering</div>
+                            <span class="sidebar-link-meta">Aug 2024</span>
+                        </a>
+                        <a href="cs-intro-cybersecurity.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cybersecurity</span>
+                            <div class="sidebar-link-title">Introduction to Cybersecurity</div>
+                            <span class="sidebar-link-meta">Apr 2023</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-nasm.min.js"></script>
+</body>
+</html>

@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>K-Nearest Neighbors Regression in Python &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="ai-tech-insights.html" class="back-link">&larr; Back to Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Jun 2024</span>
+                            <span class="post-reading">12 min read</span>
+                        </div>
+                        <h1>K-Nearest Neighbors Regression in Python</h1>
+                        <div class="post-tags">
+                            <span>KNN</span>
+                            <span>Regression</span>
+                            <span>Scikit-Learn</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+
+                        <p class="lead">K-Nearest Neighbors (KNN) regression is one of the most intuitive machine learning algorithms you will ever encounter. Instead of fitting a global model to data, it predicts a new point by looking at its closest neighbors and averaging their target values. This &ldquo;lazy learner&rdquo; approach means there is no explicit training phase &mdash; the algorithm simply memorizes the dataset and does all the heavy lifting at prediction time.</p>
+
+                        <p>In this guide we will walk through every practical aspect of KNN regression in Python: how the algorithm works under the hood, which distance metrics to choose, how to pick the right <em>K</em>, when to weight by distance, why feature scaling is critical, and how to build end-to-end pipelines that handle real-world data. By the end you will have a reusable template ready for your own projects.</p>
+
+                        <!-- Section 1 -->
+                        <h2>What KNN Regression Does</h2>
+
+                        <p>KNN regression is a <strong>non-parametric, instance-based</strong> algorithm. It stores every training example and, for each new query point, finds the <em>K</em> nearest training samples in feature space. The prediction is simply the average (or weighted average) of those neighbors&rsquo; target values.</p>
+
+                        <p>Because the model does no work during <code>fit()</code> and defers everything to <code>predict()</code>, KNN is called a <strong>lazy learner</strong>. This has important consequences for both speed and memory that we will explore later.</p>
+
+                        <blockquote>Think of KNN as asking your closest neighbors for their opinion and averaging their answers. The more neighbors you ask, the smoother &mdash; but potentially more biased &mdash; your prediction becomes.</blockquote>
+
+                        <p>The core steps at prediction time are:</p>
+
+                        <ol>
+                            <li>Compute the distance from the query point to every training point.</li>
+                            <li>Sort distances and select the <em>K</em> smallest.</li>
+                            <li>Aggregate the target values of those <em>K</em> neighbors (mean or weighted mean).</li>
+                        </ol>
+
+                        <pre><code class="language-python">from sklearn.neighbors import KNeighborsRegressor
+import numpy as np
+
+# Simple 1-D example
+X_train = np.array([[1], [2], [3], [4], [5]])
+y_train = np.array([1.2, 1.8, 3.1, 3.9, 5.2])
+
+model = KNeighborsRegressor(n_neighbors=3)
+model.fit(X_train, y_train)
+
+# Predict for a new point
+X_new = np.array([[3.5]])
+prediction = model.predict(X_new)
+print(f"Prediction for X=3.5: {prediction[0]:.2f}")
+# Output: Prediction for X=3.5: 3.60</code></pre>
+
+                        <p>With <code>n_neighbors=3</code>, the three closest training points to <code>3.5</code> are <code>[3, 4, 5]</code> with targets <code>[3.1, 3.9, 5.2]</code>. The mean is <code>(3.1 + 3.9 + 5.2) / 3 = 4.07</code>. However, KNN uses actual Euclidean distance, so the three nearest are <code>[3, 4, 2]</code> with targets <code>[3.1, 3.9, 1.8]</code>, giving <code>(3.1 + 3.9 + 1.8) / 3 &asymp; 2.93</code>. The exact result depends on the distance computation.</p>
+
+                        <!-- Section 2 -->
+                        <h2>Distance Metrics</h2>
+
+                        <p>The notion of &ldquo;nearest&rdquo; depends entirely on how you measure distance. Scikit-Learn&rsquo;s <code>KNeighborsRegressor</code> supports several metrics via the <code>metric</code> parameter.</p>
+
+                        <h3>Euclidean Distance (default)</h3>
+                        <p>The straight-line distance in multi-dimensional space. It is the most commonly used metric and works well when features are on similar scales.</p>
+
+                        <pre><code class="language-python"># d(x, y) = sqrt( sum( (xi - yi)^2 ) )
+# This is the default: metric='minkowski', p=2</code></pre>
+
+                        <h3>Manhattan Distance</h3>
+                        <p>The sum of absolute differences along each axis. Think of it as the distance a taxi would drive on a grid of streets. It can be more robust to outliers in individual features.</p>
+
+                        <pre><code class="language-python"># d(x, y) = sum( |xi - yi| )
+model = KNeighborsRegressor(n_neighbors=5, metric='manhattan')
+# or equivalently: metric='minkowski', p=1</code></pre>
+
+                        <h3>Minkowski Distance</h3>
+                        <p>A generalization that includes both Euclidean (<code>p=2</code>) and Manhattan (<code>p=1</code>) as special cases. You can tune <code>p</code> as a hyperparameter.</p>
+
+                        <pre><code class="language-python"># d(x, y) = ( sum( |xi - yi|^p ) )^(1/p)
+model = KNeighborsRegressor(n_neighbors=5, metric='minkowski', p=3)</code></pre>
+
+                        <p>Other metrics such as <code>chebyshev</code> (maximum coordinate difference), <code>cosine</code>, and custom callables are also available. In practice, Euclidean works well for most regression tasks once features are properly scaled.</p>
+
+                        <!-- Section 3 -->
+                        <h2>Choosing K with Cross-Validation</h2>
+
+                        <p>The single most important hyperparameter in KNN is <code>n_neighbors</code> (K). A small K leads to predictions that are highly sensitive to local noise (low bias, high variance), while a large K produces smoother, more averaged predictions (higher bias, lower variance).</p>
+
+                        <p>The standard way to select K is through cross-validation:</p>
+
+                        <pre><code class="language-python">from sklearn.neighbors import KNeighborsRegressor
+from sklearn.model_selection import cross_val_score
+from sklearn.datasets import make_regression
+import numpy as np
+
+# Generate synthetic data
+X, y = make_regression(n_samples=300, n_features=4, noise=20, random_state=42)
+
+k_range = range(1, 31)
+cv_scores = []
+
+for k in k_range:
+    model = KNeighborsRegressor(n_neighbors=k)
+    scores = cross_val_score(model, X, y, cv=5, scoring='neg_mean_absolute_error')
+    cv_scores.append(-scores.mean())
+
+best_k = k_range[np.argmin(cv_scores)]
+print(f"Best K: {best_k}, MAE: {min(cv_scores):.2f}")</code></pre>
+
+                        <p>Plot the MAE against K to visualize the bias&ndash;variance tradeoff:</p>
+
+                        <pre><code class="language-python">import matplotlib.pyplot as plt
+
+plt.figure(figsize=(8, 4))
+plt.plot(k_range, cv_scores, marker='o', markersize=4)
+plt.xlabel('K (number of neighbors)')
+plt.ylabel('Mean Absolute Error (CV)')
+plt.title('KNN Regression &mdash; Choosing K')
+plt.axvline(x=best_k, color='red', linestyle='--', label=f'Best K = {best_k}')
+plt.legend()
+plt.tight_layout()
+plt.show()</code></pre>
+
+                        <p>Typically you will see the error drop as K increases from 1 (overfitting), reach a minimum, and then slowly rise as K gets too large (underfitting). A good rule of thumb is to start with <code>K = sqrt(n_samples)</code> and search around that neighborhood.</p>
+
+                        <!-- Section 4 -->
+                        <h2>Distance Weighting</h2>
+
+                        <p>By default, all K neighbors contribute equally to the prediction. With <strong>distance weighting</strong>, closer neighbors have a larger influence. This is controlled by the <code>weights</code> parameter.</p>
+
+                        <pre><code class="language-python"># Uniform weights (default) &mdash; all neighbors count equally
+model_uniform = KNeighborsRegressor(n_neighbors=7, weights='uniform')
+
+# Distance weights &mdash; closer neighbors contribute more
+model_distance = KNeighborsRegressor(n_neighbors=7, weights='distance')
+
+# Custom weight function
+def gaussian_weights(distances):
+    """Apply Gaussian kernel to distances."""
+    sigma = 1.0
+    return np.exp(-(distances ** 2) / (2 * sigma ** 2))
+
+model_custom = KNeighborsRegressor(n_neighbors=7, weights=gaussian_weights)</code></pre>
+
+                        <p>Distance weighting is especially useful when you want to use a larger K for stability without over-smoothing. Neighbors far from the query point are effectively down-weighted, preserving local detail.</p>
+
+                        <pre><code class="language-python"># Compare uniform vs. distance weighting
+from sklearn.model_selection import cross_val_score
+
+for w in ['uniform', 'distance']:
+    model = KNeighborsRegressor(n_neighbors=10, weights=w)
+    score = cross_val_score(model, X, y, cv=5, scoring='r2').mean()
+    print(f"weights='{w}': R² = {score:.4f}")</code></pre>
+
+                        <!-- Section 5 -->
+                        <h2>Why Feature Scaling Is Critical</h2>
+
+                        <p>KNN relies on distance calculations, so features with larger numeric ranges will dominate the distance metric and effectively drown out features with smaller ranges. <strong>Feature scaling is not optional for KNN &mdash; it is essential.</strong></p>
+
+                        <pre><code class="language-python">from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import Pipeline
+from sklearn.model_selection import cross_val_score
+import numpy as np
+
+# Without scaling
+model_raw = KNeighborsRegressor(n_neighbors=5)
+score_raw = cross_val_score(model_raw, X, y, cv=5, scoring='r2').mean()
+
+# With scaling
+pipe_scaled = Pipeline([
+    ('scaler', StandardScaler()),
+    ('knn', KNeighborsRegressor(n_neighbors=5))
+])
+score_scaled = cross_val_score(pipe_scaled, X, y, cv=5, scoring='r2').mean()
+
+print(f"Without scaling: R² = {score_raw:.4f}")
+print(f"With scaling:    R² = {score_scaled:.4f}")</code></pre>
+
+                        <p>Common scaling strategies:</p>
+                        <ul>
+                            <li><strong>StandardScaler:</strong> zero mean, unit variance. Good general default.</li>
+                            <li><strong>MinMaxScaler:</strong> maps to [0, 1]. Useful when you want bounded features.</li>
+                            <li><strong>RobustScaler:</strong> uses median and IQR. Better when data has outliers.</li>
+                        </ul>
+
+                        <blockquote>Always put the scaler inside a Pipeline so that scaling parameters are fitted on training data only and applied consistently to test data. Never fit the scaler on the full dataset before splitting &mdash; that causes data leakage.</blockquote>
+
+                        <!-- Section 6 -->
+                        <h2>Multi-Feature Example</h2>
+
+                        <p>Let us work through a more realistic example with multiple features, demonstrating KNN regression on a dataset with both numeric and categorical variables.</p>
+
+                        <pre><code class="language-python">import pandas as pd
+import numpy as np
+from sklearn.neighbors import KNeighborsRegressor
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import mean_absolute_error, r2_score
+
+# Simulate a housing-like dataset
+np.random.seed(42)
+n = 500
+data = pd.DataFrame({
+    'sqft': np.random.randint(600, 4000, n),
+    'bedrooms': np.random.randint(1, 6, n),
+    'age': np.random.randint(0, 50, n),
+    'distance_to_center': np.random.uniform(0.5, 30, n),
+})
+data['price'] = (
+    150 * data['sqft']
+    + 20000 * data['bedrooms']
+    - 1000 * data['age']
+    - 3000 * data['distance_to_center']
+    + np.random.normal(0, 30000, n)
+)
+
+X = data.drop('price', axis=1)
+y = data['price']
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Build pipeline with scaling
+from sklearn.pipeline import Pipeline
+
+pipe = Pipeline([
+    ('scaler', StandardScaler()),
+    ('knn', KNeighborsRegressor(n_neighbors=7, weights='distance'))
+])
+
+pipe.fit(X_train, y_train)
+y_pred = pipe.predict(X_test)
+
+print(f"MAE:  ${mean_absolute_error(y_test, y_pred):,.0f}")
+print(f"R²:   {r2_score(y_test, y_pred):.4f}")</code></pre>
+
+                        <!-- Section 7 -->
+                        <h2>Preprocessing Pipeline with Categorical Features</h2>
+
+                        <p>Real-world datasets often include categorical features. Since KNN requires numeric distances, you need to encode categoricals. A <code>ColumnTransformer</code> makes this clean and leak-proof.</p>
+
+                        <pre><code class="language-python">import pandas as pd
+import numpy as np
+from sklearn.neighbors import KNeighborsRegressor
+from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.model_selection import train_test_split, cross_val_score
+
+# Simulated dataset with a categorical feature
+np.random.seed(42)
+n = 600
+df = pd.DataFrame({
+    'sqft': np.random.randint(500, 4000, n),
+    'bedrooms': np.random.randint(1, 6, n),
+    'neighborhood': np.random.choice(['downtown', 'suburbs', 'rural'], n),
+    'age': np.random.randint(0, 60, n),
+})
+neigh_map = {'downtown': 50000, 'suburbs': 20000, 'rural': -10000}
+df['price'] = (
+    120 * df['sqft']
+    + 15000 * df['bedrooms']
+    - 800 * df['age']
+    + df['neighborhood'].map(neigh_map)
+    + np.random.normal(0, 25000, n)
+)
+
+X = df.drop('price', axis=1)
+y = df['price']
+
+num_features = ['sqft', 'bedrooms', 'age']
+cat_features = ['neighborhood']
+
+preprocessor = ColumnTransformer([
+    ('num', StandardScaler(), num_features),
+    ('cat', OneHotEncoder(drop='first', sparse_output=False), cat_features),
+])
+
+pipe = Pipeline([
+    ('preprocessor', preprocessor),
+    ('knn', KNeighborsRegressor(n_neighbors=9, weights='distance'))
+])
+
+scores = cross_val_score(pipe, X, y, cv=5, scoring='r2')
+print(f"R² (5-fold CV): {scores.mean():.4f} &plusmn; {scores.std():.4f}")</code></pre>
+
+                        <p>Key considerations when mixing feature types:</p>
+                        <ul>
+                            <li>One-hot encoded columns are binary (0/1), which already have a small range, but scaling all features together ensures consistency.</li>
+                            <li>For high-cardinality categoricals, consider target encoding or ordinal encoding instead of one-hot to keep dimensionality manageable.</li>
+                            <li>The number of one-hot columns adds to the effective dimensionality, which impacts KNN performance (see curse of dimensionality below).</li>
+                        </ul>
+
+                        <!-- Section 8 -->
+                        <h2>Prediction Intervals from Neighbor Targets</h2>
+
+                        <p>Unlike parametric models, KNN does not produce confidence intervals natively. However, you can build simple prediction intervals by examining the spread of target values among the K neighbors.</p>
+
+                        <pre><code class="language-python">from sklearn.neighbors import KNeighborsRegressor
+import numpy as np
+
+# Fit a KNN model
+model = KNeighborsRegressor(n_neighbors=10, weights='uniform')
+model.fit(X_train, y_train)
+
+# Get neighbor indices for test points
+distances, indices = model.kneighbors(X_test)
+
+# Compute prediction intervals from neighbor targets
+neighbor_targets = y_train.values[indices]  # shape: (n_test, K)
+
+y_pred = neighbor_targets.mean(axis=1)
+y_lower = np.percentile(neighbor_targets, 10, axis=1)
+y_upper = np.percentile(neighbor_targets, 90, axis=1)
+
+# Show intervals for first 5 predictions
+for i in range(5):
+    print(f"Pred: {y_pred[i]:>10,.0f}  "
+          f"[{y_lower[i]:>10,.0f}, {y_upper[i]:>10,.0f}]  "
+          f"Actual: {y_test.values[i]:>10,.0f}")</code></pre>
+
+                        <p>This approach gives you an empirical prediction interval based on the variability of neighbor targets. If the neighbors have widely varying targets, the model is less certain about that prediction. Keep in mind that these are not formal statistical confidence intervals, but they provide useful uncertainty estimates in practice.</p>
+
+                        <!-- Section 9 -->
+                        <h2>Time and Memory Considerations</h2>
+
+                        <p>Because KNN is a lazy learner, its computational profile is unusual compared to most algorithms:</p>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Aspect</th>
+                                    <th>Complexity</th>
+                                    <th>Notes</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Training time</td>
+                                    <td>O(1)</td>
+                                    <td>Just stores the data</td>
+                                </tr>
+                                <tr>
+                                    <td>Prediction time</td>
+                                    <td>O(n &middot; d)</td>
+                                    <td>Per query; n = training size, d = features</td>
+                                </tr>
+                                <tr>
+                                    <td>Memory</td>
+                                    <td>O(n &middot; d)</td>
+                                    <td>Entire training set stored</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <p>For large datasets, prediction becomes the bottleneck. Scikit-Learn offers tree-based acceleration structures:</p>
+
+                        <pre><code class="language-python"># BallTree &mdash; efficient for medium dimensions
+model_ball = KNeighborsRegressor(n_neighbors=5, algorithm='ball_tree')
+
+# KDTree &mdash; fast for low dimensions (&lt; ~20)
+model_kd = KNeighborsRegressor(n_neighbors=5, algorithm='kd_tree')
+
+# Brute force &mdash; exact, works for any dimension
+model_brute = KNeighborsRegressor(n_neighbors=5, algorithm='brute')
+
+# Auto (default) &mdash; Scikit-Learn picks the best based on data
+model_auto = KNeighborsRegressor(n_neighbors=5, algorithm='auto')</code></pre>
+
+                        <p>Practical tips for scaling KNN:</p>
+                        <ul>
+                            <li>If your dataset exceeds ~100k rows, consider approximate nearest neighbor libraries like <code>FAISS</code>, <code>Annoy</code>, or <code>ScaNN</code>.</li>
+                            <li>Reduce dimensionality with PCA or feature selection before applying KNN.</li>
+                            <li>Use <code>leaf_size</code> parameter to tune tree-based algorithms for your dataset.</li>
+                        </ul>
+
+                        <!-- Section 10 -->
+                        <h2>Common Pitfalls</h2>
+
+                        <h3>1. Forgetting to Scale Features</h3>
+                        <p>This is the single most common mistake with KNN. If one feature ranges from 0&ndash;1 and another from 0&ndash;1,000,000, the latter will completely dominate distance calculations. Always scale.</p>
+
+                        <h3>2. The Curse of Dimensionality</h3>
+                        <p>As the number of features grows, the concept of &ldquo;nearest&rdquo; becomes less meaningful. In high-dimensional spaces, all points tend to be roughly equidistant. KNN struggles with more than ~20&ndash;30 features unless you apply dimensionality reduction first.</p>
+
+                        <pre><code class="language-python">from sklearn.decomposition import PCA
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.neighbors import KNeighborsRegressor
+
+# Reduce 50 features to 10 principal components before KNN
+pipe = Pipeline([
+    ('scaler', StandardScaler()),
+    ('pca', PCA(n_components=10)),
+    ('knn', KNeighborsRegressor(n_neighbors=7, weights='distance'))
+])</code></pre>
+
+                        <h3>3. Extrapolation Failure</h3>
+                        <p>KNN <strong>cannot extrapolate</strong> beyond the range of training data. If the training targets range from 100k to 500k, KNN will never predict 600k. For any query point outside the training distribution, KNN will simply return the average of whatever neighbors happen to be nearest, which will be at the boundary of the training data.</p>
+
+                        <h3>4. Using K = 1</h3>
+                        <p>With K = 1 the model memorizes the training data perfectly (zero training error) but is highly sensitive to noise. Always validate with cross-validation rather than assuming a small K is better.</p>
+
+                        <h3>5. Ignoring the Algorithm Parameter</h3>
+                        <p>The default <code>algorithm='auto'</code> works well most of the time, but for very large or high-dimensional datasets, explicitly choosing <code>'brute'</code> or <code>'ball_tree'</code> can make a significant difference in prediction speed.</p>
+
+                        <!-- Section 11 -->
+                        <h2>End-to-End Template</h2>
+
+                        <p>Here is a complete, copy-paste-ready template that handles data loading, preprocessing, hyperparameter tuning, and evaluation:</p>
+
+                        <pre><code class="language-python">import numpy as np
+import pandas as pd
+from sklearn.neighbors import KNeighborsRegressor
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+
+# ----- 1. Load Data -----
+# df = pd.read_csv('your_data.csv')
+# For demo, generate synthetic data
+np.random.seed(42)
+n = 800
+df = pd.DataFrame({
+    'feature_1': np.random.uniform(0, 100, n),
+    'feature_2': np.random.randint(1, 10, n),
+    'category': np.random.choice(['A', 'B', 'C'], n),
+    'target': np.random.uniform(10, 500, n),
+})
+df['target'] = (
+    3.5 * df['feature_1']
+    + 20 * df['feature_2']
+    + df['category'].map({'A': 50, 'B': 0, 'C': -30})
+    + np.random.normal(0, 25, n)
+)
+
+# ----- 2. Define Features and Target -----
+X = df.drop('target', axis=1)
+y = df['target']
+
+num_cols = ['feature_1', 'feature_2']
+cat_cols = ['category']
+
+# ----- 3. Train/Test Split -----
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+
+# ----- 4. Preprocessing -----
+preprocessor = ColumnTransformer([
+    ('num', StandardScaler(), num_cols),
+    ('cat', OneHotEncoder(drop='first', sparse_output=False), cat_cols),
+])
+
+# ----- 5. Pipeline -----
+pipe = Pipeline([
+    ('preprocessor', preprocessor),
+    ('knn', KNeighborsRegressor())
+])
+
+# ----- 6. Hyperparameter Search -----
+param_grid = {
+    'knn__n_neighbors': [3, 5, 7, 9, 11, 15, 21],
+    'knn__weights': ['uniform', 'distance'],
+    'knn__metric': ['euclidean', 'manhattan'],
+}
+
+search = GridSearchCV(
+    pipe, param_grid, cv=5,
+    scoring='neg_mean_absolute_error',
+    n_jobs=-1, verbose=1
+)
+search.fit(X_train, y_train)
+
+print(f"Best params: {search.best_params_}")
+print(f"Best CV MAE: {-search.best_score_:.2f}")
+
+# ----- 7. Evaluate on Test Set -----
+y_pred = search.predict(X_test)
+print(f"\nTest MAE:  {mean_absolute_error(y_test, y_pred):.2f}")
+print(f"Test RMSE: {np.sqrt(mean_squared_error(y_test, y_pred)):.2f}")
+print(f"Test R²:   {r2_score(y_test, y_pred):.4f}")</code></pre>
+
+                        <!-- Section 12 -->
+                        <h2>Key Takeaways</h2>
+
+                        <ul>
+                            <li><strong>KNN is a lazy learner:</strong> no training phase, all computation happens at prediction time. This makes it fast to set up but slow to predict on large datasets.</li>
+                            <li><strong>Feature scaling is mandatory:</strong> without it, features with large ranges dominate distance calculations and predictions become meaningless.</li>
+                            <li><strong>K controls the bias&ndash;variance tradeoff:</strong> small K = more flexible but noisy; large K = smoother but potentially biased. Use cross-validation to find the sweet spot.</li>
+                            <li><strong>Distance weighting helps:</strong> setting <code>weights='distance'</code> lets you use a larger K without over-smoothing, as far-away neighbors contribute less.</li>
+                            <li><strong>KNN cannot extrapolate:</strong> predictions are bounded by the range of training targets. If your use case requires extrapolation, consider a parametric model instead.</li>
+                            <li><strong>Beware the curse of dimensionality:</strong> KNN degrades with many features. Use PCA or feature selection to keep dimensionality manageable.</li>
+                            <li><strong>Prediction intervals are easy:</strong> examine the spread of neighbor targets for a simple, practical uncertainty estimate.</li>
+                            <li><strong>Use pipelines:</strong> always wrap scaling, encoding, and the model in a single Pipeline to prevent data leakage and keep your code clean.</li>
+                        </ul>
+
+                    </div>
+                </div>
+
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing large-scale distributed systems. Specialized in Generative AI, AI Agents, and cloud-native architectures.</p>
+                        <div class="sidebar-author-links">
+                            <a href="https://www.linkedin.com/in/paolo-mascia-italy" target="_blank" aria-label="LinkedIn">
+                                <svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                            </a>
+                            <a href="https://github.com/paolomascia" target="_blank" aria-label="GitHub">
+                                <svg viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+                            </a>
+                            <a href="https://www.kaggle.com/paolomascia" target="_blank" aria-label="Kaggle">
+                                <svg viewBox="0 0 24 24"><path d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.233-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.075.378z"/></svg>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <ul>
+                            <li><a href="post-svm.html">Support Vector Machines in Python</a><span class="sidebar-meta">SVM &middot; Oct 2024</span></li>
+                            <li><a href="post-decision-tree.html">Decision Tree Regression in Python</a><span class="sidebar-meta">Decision Tree &middot; Apr 2024</span></li>
+                            <li><a href="post-logistic-regression.html">Logistic Regression in Python</a><span class="sidebar-meta">Logistic Regression &middot; Jan 2024</span></li>
+                            <li><a href="post-simple-linear-regression.html">Simple Linear Regression</a><span class="sidebar-meta">Linear Regression &middot; Feb 2023</span></li>
+                            <li><a href="post-ml-pipelines.html">Building ML Pipelines in Python</a><span class="sidebar-meta">Pipelines &middot; Nov 2025</span></li>
+                        </ul>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+</body>
+</html>

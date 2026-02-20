@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Introduction to Cryptography &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="cybersecurity-tech-insights.html" class="back-link">&larr; Back to Cybersecurity</a>
+                        <div class="post-meta">
+                            <span class="post-date">May 2023</span>
+                            <span class="post-reading">10 min read</span>
+                        </div>
+                        <h1>Introduction to Cryptography</h1>
+                        <div class="post-tags">
+                            <span>Cryptography</span>
+                            <span>History</span>
+                            <span>Ciphers</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Cryptography involves studying methods for concealing information and ensuring its integrity through protocols and algorithms designed to prevent unauthorized access. The term derives from Greek: <em>krypt&oacute;s</em> (hidden) and <em>gr&aacute;phein</em> (to write). In modern times, cryptography has become foundational to digital security, evolving from linguistic art to an interdisciplinary science relying on discrete mathematics, number theory, information theory, computational complexity, statistics, and combinatorics.</p>
+
+                        <p>Key roles include <strong>cryptographers</strong> (who develop systems) and practitioners of <strong>cryptanalysis</strong> or <strong>codebreaking</strong> (who attempt to bypass protections). The broader field is <strong>cryptology</strong>, encompassing both creation and breaking of systems.</p>
+
+                        <blockquote>
+                            <p><strong>Distinction from steganography:</strong> While cryptography obscures message content, steganography hides message existence entirely (microdots, invisible ink, hidden image data).</p>
+                        </blockquote>
+
+                        <h2>Plaintext, Ciphertext, and Ciphers</h2>
+                        <p><strong>Encryption</strong> transforms readable information (plaintext) into unreadable form (ciphertext). <strong>Decryption</strong> reverses this. Authorized users possess a <strong>key</strong> enabling decryption. The transformation algorithm is called a <strong>cipher</strong>.</p>
+
+                        <h2>The Caesar Cipher</h2>
+                        <p>This historical encryption method, attributed to Julius Caesar, belongs to <strong>shift ciphers</strong> where letters shift fixed alphabet positions. With a three-position rightward shift: A&rarr;D, B&rarr;E, wrapping so X&rarr;A, Y&rarr;B, Z&rarr;C.</p>
+
+<pre><code class="language-bash">Plaintext:  ATTACKATDAWN
+Ciphertext: DWWDFNDWGDZQ  (shift = 3)</code></pre>
+
+                        <p>Decryption reverses the process. Though effective historically due to low literacy, modern <strong>frequency analysis</strong> easily breaks it &mdash; a technique developed centuries ago by Arab cryptanalysts.</p>
+
+                        <p><strong>Historical note:</strong> Mary Stuart, Queen of Scots, used similar encryption for the Babington Plot correspondence (16th century), but it was easily deciphered, leading to her conviction and execution.</p>
+
+                        <h2>Polyalphabetic Ciphers</h2>
+
+                        <h3>Leon Battista Alberti&rsquo;s Cipher Disk</h3>
+                        <p>Around 1465, Italian polymath Leon Battista Alberti invented the <strong>polyalphabetic cipher</strong> using two concentric rotating disks. Identical disks belonged to sender and receiver. Rotating the inner disk according to a <strong>key letter</strong> produced different substitution alphabets within the same message.</p>
+
+<pre><code class="language-bash">Plaintext:  corsodi
+Key:        A
+Ciphertext: Abeqreuh</code></pre>
+
+                        <p>After partial encryption, disks rotated with a new key letter (e.g., P) to continue:</p>
+
+<pre><code class="language-bash">Plaintext:  corsodicrittografia
+Ciphertext: AbeqreuhPmbsaayqbkpsk</code></pre>
+
+                        <h3>The Vigen&egrave;re Cipher</h3>
+                        <p>Published by Blaise de Vigen&egrave;re in 1586, this method was long considered unbreakable though weaker than Alberti&rsquo;s system. It extends Caesar cipher principles using a <strong>keyword</strong> to vary shifts per letter.</p>
+
+<pre><code class="language-bash">Plaintext:  CORSODICRITTOGRAFIA
+Key:        VERMEVERMEVERMEVERME
+Ciphertext: ASMGSBOTFORBHSXVLDM</code></pre>
+
+                        <p>Each key letter determines shift positions. Represented as arithmetic addition modulo 26 (A=0, B=1, etc.), the same plaintext letter encrypts differently based on position, frustrating frequency analysis.</p>
+
+                        <p><strong>Weakness:</strong> Once key length is discovered, the cipher reduces to multiple Caesar ciphers, vulnerable to modern analysis.</p>
+
+                        <h2>The Enigma Machine</h2>
+                        <p>The <strong>Enigma machine</strong>, used by Germans in World War II, represents cryptographic history&rsquo;s most iconic device. Resembling an electromechanical typewriter, each keypress produced encrypted letters based on rotor and plugboard configurations.</p>
+
+                        <p>Each rotor functioned like substitution disks; configuration changed dynamically per keystroke. The signal passed through rotor sequences and a <strong>reflector</strong> reversing the path, doubling complexity.</p>
+
+                        <p>The first rotor&rsquo;s complete rotation advanced the second rotor by one position, creating over 17,000 unique states before repeating. Later versions featured four rotors and ten plugboard swaps, exponentially increasing possible configurations.</p>
+
+                        <p>Encryption and decryption were symmetrical due to the reflector, allowing identical machine configuration for both processes.</p>
+
+                        <blockquote>
+                            <p><strong>Critical weakness:</strong> The reflector prevented any letter from encrypting to itself. Combined with recurring military phrases like &ldquo;Keine besonderen Ereignisse&rdquo; (&ldquo;No special events&rdquo;), cryptanalysts narrowed rotor settings.</p>
+                        </blockquote>
+
+                        <p>Polish and British mathematicians, including <strong>Alan Turing</strong> at <strong>Bletchley Park</strong>, achieved breakthrough success. Their work produced <strong>Colossus</strong>, one of the world&rsquo;s first large-scale mechanical computers, ultimately cracking Enigma and altering history&rsquo;s course.</p>
+
+                        <h2>Conclusion</h2>
+                        <p>From simple alphabet shifts to sophisticated electromechanical systems, cryptography&rsquo;s evolution reflects humanity&rsquo;s continuous quest to secure information against increasingly powerful adversaries.</p>
+                    </div>
+                </div>
+
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing large-scale distributed systems. Specialized in Generative AI, AI Agents, and cloud-native architectures.</p>
+                        <div class="sidebar-author-links">
+                            <a href="https://www.linkedin.com/in/paolo-mascia-italy" target="_blank" aria-label="LinkedIn"><svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg></a>
+                            <a href="https://github.com/paolomascia" target="_blank" aria-label="GitHub"><svg viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg></a>
+                            <a href="https://www.kaggle.com/paolomascia" target="_blank" aria-label="Kaggle"><svg viewBox="0 0 24 24"><path d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.233-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.075.378z"/></svg></a>
+                        </div>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="cs-modern-cryptography.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cryptography</span>
+                            <div class="sidebar-link-title">Modern Cryptography</div>
+                            <span class="sidebar-link-meta">Sep 2024</span>
+                        </a>
+                        <a href="cs-modular-arithmetic.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cryptography</span>
+                            <div class="sidebar-link-title">Modular Arithmetic</div>
+                            <span class="sidebar-link-meta">Dec 2023</span>
+                        </a>
+                        <a href="cs-symmetric-key.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cryptography</span>
+                            <div class="sidebar-link-title">Symmetric Key Cryptography</div>
+                            <span class="sidebar-link-meta">Mar 2025</span>
+                        </a>
+                        <a href="cs-des.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cryptography</span>
+                            <div class="sidebar-link-title">DES &mdash; Data Encryption Standard</div>
+                            <span class="sidebar-link-meta">Jun 2025</span>
+                        </a>
+                        <a href="cs-aes.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cryptography</span>
+                            <div class="sidebar-link-title">AES &mdash; Advanced Encryption Standard</div>
+                            <span class="sidebar-link-meta">Jan 2025</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-nasm.min.js"></script>
+</body>
+</html>

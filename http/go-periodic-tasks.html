@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Periodic Tasks in Go &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="golang-tech-insights.html" class="back-link">&larr; Back to Go Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Feb 2024</span>
+                            <span class="post-reading">18 min read</span>
+                        </div>
+                        <h1>Periodic Tasks in Go &mdash; Exhaustive Guide</h1>
+                        <div class="post-tags">
+                            <span>Go</span>
+                            <span>Scheduling</span>
+                            <span>Concurrency</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Periodic (scheduled) jobs are essential for maintenance, data sync, emails, metrics, and more. In Go you can schedule tasks with the standard library&rsquo;s <code>time.Ticker</code>, <code>time.Timer</code>, and <code>time.AfterFunc</code>, or use a cron-like scheduler such as GoCron (<code>github.com/go-co-op/gocron</code>).</p>
+
+                        <h2>1) The Basics: time.Ticker</h2>
+
+                        <p><code>time.Ticker</code> delivers a tick on its channel every interval. Always <strong>stop the ticker</strong> when done to avoid leaks.</p>
+
+<pre><code class="language-go">package main
+
+import (
+    "fmt"
+    "time"
+)
+
+func main() {
+    ticker := time.NewTicker(1 * time.Second)
+    defer ticker.Stop() // important
+
+    for {
+        select {
+        case t := &lt;-ticker.C:
+            fmt.Println("Tick at", t.Format(time.RFC3339))
+        }
+    }
+}</code></pre>
+
+                        <p><strong>Tips:</strong></p>
+                        <ul>
+                            <li>Use <code>Reset(d)</code> (Go 1.15+) to change the period without allocating a new ticker.</li>
+                            <li>Do not use <code>time.Sleep</code> in a loop for long-running apps; <code>Ticker</code> is more precise and stoppable.</li>
+                        </ul>
+
+                        <h2>2) Ticker with Context &amp; Graceful Shutdown</h2>
+
+                        <p>Combine <code>context</code> and OS signals to stop cleanly (Kubernetes/containers included).</p>
+
+<pre><code class="language-go">package main
+
+import (
+    "context"
+    "fmt"
+    "os"
+    "os/signal"
+    "syscall"
+    "time"
+)
+
+func main() {
+    ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+    defer cancel()
+
+    ticker := time.NewTicker(2 * time.Second)
+    defer ticker.Stop()
+
+    for {
+        select {
+        case &lt;-ctx.Done():
+            fmt.Println("Shutting down gracefully...")
+            return
+        case t := &lt;-ticker.C:
+            fmt.Println("Periodic work at", t)
+        }
+    }
+}</code></pre>
+
+                        <h2>3) Preventing Overlap (Non-Reentrant Jobs)</h2>
+
+                        <p>Ensure a new run doesn&rsquo;t start if the previous hasn&rsquo;t finished (e.g., slow I/O). Use a simple lock channel or atomic flag.</p>
+
+<pre><code class="language-go">busy := make(chan struct{}, 1) // capacity 1
+
+ticker := time.NewTicker(5 * time.Second)
+defer ticker.Stop()
+
+for range ticker.C {
+    select {
+    case busy &lt;- struct{}{}:
+        go func() {
+            defer func(){ &lt;-busy }()
+            // do work (can be long-running)
+        }()
+    default:
+        // previous run still in progress; skip
+    }
+}</code></pre>
+
+                        <h2>4) Jitter &amp; Backoff</h2>
+
+                        <p>Add <strong>jitter</strong> to avoid the &ldquo;thundering herd&rdquo; (many instances firing at once). Use <strong>backoff</strong> after errors.</p>
+
+<pre><code class="language-go">package main
+
+import (
+    "fmt"
+    "math/rand"
+    "time"
+)
+
+func main() {
+    base := 10 * time.Second
+    rand.Seed(time.Now().UnixNano())
+
+    for {
+        // jitter in [-2s, +2s]
+        jitter := time.Duration(rand.Int63n(int64(4*time.Second))) - 2*time.Second
+        wait := base + jitter
+        if wait &lt; 1*time.Second {
+            wait = 1 * time.Second
+        }
+        timer := time.NewTimer(wait)
+        &lt;-timer.C
+
+        if err := doWork(); err != nil {
+            // exponential backoff with cap
+            backoff := 1 * time.Second
+            for i := 0; i &lt; 5; i++ {
+                fmt.Println("error:", err, "retry in", backoff)
+                time.Sleep(backoff)
+                if err = doWork(); err == nil { break }
+                backoff *= 2
+                if backoff &gt; 30*time.Second { backoff = 30 * time.Second }
+            }
+        }
+    }
+}
+
+func doWork() error {
+    // your task (return error to trigger retries)
+    fmt.Println("running task at", time.Now())
+    return nil
+}</code></pre>
+
+                        <h2>5) One-Off &amp; Delayed Tasks: time.Timer &amp; time.AfterFunc</h2>
+
+<pre><code class="language-go">// time.Timer
+timer := time.NewTimer(3 * time.Second)
+&lt;-timer.C // fires once
+
+// time.AfterFunc runs a function once after a delay
+time.AfterFunc(5*time.Second, func() {
+    fmt.Println("Run once after 5s")
+})</code></pre>
+
+                        <h2>6) Worker Pools for Periodic Batches</h2>
+
+                        <p>Schedule the loop, then fan out work to a pool for concurrency control.</p>
+
+<pre><code class="language-go">jobs := make(chan int, 100)
+results := make(chan int, 100)
+
+// start workers
+for w := 0; w &lt; 4; w++ {
+    go func(id int) {
+        for j := range jobs {
+            // process job j
+            results &lt;- j * 2
+        }
+    }(w)
+}
+
+ticker := time.NewTicker(30 * time.Second)
+defer ticker.Stop()
+
+for range ticker.C {
+    // enqueue a batch every 30s
+    for i := 0; i &lt; 10; i++ {
+        jobs &lt;- i
+    }
+}</code></pre>
+
+                        <h2>7) Advanced Scheduling with GoCron</h2>
+
+                        <p>GoCron (go-co-op) provides cron-like schedules, intervals, timezones, tags, and more.</p>
+
+<pre><code class="language-bash">go get github.com/go-co-op/gocron</code></pre>
+
+<pre><code class="language-go">package main
+
+import (
+    "fmt"
+    "time"
+
+    "github.com/go-co-op/gocron"
+)
+
+func main() {
+    // Use a specific timezone if needed
+    loc, _ := time.LoadLocation("Europe/Rome")
+    s := gocron.NewScheduler(loc)
+
+    // Every 10 seconds
+    _, _ = s.Every(10).Seconds().Do(printTime)
+
+    // Every day at 09:30 local time
+    _, _ = s.Every(1).Day().At("09:30").Do(dailyJob)
+
+    // Cron expression (supports seconds): "At minute 0 past every hour"
+    // Examples: "0 0 * * *" (5-field), or with seconds "0 0 * * * *"
+    _, _ = s.Cron("0 0 * * *").Do(hourlyJob)
+
+    // Prevent overlapping runs for a job:
+    s.SingletonMode() // globally; or use job.SingletonMode() per job
+
+    // Optional: limit runs
+    // j, _ := s.Every(1).Hour().Do(someJob)
+    // j.LimitRunsTo(5)
+
+    s.StartAsync()
+
+    // Block main (or use select{})
+    &lt;-s.Done()
+}
+
+func printTime() { fmt.Println(time.Now()) }
+func dailyJob()  { fmt.Println("Daily task at 09:30") }
+func hourlyJob() { fmt.Println("Hourly job") }</code></pre>
+
+                        <p><strong>Useful features:</strong></p>
+                        <ul>
+                            <li><code>StartAsync()</code>, <code>StartBlocking()</code>, <code>Stop()</code></li>
+                            <li><code>Tag</code> jobs for lookup/cancellation; <code>RemoveByTag</code></li>
+                            <li><code>SingletonMode()</code> to avoid overlap; <code>WaitForSchedule()</code> to delay first run until schedule time</li>
+                            <li><code>RunBySchedule()</code> for immediate catch-up patterns</li>
+                        </ul>
+
+                        <h2>8) GoCron + Graceful Shutdown</h2>
+
+<pre><code class="language-go">package main
+
+import (
+    "context"
+    "fmt"
+    "os"
+    "os/signal"
+    "syscall"
+    "time"
+
+    "github.com/go-co-op/gocron"
+)
+
+func main() {
+    s := gocron.NewScheduler(time.Local)
+    s.SingletonMode()
+    _, _ = s.Every(5).Seconds().Do(func() { fmt.Println("tick", time.Now()) })
+    s.StartAsync()
+
+    ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+    defer stop()
+
+    &lt;-ctx.Done()
+    fmt.Println("Stopping scheduler...")
+    s.Stop() // waits for running jobs to finish
+}</code></pre>
+
+                        <h2>9) Cron Expressions: Quick Reference</h2>
+
+                        <ul>
+                            <li><strong>Standard 5-field:</strong> <code>min hour dom mon dow</code> &mdash; e.g., <code>0 2 * * *</code> = every day at 02:00</li>
+                            <li><strong>With seconds (6-field):</strong> <code>sec min hour dom mon dow</code> &mdash; e.g., <code>0 */5 * * * *</code> = every 5 minutes at second 0</li>
+                            <li>Use a fixed <strong>timezone</strong> when schedules must be local-time specific (DST aware).</li>
+                        </ul>
+
+                        <h2>10) Observability: Logging, Metrics, Alerts</h2>
+
+                        <ul>
+                            <li>Log start/end, duration, and outcome of each run.</li>
+                            <li>Emit metrics: run count, failures, last run timestamp, duration histograms.</li>
+                            <li>Alert on consecutive failures or long runtimes.</li>
+                        </ul>
+
+<pre><code class="language-go">start := time.Now()
+err := doWork()
+dur := time.Since(start)
+if err != nil {
+    // log error + duration, increment failure metric
+} else {
+    // log success + duration, update last-success metric
+}</code></pre>
+
+                        <h2>11) Running Periodic Tasks on Multiple Replicas</h2>
+
+                        <p>If your service is replicated, you might want only <strong>one active scheduler</strong> at a time:</p>
+
+                        <ul>
+                            <li><strong>Leader election</strong> (Consul, etcd, Kubernetes Leases)</li>
+                            <li><strong>Distributed locks</strong> (Redis/Redlock, Postgres advisory locks)</li>
+                            <li>Or design <strong>idempotent</strong> jobs that safely run in parallel</li>
+                        </ul>
+
+                        <h2>12) Persistence &amp; Missed Runs</h2>
+
+                        <p>Libraries like GoCron do not persist schedule state by default. For &ldquo;exactly-once&rdquo; semantics or catching missed runs during downtime:</p>
+
+                        <ul>
+                            <li>Persist a <strong>last run checkpoint</strong> (DB row)</li>
+                            <li>On startup, <strong>reconcile</strong> missed windows and process backlog</li>
+                            <li>Use queues (e.g., <strong>Cloud Tasks</strong>, <strong>SQS</strong>, <strong>NATS JetStream</strong>) for durable jobs</li>
+                        </ul>
+
+                        <h2>13) Security/Resource Considerations</h2>
+
+                        <ul>
+                            <li>Bound work via <strong>contexts</strong> and <strong>timeouts</strong>; cancel if exceeding SLAs.</li>
+                            <li>Limit parallelism (semaphores) for API rate limits or DB load.</li>
+                            <li>Protect credentials via env/secret managers; avoid logging sensitive inputs.</li>
+                        </ul>
+
+                        <h2>14) Complete Examples</h2>
+
+                        <h3>A) Robust Ticker Loop (no overlap, jitter, shutdown)</h3>
+
+<pre><code class="language-go">package main
+
+import (
+    "context"
+    "fmt"
+    "math/rand"
+    "os"
+    "os/signal"
+    "syscall"
+    "time"
+)
+
+func main() {
+    ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+    defer cancel()
+
+    busy := make(chan struct{}, 1)
+    rand.Seed(time.Now().UnixNano())
+
+    base := 30 * time.Second
+    t := time.NewTicker(base)
+    defer t.Stop()
+
+    for {
+        select {
+        case &lt;-ctx.Done():
+            fmt.Println("exit")
+            return
+        case &lt;-t.C:
+            // add small jitter per tick
+            jitter := time.Duration(rand.Int63n(int64(4*time.Second))) - 2*time.Second
+            if jitter &gt; 0 { time.Sleep(jitter) }
+
+            select {
+            case busy &lt;- struct{}{}:
+                go func() {
+                    defer func(){ &lt;-busy }()
+                    runOnce(ctx)
+                }()
+            default:
+                // still running, skip
+            }
+        }
+    }
+}
+
+func runOnce(ctx context.Context) {
+    // do real work; respect ctx if using external calls
+    fmt.Println("run at", time.Now())
+    time.Sleep(2 * time.Second)
+}</code></pre>
+
+                        <h3>B) GoCron with timezone, cron, singleton, and shutdown</h3>
+
+<pre><code class="language-go">package main
+
+import (
+    "context"
+    "fmt"
+    "os/signal"
+    "syscall"
+    "time"
+
+    "github.com/go-co-op/gocron"
+)
+
+func main() {
+    loc, _ := time.LoadLocation("Europe/Rome")
+    s := gocron.NewScheduler(loc)
+    s.SingletonMode()
+
+    // Every 15 minutes at second 0
+    _, _ = s.Cron("0 */15 * * * *").Do(func() { fmt.Println("quarter-hour task", time.Now()) })
+
+    // Daily at 02:00 local time
+    _, _ = s.Every(1).Day().At("02:00").Do(func(){ fmt.Println("nightly job") })
+
+    s.StartAsync()
+
+    ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+    defer stop()
+    &lt;-ctx.Done()
+
+    s.Stop()
+    fmt.Println("scheduler stopped")
+}</code></pre>
+
+                        <h2>15) Production Checklist</h2>
+
+                        <ul>
+                            <li>Use <strong>context</strong> &amp; <strong>signal</strong> handling for graceful shutdown</li>
+                            <li>Prevent <strong>overlap</strong> (singleton mode / locks) or make tasks <strong>idempotent</strong></li>
+                            <li>Add <strong>jitter</strong> and <strong>backoff</strong> to avoid bursts</li>
+                            <li>Log start/end/duration; emit metrics and alerts</li>
+                            <li>Choose a fixed <strong>timezone</strong> for human schedules (DST!)</li>
+                            <li>Consider <strong>leader election</strong> for single-run jobs across replicas</li>
+                            <li>Persist checkpoints or use a <strong>durable queue</strong> for missed runs</li>
+                        </ul>
+                    </div>
+                </div>
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="go-installation-data-types.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">GO Installation and Data Types</div>
+                            <span class="sidebar-link-meta">Feb 2023</span>
+                        </a>
+                        <a href="go-oop.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Object Oriented Programming in GO</div>
+                            <span class="sidebar-link-meta">Oct 2023</span>
+                        </a>
+                        <a href="go-cross-compiling-docker.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Cross-Compiling &amp; Docker</div>
+                            <span class="sidebar-link-meta">Nov 2024</span>
+                        </a>
+                        <a href="go-dsls-generics.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Building DSLs in Go Using Generics</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-arena-allocators.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Memory Optimization in Go: Arena Allocators</div>
+                            <span class="sidebar-link-meta">Nov 2025</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+
+</body>
+</html>

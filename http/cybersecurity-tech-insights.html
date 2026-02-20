@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cybersecurity Tech Insights &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+            <button class="nav-toggle" aria-label="Toggle menu">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </div>
+    </nav>
+
+    <section class="writing" style="padding-top: 140px;">
+        <div class="container">
+            <a href="index.html" class="back-link" style="display: inline-block; font-size: 14px; color: var(--text-muted); margin-bottom: 32px; transition: color 0.2s;">&larr; Back to Home</a>
+            <h2 class="section-title">Cybersecurity Tech Insights</h2>
+            <p class="section-subtitle">Deep dives into cybersecurity, cryptography, networking, and low-level systems.</p>
+
+            <!-- Cybersecurity Fundamentals -->
+            <h3 style="font-size: 18px; font-weight: 700; color: var(--text); margin-top: 48px; margin-bottom: 24px; text-transform: uppercase; letter-spacing: 2px; font-family: var(--mono);">Cybersecurity</h3>
+            <div class="posts-grid">
+
+                <a href="cs-intro-cybersecurity.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Apr 2023</span>
+                        <span class="post-reading">10 min read</span>
+                    </div>
+                    <h3>Introduction to Cybersecurity</h3>
+                    <p>Foundations of cybersecurity: the CIA triad, threat landscape, attack surfaces, defense-in-depth strategies, and the security mindset every practitioner needs.</p>
+                    <div class="post-tags">
+                        <span>Cybersecurity</span>
+                        <span>Fundamentals</span>
+                        <span>CIA Triad</span>
+                    </div>
+                </a>
+
+                <a href="cs-motivations-cybercrime.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Jul 2023</span>
+                        <span class="post-reading">8 min read</span>
+                    </div>
+                    <h3>Motivations of Cybercrime</h3>
+                    <p>Understanding the actors behind cyber threats &mdash; from financially motivated hackers and state-sponsored groups to hacktivists and insider threats.</p>
+                    <div class="post-tags">
+                        <span>Cybercrime</span>
+                        <span>Threat Actors</span>
+                        <span>Security</span>
+                    </div>
+                </a>
+
+                <a href="cs-cyber-attacks.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Oct 2023</span>
+                        <span class="post-reading">12 min read</span>
+                    </div>
+                    <h3>Cyber Attacks: Types, Techniques, and Threat Landscape</h3>
+                    <p>A comprehensive taxonomy of cyber attacks &mdash; from malware and phishing to advanced persistent threats, supply chain attacks, and zero-day exploits.</p>
+                    <div class="post-tags">
+                        <span>Cyber Attacks</span>
+                        <span>Threats</span>
+                        <span>Security</span>
+                    </div>
+                </a>
+
+                <a href="cs-social-engineering.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Jan 2024</span>
+                        <span class="post-reading">10 min read</span>
+                    </div>
+                    <h3>Social Engineering: Manipulating the Human Element</h3>
+                    <p>How attackers exploit human psychology &mdash; phishing, pretexting, baiting, tailgating, and defense strategies for the weakest link in cybersecurity.</p>
+                    <div class="post-tags">
+                        <span>Social Engineering</span>
+                        <span>Phishing</span>
+                        <span>Security</span>
+                    </div>
+                </a>
+
+                <a href="cs-dos-attacks-part1.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">May 2024</span>
+                        <span class="post-reading">10 min read</span>
+                    </div>
+                    <h3>DoS Attacks (Part 1): Understanding the Basics</h3>
+                    <p>Denial of Service fundamentals &mdash; how attackers overwhelm systems, the difference between DoS and DDoS, and the anatomy of volumetric and protocol attacks.</p>
+                    <div class="post-tags">
+                        <span>DoS</span>
+                        <span>DDoS</span>
+                        <span>Network Security</span>
+                    </div>
+                </a>
+
+                <a href="cs-dos-attacks-part2.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Jun 2024</span>
+                        <span class="post-reading">12 min read</span>
+                    </div>
+                    <h3>DoS Attacks (Part 2): SYN Flood, ICMP/UDP Floods, and Amplification</h3>
+                    <p>Deep dive into specific DoS techniques &mdash; SYN floods, ICMP/UDP floods, fragmentation attacks, Smurf attacks, and DNS/NTP amplification vectors.</p>
+                    <div class="post-tags">
+                        <span>DoS</span>
+                        <span>SYN Flood</span>
+                        <span>Amplification</span>
+                    </div>
+                </a>
+
+                <a href="cs-buffer-overflow.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Sep 2023</span>
+                        <span class="post-reading">14 min read</span>
+                    </div>
+                    <h3>Buffer Overflow: Concepts, Memory Layout, and Modern Defenses</h3>
+                    <p>Understanding buffer overflow vulnerabilities &mdash; stack layout, shellcode injection, return-oriented programming, and modern mitigations like ASLR, DEP, and stack canaries.</p>
+                    <div class="post-tags">
+                        <span>Buffer Overflow</span>
+                        <span>Memory</span>
+                        <span>Exploitation</span>
+                    </div>
+                </a>
+
+                <a href="cs-computer-viruses.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Mar 2024</span>
+                        <span class="post-reading">10 min read</span>
+                    </div>
+                    <h3>Computer Viruses: How They Work, Spread, and Defend</h3>
+                    <p>Anatomy of computer viruses &mdash; infection mechanisms, propagation techniques, polymorphic and metamorphic variants, and antivirus detection strategies.</p>
+                    <div class="post-tags">
+                        <span>Viruses</span>
+                        <span>Malware</span>
+                        <span>Defense</span>
+                    </div>
+                </a>
+
+                <a href="cs-keyloggers.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Nov 2024</span>
+                        <span class="post-reading">10 min read</span>
+                    </div>
+                    <h3>Windows Keyloggers: How They Work, Detect, and Defend</h3>
+                    <p>Hardware and software keyloggers &mdash; hooking techniques, kernel-level interception, detection methods, and defensive countermeasures for Windows systems.</p>
+                    <div class="post-tags">
+                        <span>Keyloggers</span>
+                        <span>Malware</span>
+                        <span>Windows</span>
+                    </div>
+                </a>
+
+                <a href="cs-autorun.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Feb 2024</span>
+                        <span class="post-reading">6 min read</span>
+                    </div>
+                    <h3>Autorun.inf</h3>
+                    <p>Understanding the Autorun.inf mechanism in Windows &mdash; how malware exploits auto-execution on removable media and how to disable it for security.</p>
+                    <div class="post-tags">
+                        <span>Autorun</span>
+                        <span>Malware</span>
+                        <span>Windows</span>
+                    </div>
+                </a>
+
+            </div>
+
+            <!-- Reverse Engineering -->
+            <h3 style="font-size: 18px; font-weight: 700; color: var(--text); margin-top: 48px; margin-bottom: 24px; text-transform: uppercase; letter-spacing: 2px; font-family: var(--mono);">Reverse Engineering</h3>
+            <div class="posts-grid">
+
+                <a href="cs-reverse-engineering.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Aug 2024</span>
+                        <span class="post-reading">14 min read</span>
+                    </div>
+                    <h3>Reverse Engineering</h3>
+                    <p>Tools, techniques, and methodologies for analyzing compiled binaries &mdash; disassembly, debugging, static and dynamic analysis, and anti-reverse-engineering defenses.</p>
+                    <div class="post-tags">
+                        <span>Reverse Engineering</span>
+                        <span>Binary Analysis</span>
+                        <span>Security</span>
+                    </div>
+                </a>
+
+            </div>
+
+            <!-- Assembly -->
+            <h3 style="font-size: 18px; font-weight: 700; color: var(--text); margin-top: 48px; margin-bottom: 24px; text-transform: uppercase; letter-spacing: 2px; font-family: var(--mono);">Assembly Language (IA-32 / Intel 64)</h3>
+            <div class="posts-grid">
+
+                <a href="cs-assembly-part1.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Feb 2023</span>
+                        <span class="post-reading">12 min read</span>
+                    </div>
+                    <h3>IA-32 and Intel 64 ISA Assembly Language (Part 1)</h3>
+                    <p>Introduction to x86 assembly &mdash; registers, instruction format, addressing modes, and the fundamentals of low-level programming on Intel architectures.</p>
+                    <div class="post-tags">
+                        <span>Assembly</span>
+                        <span>IA-32</span>
+                        <span>Intel 64</span>
+                    </div>
+                </a>
+
+                <a href="cs-assembly-part2.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Apr 2023</span>
+                        <span class="post-reading">12 min read</span>
+                    </div>
+                    <h3>IA-32 and Intel 64 ISA Assembly Language (Part 2)</h3>
+                    <p>Data movement, arithmetic operations, and status flags &mdash; building the foundation for control flow and computation in x86 assembly.</p>
+                    <div class="post-tags">
+                        <span>Assembly</span>
+                        <span>IA-32</span>
+                        <span>Arithmetic</span>
+                    </div>
+                </a>
+
+                <a href="cs-assembly-part3.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Jun 2023</span>
+                        <span class="post-reading">12 min read</span>
+                    </div>
+                    <h3>IA-32 and Intel 64 ISA Assembly Language (Part 3)</h3>
+                    <p>Control flow in assembly &mdash; conditional and unconditional jumps, comparison instructions, loops, and branching patterns for program logic.</p>
+                    <div class="post-tags">
+                        <span>Assembly</span>
+                        <span>IA-32</span>
+                        <span>Control Flow</span>
+                    </div>
+                </a>
+
+                <a href="cs-assembly-part4.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Aug 2023</span>
+                        <span class="post-reading">12 min read</span>
+                    </div>
+                    <h3>IA-32 and Intel 64 ISA Assembly Language (Part 4)</h3>
+                    <p>The stack, subroutines, and calling conventions &mdash; how functions work at the hardware level, stack frames, and parameter passing in x86.</p>
+                    <div class="post-tags">
+                        <span>Assembly</span>
+                        <span>IA-32</span>
+                        <span>Stack</span>
+                    </div>
+                </a>
+
+                <a href="cs-assembly-part5.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Nov 2023</span>
+                        <span class="post-reading">12 min read</span>
+                    </div>
+                    <h3>IA-32 and Intel 64 ISA Assembly Language (Part 5)</h3>
+                    <p>Arrays, strings, and memory manipulation &mdash; REP prefixes, string instructions, and efficient data processing in x86 assembly.</p>
+                    <div class="post-tags">
+                        <span>Assembly</span>
+                        <span>IA-32</span>
+                        <span>Strings</span>
+                    </div>
+                </a>
+
+                <a href="cs-assembly-part6.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Jan 2024</span>
+                        <span class="post-reading">12 min read</span>
+                    </div>
+                    <h3>IA-32 and Intel 64 ISA Assembly Language (Part 6)</h3>
+                    <p>Bitwise operations and logical instructions &mdash; AND, OR, XOR, NOT, shifts, rotations, and their applications in masks, flags, and optimization.</p>
+                    <div class="post-tags">
+                        <span>Assembly</span>
+                        <span>IA-32</span>
+                        <span>Bitwise</span>
+                    </div>
+                </a>
+
+                <a href="cs-assembly-part7.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Apr 2024</span>
+                        <span class="post-reading">12 min read</span>
+                    </div>
+                    <h3>IA-32 and Intel 64 ISA Assembly Language (Part 7)</h3>
+                    <p>Floating-point arithmetic with the x87 FPU and SSE &mdash; registers, instructions, precision, and SIMD operations for numerical computation.</p>
+                    <div class="post-tags">
+                        <span>Assembly</span>
+                        <span>IA-32</span>
+                        <span>FPU</span>
+                    </div>
+                </a>
+
+                <a href="cs-assembly-part8.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Jul 2024</span>
+                        <span class="post-reading">12 min read</span>
+                    </div>
+                    <h3>IA-32 and Intel 64 ISA Assembly Language (Part 8)</h3>
+                    <p>System-level programming &mdash; interrupts, system calls, protected mode, privilege levels, and interfacing with the operating system from assembly.</p>
+                    <div class="post-tags">
+                        <span>Assembly</span>
+                        <span>IA-32</span>
+                        <span>System Calls</span>
+                    </div>
+                </a>
+
+                <a href="cs-assembly-part9.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Oct 2024</span>
+                        <span class="post-reading">12 min read</span>
+                    </div>
+                    <h3>IA-32 and Intel 64 ISA Assembly Language (Part 9)</h3>
+                    <p>Advanced topics &mdash; macros, conditional assembly, linking with C, inline assembly in high-level languages, and optimization techniques.</p>
+                    <div class="post-tags">
+                        <span>Assembly</span>
+                        <span>IA-32</span>
+                        <span>Advanced</span>
+                    </div>
+                </a>
+
+                <a href="cs-assembly-part10.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Dec 2024</span>
+                        <span class="post-reading">12 min read</span>
+                    </div>
+                    <h3>IA-32 and Intel 64 ISA Assembly Language (Part 10)</h3>
+                    <p>Intel 64 (x86-64) extensions &mdash; 64-bit registers, new addressing modes, the System V ABI, and transitioning from 32-bit to 64-bit assembly.</p>
+                    <div class="post-tags">
+                        <span>Assembly</span>
+                        <span>Intel 64</span>
+                        <span>x86-64</span>
+                    </div>
+                </a>
+
+            </div>
+
+            <!-- Cryptography -->
+            <h3 style="font-size: 18px; font-weight: 700; color: var(--text); margin-top: 48px; margin-bottom: 24px; text-transform: uppercase; letter-spacing: 2px; font-family: var(--mono);">Cryptography</h3>
+            <div class="posts-grid">
+
+                <a href="cs-intro-cryptography.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">May 2023</span>
+                        <span class="post-reading">10 min read</span>
+                    </div>
+                    <h3>Introduction to Cryptography</h3>
+                    <p>Foundations of cryptography &mdash; historical ciphers, cryptographic primitives, the role of keys, and the principles underlying modern encryption systems.</p>
+                    <div class="post-tags">
+                        <span>Cryptography</span>
+                        <span>Fundamentals</span>
+                        <span>Encryption</span>
+                    </div>
+                </a>
+
+                <a href="cs-modern-cryptography.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Sep 2024</span>
+                        <span class="post-reading">12 min read</span>
+                    </div>
+                    <h3>Modern Cryptography</h3>
+                    <p>Computational security, semantic security, and provable security &mdash; the mathematical foundations that underpin today&rsquo;s cryptographic algorithms and protocols.</p>
+                    <div class="post-tags">
+                        <span>Cryptography</span>
+                        <span>Security</span>
+                        <span>Theory</span>
+                    </div>
+                </a>
+
+                <a href="cs-modular-arithmetic.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Dec 2023</span>
+                        <span class="post-reading">10 min read</span>
+                    </div>
+                    <h3>Modular Arithmetic</h3>
+                    <p>The mathematics behind cryptography &mdash; modular operations, Euler&rsquo;s theorem, modular inverses, and their critical role in RSA, Diffie-Hellman, and elliptic curves.</p>
+                    <div class="post-tags">
+                        <span>Mathematics</span>
+                        <span>Cryptography</span>
+                        <span>Number Theory</span>
+                    </div>
+                </a>
+
+                <a href="cs-symmetric-key.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Mar 2025</span>
+                        <span class="post-reading">12 min read</span>
+                    </div>
+                    <h3>Symmetric-Key Cryptography</h3>
+                    <p>Shared-key encryption &mdash; block ciphers, stream ciphers, modes of operation (ECB, CBC, CTR, GCM), and the principles of confusion and diffusion.</p>
+                    <div class="post-tags">
+                        <span>Symmetric</span>
+                        <span>Encryption</span>
+                        <span>Block Ciphers</span>
+                    </div>
+                </a>
+
+                <a href="cs-des.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Jun 2025</span>
+                        <span class="post-reading">10 min read</span>
+                    </div>
+                    <h3>DES (Data Encryption Standard)</h3>
+                    <p>The Feistel cipher that defined an era &mdash; DES internals, key schedule, S-boxes, Triple DES, and the journey from federal standard to historical artifact.</p>
+                    <div class="post-tags">
+                        <span>DES</span>
+                        <span>Encryption</span>
+                        <span>Feistel</span>
+                    </div>
+                </a>
+
+                <a href="cs-aes.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Jan 2025</span>
+                        <span class="post-reading">12 min read</span>
+                    </div>
+                    <h3>AES (Advanced Encryption Standard)</h3>
+                    <p>The Rijndael cipher that replaced DES &mdash; SubBytes, ShiftRows, MixColumns, key expansion, and why AES-256 remains the gold standard for symmetric encryption.</p>
+                    <div class="post-tags">
+                        <span>AES</span>
+                        <span>Encryption</span>
+                        <span>Rijndael</span>
+                    </div>
+                </a>
+
+                <a href="cs-asymmetric-cryptography.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">May 2025</span>
+                        <span class="post-reading">12 min read</span>
+                    </div>
+                    <h3>Asymmetric (Public-Key) Cryptography</h3>
+                    <p>Public and private key pairs &mdash; RSA, Diffie-Hellman, elliptic curve cryptography, digital signatures, and the mathematical problems that make them secure.</p>
+                    <div class="post-tags">
+                        <span>Asymmetric</span>
+                        <span>RSA</span>
+                        <span>Public Key</span>
+                    </div>
+                </a>
+
+                <a href="cs-digital-certificates.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Aug 2025</span>
+                        <span class="post-reading">10 min read</span>
+                    </div>
+                    <h3>Digital Certificates</h3>
+                    <p>X.509 certificates, certificate authorities, PKI trust chains, certificate validation, revocation (CRL/OCSP), and TLS/SSL handshake mechanics.</p>
+                    <div class="post-tags">
+                        <span>Certificates</span>
+                        <span>PKI</span>
+                        <span>TLS</span>
+                    </div>
+                </a>
+
+                <a href="cs-hash-functions.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Oct 2025</span>
+                        <span class="post-reading">10 min read</span>
+                    </div>
+                    <h3>Hash Functions</h3>
+                    <p>One-way functions for integrity and authentication &mdash; MD5, SHA family, HMAC, collision resistance, and applications in passwords, signatures, and blockchain.</p>
+                    <div class="post-tags">
+                        <span>Hash Functions</span>
+                        <span>SHA</span>
+                        <span>Integrity</span>
+                    </div>
+                </a>
+
+            </div>
+
+            <!-- Networking -->
+            <h3 style="font-size: 18px; font-weight: 700; color: var(--text); margin-top: 48px; margin-bottom: 24px; text-transform: uppercase; letter-spacing: 2px; font-family: var(--mono);">Networking</h3>
+            <div class="posts-grid">
+
+                <a href="cs-network-architecture.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Mar 2023</span>
+                        <span class="post-reading">12 min read</span>
+                    </div>
+                    <h3>Network Architecture</h3>
+                    <p>OSI and TCP/IP models, network topologies, switching and routing fundamentals, and the architectural principles behind reliable, scalable networks.</p>
+                    <div class="post-tags">
+                        <span>Networking</span>
+                        <span>OSI Model</span>
+                        <span>TCP/IP</span>
+                    </div>
+                </a>
+
+                <a href="cs-routing-switching.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Jul 2025</span>
+                        <span class="post-reading">12 min read</span>
+                    </div>
+                    <h3>Routing and Switching</h3>
+                    <p>Layer 2 and Layer 3 fundamentals &mdash; VLANs, STP, routing protocols (OSPF, BGP, RIP), subnetting, NAT, and network design best practices.</p>
+                    <div class="post-tags">
+                        <span>Routing</span>
+                        <span>Switching</span>
+                        <span>Networking</span>
+                    </div>
+                </a>
+
+                <a href="cs-network-security.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Feb 2025</span>
+                        <span class="post-reading">12 min read</span>
+                    </div>
+                    <h3>Network Security</h3>
+                    <p>Firewalls, IDS/IPS, VPNs, network segmentation, zero trust architecture, and defense strategies for protecting network infrastructure.</p>
+                    <div class="post-tags">
+                        <span>Network Security</span>
+                        <span>Firewalls</span>
+                        <span>Zero Trust</span>
+                    </div>
+                </a>
+
+                <a href="cs-network-management.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Apr 2025</span>
+                        <span class="post-reading">10 min read</span>
+                    </div>
+                    <h3>Network Management</h3>
+                    <p>SNMP, NetFlow, syslog, network monitoring tools, configuration management, and operational best practices for maintaining healthy networks.</p>
+                    <div class="post-tags">
+                        <span>SNMP</span>
+                        <span>Monitoring</span>
+                        <span>Networking</span>
+                    </div>
+                </a>
+
+                <a href="cs-wireless-networks.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Sep 2025</span>
+                        <span class="post-reading">10 min read</span>
+                    </div>
+                    <h3>Wireless Networks</h3>
+                    <p>Wi-Fi standards (802.11a/b/g/n/ac/ax), wireless security (WEP, WPA, WPA2, WPA3), rogue access points, and securing enterprise wireless deployments.</p>
+                    <div class="post-tags">
+                        <span>Wi-Fi</span>
+                        <span>Wireless</span>
+                        <span>WPA</span>
+                    </div>
+                </a>
+
+                <a href="cs-cloud-networking.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Nov 2025</span>
+                        <span class="post-reading">10 min read</span>
+                    </div>
+                    <h3>Cloud Networking</h3>
+                    <p>VPCs, cloud load balancers, CDNs, hybrid connectivity, service mesh, and network design patterns for AWS, Azure, and GCP environments.</p>
+                    <div class="post-tags">
+                        <span>Cloud</span>
+                        <span>VPC</span>
+                        <span>Networking</span>
+                    </div>
+                </a>
+
+            </div>
+
+        </div>
+    </section>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script>
+        // Mobile nav toggle
+        const toggle = document.querySelector('.nav-toggle');
+        const navLinks = document.querySelector('.nav-links');
+        toggle.addEventListener('click', () => {
+            navLinks.classList.toggle('active');
+            toggle.classList.toggle('active');
+        });
+    </script>
+
+</body>
+</html>

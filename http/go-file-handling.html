@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Handling in Go (Golang): Read, Write, and Manage Files &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="golang-tech-insights.html" class="back-link">&larr; Back to Go Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Mar 2023</span>
+                            <span class="post-reading">10 min read</span>
+                        </div>
+                        <h1>File Handling in Go (Golang): Read, Write, and Manage Files</h1>
+                        <div class="post-tags">
+                            <span>Go</span>
+                            <span>File I/O</span>
+                            <span>Standard Library</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">File handling is one of the most common tasks in software development. Go&rsquo;s standard library provides powerful and efficient tools for reading, writing, and managing files through the <code>os</code>, <code>io</code>, and <code>bufio</code> packages.</p>
+
+                        <h2>Creating and Writing Files</h2>
+
+                        <p>The simplest way to create and write to a file in Go is using <code>os.Create()</code>. This function creates a new file (or truncates an existing one) and returns a file handle you can write to.</p>
+
+<pre><code class="language-go">package main
+
+import (
+    "fmt"
+    "os"
+)
+
+func main() {
+    file, err := os.Create("example.txt")
+    if err != nil {
+        fmt.Println("Error creating file:", err)
+        return
+    }
+    defer file.Close()
+
+    file.WriteString("Hello, Go File IO!\n")
+    file.WriteString("This is a second line.\n")
+
+    fmt.Println("File created and written successfully!")
+}</code></pre>
+
+                        <h2>Reading Entire Files</h2>
+
+                        <p>For small to medium files, <code>os.ReadFile()</code> loads the complete contents into memory as a byte slice. This is the simplest approach when you need the full content at once.</p>
+
+<pre><code class="language-go">data, err := os.ReadFile("example.txt")
+if err != nil {
+    fmt.Println("Error reading file:", err)
+    return
+}
+fmt.Println(string(data))</code></pre>
+
+                        <h2>Line-by-Line Reading</h2>
+
+                        <p>For large files, reading line by line with <code>bufio.Scanner</code> is far more memory-efficient. This approach processes one line at a time without loading the entire file into memory.</p>
+
+<pre><code class="language-go">package main
+
+import (
+    "bufio"
+    "fmt"
+    "os"
+)
+
+func main() {
+    file, err := os.Open("example.txt")
+    if err != nil {
+        fmt.Println("Error opening file:", err)
+        return
+    }
+    defer file.Close()
+
+    scanner := bufio.NewScanner(file)
+    for scanner.Scan() {
+        fmt.Println(scanner.Text())
+    }
+
+    if err := scanner.Err(); err != nil {
+        fmt.Println("Error reading file:", err)
+    }
+}</code></pre>
+
+                        <h2>Appending to Files</h2>
+
+                        <p>To add content to an existing file without overwriting it, use <code>os.OpenFile()</code> with the <code>os.O_APPEND</code> flag. This opens the file in append mode so new writes go to the end.</p>
+
+<pre><code class="language-go">file, err := os.OpenFile("example.txt", os.O_APPEND|os.O_WRONLY, 0644)
+if err != nil {
+    fmt.Println("Error opening file for append:", err)
+    return
+}
+defer file.Close()
+
+if _, err := file.WriteString("Appended line.\n"); err != nil {
+    fmt.Println("Error writing to file:", err)
+}</code></pre>
+
+                        <h2>File Management</h2>
+
+                        <p>Go makes it straightforward to rename and delete files using functions from the <code>os</code> package.</p>
+
+<pre><code class="language-go">os.Rename("example.txt", "renamed.txt")
+os.Remove("renamed.txt")</code></pre>
+
+                        <h2>File Permissions</h2>
+
+                        <p>You can control file permissions using <code>os.Chmod()</code>. Permissions are specified using Unix-style octal notation.</p>
+
+<pre><code class="language-go">os.Chmod("example.txt", 0600) // owner read/write only</code></pre>
+
+                        <h2>Binary Data Operations</h2>
+
+                        <p>For working with binary files, Go provides the <code>encoding/binary</code> package. This is useful when you need to read or write structured binary data such as integers, floats, or custom protocols.</p>
+
+<pre><code class="language-go">package main
+
+import (
+    "encoding/binary"
+    "fmt"
+    "os"
+)
+
+func main() {
+    file, _ := os.Create("numbers.bin")
+    defer file.Close()
+
+    numbers := []int32{10, 20, 30, 40}
+    for _, n := range numbers {
+        binary.Write(file, binary.LittleEndian, n)
+    }
+
+    fmt.Println("Binary file written.")
+}</code></pre>
+
+                        <h2>Best Practices</h2>
+
+                        <ul>
+                            <li><strong>Handle errors properly</strong> &mdash; always check the error return value from file operations.</li>
+                            <li><strong>Use <code>defer file.Close()</code></strong> immediately after opening a file to ensure it is always closed.</li>
+                            <li><strong>Prefer <code>bufio.Scanner</code> or <code>bufio.Writer</code></strong> for large data to avoid loading everything into memory.</li>
+                            <li><strong>Check permissions</strong> and ensure cleanup of temporary files.</li>
+                            <li><strong>Handle relative vs. absolute paths carefully</strong> to avoid unexpected behaviour across environments.</li>
+                        </ul>
+
+                        <h2>Conclusion</h2>
+
+                        <p>Go&rsquo;s standard library provides everything needed for powerful and efficient file handling. Whether you&rsquo;re reading configuration files, processing logs, writing binary data, or managing file metadata, the <code>os</code>, <code>io</code>, and <code>bufio</code> packages give you a clean, idiomatic API to get the job done.</p>
+                    </div>
+                </div>
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="go-goroutines.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Goroutines</div>
+                            <span class="sidebar-link-meta">Jan 2024</span>
+                        </a>
+                        <a href="go-error-handling.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Error Handling in Go</div>
+                            <span class="sidebar-link-meta">May 2024</span>
+                        </a>
+                        <a href="go-scheduler-internals.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Go Scheduler Internals</div>
+                            <span class="sidebar-link-meta">Jul 2025</span>
+                        </a>
+                        <a href="go-zero-copy-io.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Zero-Copy I/O and Memory Efficiency in Go</div>
+                            <span class="sidebar-link-meta">Aug 2024</span>
+                        </a>
+                        <a href="go-goroutine-leaks.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Detecting and Preventing Goroutine Leaks</div>
+                            <span class="sidebar-link-meta">Sep 2025</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+
+</body>
+</html>

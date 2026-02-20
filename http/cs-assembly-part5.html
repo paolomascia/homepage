@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IA-32 and Intel 64 ISA Assembly Language (Part 5) &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="cybersecurity-tech-insights.html" class="back-link">&larr; Back to Cybersecurity</a>
+                        <div class="post-meta">
+                            <span class="post-date">Oct 2025</span>
+                            <span class="post-reading">14 min read</span>
+                        </div>
+                        <h1>IA-32 and Intel 64 ISA Assembly Language (Part 5)</h1>
+                        <div class="post-tags">
+                            <span>Assembly</span>
+                            <span>IA-32</span>
+                            <span>NASM</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Part 5 introduces NASM (Netwide Assembler) &mdash; the portable x86 assembler that supports many object file formats including ELF, Mach-O, COFF/PE, OMF, and flat binaries. This installment covers program structure, directives, macros, calling conventions, and practical examples for both Linux and Windows environments.</p>
+
+                        <!-- Assembly Program Structure -->
+                        <h2>Assembly Program Structure (NASM)</h2>
+
+                        <p>A typical NASM program is organized into <strong>sections</strong> that separate code from data:</p>
+
+                        <ul>
+                            <li><code>section .data</code> &mdash; initialized data and constants</li>
+                            <li><code>section .bss</code> &mdash; uninitialized storage (zeroed at load/start)</li>
+                            <li><code>section .text</code> &mdash; executable code</li>
+                        </ul>
+
+                        <h3>Minimal Linux x86-64 Example</h3>
+
+<pre><code class="language-nasm">; Minimal Linux x86-64 program: write(1,"Hello\n",6) then _exit(0)
+; nasm -felf64 hello.asm -o hello.o
+; ld hello.o -o hello
+
+section .data
+    msg     db  "Hello, world!", 10
+    msg_len equ $ - msg
+
+section .text
+    global _start
+
+_start:
+    ; write(int fd, const void *buf, size_t count) -> syscall #1
+    mov     rax, 1          ; SYS_write
+    mov     rdi, 1          ; fd = stdout
+    lea     rsi, [rel msg]  ; buffer
+    mov     rdx, msg_len    ; length
+    syscall
+
+    ; exit(int status) -> syscall #60
+    mov     rax, 60
+    xor     rdi, rdi        ; status = 0
+    syscall</code></pre>
+
+                        <!-- Comments and Instruction Format -->
+                        <h2>Comments and Instruction Format</h2>
+
+                        <p>NASM comments start with a semicolon (<code>;</code>) and continue to end of line. The general instruction format is:</p>
+
+<pre><code class="language-nasm">[label]    mnemonic    [operands]    [; comment]</code></pre>
+
+                        <!-- Assembler Directives -->
+                        <h2>Assembler Directives (NASM)</h2>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Directive</th>
+                                    <th>Purpose</th>
+                                    <th>Example</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr><td><code>section</code></td><td>Selects a section</td><td><code>section .text</code></td></tr>
+                                <tr><td><code>global</code></td><td>Exports symbol</td><td><code>global _start</code></td></tr>
+                                <tr><td><code>extern</code></td><td>Declares external symbol</td><td><code>extern printf</code></td></tr>
+                                <tr><td><code>db/dw/dd/dq</code></td><td>Define byte/word/dword/qword</td><td><code>dq 0</code></td></tr>
+                                <tr><td><code>equ</code></td><td>Symbolic constant</td><td><code>BUF_SZ equ 512</code></td></tr>
+                                <tr><td><code>resb/resw/resd/resq</code></td><td>Reserve uninitialized space</td><td><code>resb 128</code></td></tr>
+                                <tr><td><code>times</code></td><td>Repeat directive/instruction</td><td><code>times 5 db 0</code></td></tr>
+                                <tr><td><code>include</code></td><td>Textual inclusion</td><td><code>include "macros.inc"</code></td></tr>
+                                <tr><td><code>align</code></td><td>Align current location</td><td><code>align 16</code></td></tr>
+                                <tr><td><code>org</code></td><td>Set origin (flat binaries)</td><td><code>org 0x7C00</code></td></tr>
+                                <tr><td><code>bits</code></td><td>Set code generation mode</td><td><code>bits 32</code></td></tr>
+                            </tbody>
+                        </table>
+
+                        <h3>Data Definition Examples</h3>
+
+<pre><code class="language-nasm">section .data
+    filename    db  "demo.txt", 0
+    answer      dd  42
+    big         dq  0x1122334455667788
+    tbl         dw  1,2,3,4,5
+    pi_str      db  "3.14159", 0
+
+section .bss
+buf         resb 1024
+arr         resd 256</code></pre>
+
+                        <h3>Constants and Numbers</h3>
+
+                        <ul>
+                            <li>Decimal: <code>123</code></li>
+                            <li>Hexadecimal: <code>0x7B</code> or <code>7Bh</code></li>
+                            <li>Binary: <code>1010b</code></li>
+                            <li>Octal: <code>173o</code></li>
+                            <li>Character: <code>'A'</code></li>
+                            <li>String: <code>"text"</code></li>
+                            <li>Current location: <code>$</code>; difference: <code>$ - label</code></li>
+                        </ul>
+
+                        <!-- Macros -->
+                        <h2>Macros (NASM)</h2>
+
+                        <p>NASM macros are textual substitutions expanded before assembly. Parameters are referenced by <code>%1</code>, <code>%2</code>, and so on.</p>
+
+<pre><code class="language-nasm">%macro print_string 2     ; %1=addr, %2=len  (Linux x86-64)
+    mov rax, 1             ; SYS_write
+    mov rdi, 1
+    mov rsi, %1
+    mov rdx, %2
+    syscall
+%endmacro
+
+section .data
+    hello   db "Hello, world!", 10
+    hello_n equ $ - hello
+
+section .text
+    global _start
+_start:
+    print_string hello, hello_n
+    mov rax, 60
+    xor rdi, rdi
+    syscall</code></pre>
+
+                        <h3>Other Preprocessor Facilities</h3>
+
+                        <ul>
+                            <li><code>%define</code>, <code>%undef</code>, <code>%xdefine</code> &mdash; symbolic substitution</li>
+                            <li><code>%if</code>, <code>%elif</code>, <code>%else</code>, <code>%endif</code> &mdash; conditional assembly</li>
+                            <li><code>%assign</code>, <code>%rep</code>, <code>%endrep</code> &mdash; numeric assignment and repetition</li>
+                            <li><code>struc</code>/<code>endstruc</code> &mdash; define data structures with offsets</li>
+                        </ul>
+
+                        <!-- Target Formats and Command Lines -->
+                        <h2>Target Formats and Command Lines</h2>
+
+                        <h3>Linux</h3>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Mode</th>
+                                    <th>Assemble</th>
+                                    <th>Link</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>x86-64 (ELF64)</td>
+                                    <td><code>nasm -felf64 prog.asm -o prog.o</code></td>
+                                    <td><code>ld prog.o -o prog</code> or <code>gcc prog.o -o prog</code></td>
+                                </tr>
+                                <tr>
+                                    <td>x86 (ELF32)</td>
+                                    <td><code>nasm -felf32 prog.asm -o prog.o</code></td>
+                                    <td><code>ld -m elf_i386 prog.o -o prog</code> or <code>gcc -m32 prog.o -o prog</code></td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <h3>Example: Call printf (ELF64, System V ABI)</h3>
+
+<pre><code class="language-nasm">; nasm -felf64 printf.asm -o printf.o
+; gcc printf.o -o printf   # links libc
+extern printf
+section .data
+    fmt db "sum=%d",10,0
+section .text
+    global main
+main:
+    push    rbp
+    mov     rbp, rsp
+    ; System V: RCX is temp; args in RDI, RSI, RDX, RCX, R8, R9
+    mov     edi, fmt        ; 1st arg: format
+    mov     esi, 40         ; 2nd arg: int
+    xor     eax, eax        ; varargs: AL=0 XMM usage count
+    call    printf
+    xor     eax, eax
+    leave
+    ret</code></pre>
+
+                        <h3>Windows</h3>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Mode</th>
+                                    <th>Assemble</th>
+                                    <th>Link</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Win64 (COFF)</td>
+                                    <td><code>nasm -fwin64 prog.asm -o prog.obj</code></td>
+                                    <td><code>link /subsystem:console prog.obj</code> (MSVC) or <code>x86_64-w64-mingw32-gcc prog.obj -o prog.exe</code></td>
+                                </tr>
+                                <tr>
+                                    <td>Win32 (COFF)</td>
+                                    <td><code>nasm -fwin32 prog.asm -o prog.obj</code></td>
+                                    <td><code>link /subsystem:console prog.obj</code> or <code>i686-w64-mingw32-gcc prog.obj -o prog.exe</code></td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <h3>Windows x64 Calling Convention Notes</h3>
+
+                        <ul>
+                            <li>First four integer/pointer args in <code>RCX, RDX, R8, R9</code> (callee may read a 32-byte shadow space at <code>[rsp..rsp+32)</code> reserved by caller)</li>
+                            <li>Stack must be 16-byte aligned at <em>call</em> instruction</li>
+                            <li>Floating args in <code>XMM0&ndash;XMM3</code></li>
+                        </ul>
+
+                        <h3>Example: Call printf (Win64)</h3>
+
+<pre><code class="language-nasm">; nasm -fwin64 wprintf.asm -o wprintf.obj
+; x86_64-w64-mingw32-gcc wprintf.obj -o wprintf.exe -lmsvcrt
+extern printf
+section .data
+    fmt db "value=%d",13,10,0
+section .text
+    global main
+main:
+    ; Prologue and shadow space (32 bytes)
+    sub     rsp, 40                 ; 32 shadow + 8 to keep 16-byte alignment
+    lea     rcx, [rel fmt]          ; RCX = format
+    mov     edx, 123                ; RDX = value
+    xor     eax, eax                ; AL=0 for varargs
+    call    printf
+    xor     eax, eax
+    add     rsp, 40
+    ret</code></pre>
+
+                        <!-- Bits Mode, Syntax, and Addressing -->
+                        <h2>Bits Mode, Syntax, and Addressing</h2>
+
+                        <p>Commands <code>bits 16</code> / <code>bits 32</code> / <code>bits 64</code> control instruction encoding. NASM infers mode from the <code>-f</code> target but explicit <code>bits</code> is useful inside mixed-mode sources. NASM uses Intel syntax: <code>mnemonic dest, src</code>. 64-bit code commonly uses RIP-relative addressing: <code>lea rsi, [rel label]</code>.</p>
+
+                        <!-- Common Pitfalls and Best Practices -->
+                        <h2>Common Pitfalls and Best Practices</h2>
+
+                        <ul>
+                            <li><strong>Stack alignment:</strong> Maintain 16-byte alignment before <code>call</code> on both SysV (Linux) and Win64; Windows additionally requires shadow space.</li>
+                            <li><strong>Preserved registers:</strong> Follow platform ABI. SysV preserves <code>RBX, RBP, R12&ndash;R15</code>; Win64 preserves <code>RBX, RBP, RDI, RSI, R12&ndash;R15</code>.</li>
+                            <li><strong>Global symbols:</strong> Export via <code>global</code>; import via <code>extern</code>.</li>
+                            <li><strong>Data vs code sections:</strong> Place strings and constants in <code>.data</code>; large zeroed buffers in <code>.bss</code>.</li>
+                            <li><strong>Relocations:</strong> Prefer <code>[rel label]</code> in x64 to generate RIP-relative references; avoid absolute addresses unless required.</li>
+                            <li><strong>System calls:</strong> Use OS ABI (<code>syscall</code> on Linux x86-64; <code>int 0x80</code> legacy on x86; Windows uses user-mode APIs, not raw syscalls).</li>
+                        </ul>
+
+                        <!-- Instruction Set Notes for NASM Users -->
+                        <h2>Instruction Set Notes for NASM Users</h2>
+
+                        <ul>
+                            <li>Use suffixes or size keywords when ambiguous: <code>mov byte [rdi], 1</code>, <code>mov dword [rax], 0</code></li>
+                            <li>Label scopes: NASM supports local labels prefixed with <code>.</code> under a non-local label</li>
+                            <li>Structures: <code>struc NAME ... endstruc</code> defines field offsets; instantiate with <code>istruc</code>/<code>iend</code> or manual <code>db/dw/...</code></li>
+                            <li>Position-independent code: rely on <code>rel</code>/<code>RIP</code> and avoid absolute addresses to keep objects relocatable</li>
+                        </ul>
+
+                        <!-- Summary -->
+                        <h2>Summary</h2>
+
+                        <p>NASM provides flexible x86 assembly with broad format support. Typical programs use <code>.text</code>, <code>.data</code>, and <code>.bss</code>; entry symbols and calling conventions vary by OS and bitness. Macros and directives keep code concise. For 64-bit development, follow platform ABI regarding argument registers, stack alignment, shadow space (Windows), and preserved registers.</p>
+                    </div>
+                </div>
+
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing large-scale distributed systems. Specialized in Generative AI, AI Agents, and cloud-native architectures.</p>
+                        <div class="sidebar-author-links">
+                            <a href="https://www.linkedin.com/in/paolo-mascia-italy" target="_blank" aria-label="LinkedIn"><svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg></a>
+                            <a href="https://github.com/paolomascia" target="_blank" aria-label="GitHub"><svg viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg></a>
+                            <a href="https://www.kaggle.com/paolomascia" target="_blank" aria-label="Kaggle"><svg viewBox="0 0 24 24"><path d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.233-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.075.378z"/></svg></a>
+                        </div>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="cs-assembly-part4.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Assembly</span>
+                            <div class="sidebar-link-title">IA-32 and Intel 64 ISA Assembly Language (Part 4)</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="cs-assembly-part6.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Assembly</span>
+                            <div class="sidebar-link-title">IA-32 and Intel 64 ISA Assembly Language (Part 6)</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="cs-assembly-part7.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Assembly</span>
+                            <div class="sidebar-link-title">IA-32 and Intel 64 ISA Assembly Language (Part 7)</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="cs-reverse-engineering.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cybersecurity</span>
+                            <div class="sidebar-link-title">Reverse Engineering</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="cs-buffer-overflow.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Cybersecurity</span>
+                            <div class="sidebar-link-title">Buffer Overflow</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-nasm.min.js"></script>
+</body>
+</html>

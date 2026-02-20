@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Go Memory Model, Garbage Collection &amp; Internals &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="golang-tech-insights.html" class="back-link">&larr; Back to Go Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">October 2025</span>
+                            <span class="post-reading">15 min read</span>
+                        </div>
+                        <h1>Go Memory Model, Garbage Collection &amp; Internals</h1>
+                        <div class="post-tags">
+                            <span>Go</span>
+                            <span>Memory</span>
+                            <span>GC</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Understanding memory in Go is essential for building fast, reliable services. This post explores three core concepts: visibility, ordering, and synchronization through Go&rsquo;s memory model&mdash;plus garbage collection internals, escape analysis, and practical tuning strategies.</p>
+
+                        <h2>Why Go&rsquo;s Memory Model Matters</h2>
+
+                        <p>Go&rsquo;s memory model defines the conditions under which reads of a variable in one goroutine can be guaranteed to observe values produced by writes to the same variable in a different goroutine. Without proper synchronization, there are no such guarantees.</p>
+
+                        <h2>Happens-Before In Short</h2>
+
+                        <p>Key principles include:</p>
+
+                        <ul>
+                            <li>Writes that &ldquo;happen before&rdquo; reads are visible and ordered.</li>
+                            <li>Synchronization establishes ordering through mutex operations, channel sends/receives, and channel closure.</li>
+                            <li>Starting a goroutine does not imply ordering without synchronization.</li>
+                        </ul>
+
+<pre><code class="language-go">package main
+
+import (
+    "fmt"
+    "sync"
+)
+
+func main() {
+    var (
+        mu sync.Mutex
+        x  int
+        wg sync.WaitGroup
+    )
+
+    wg.Add(2)
+    go func() {
+        defer wg.Done()
+        mu.Lock()
+        x = 42
+        mu.Unlock() // write happens-before next lock
+    }()
+    go func() {
+        defer wg.Done()
+        mu.Lock()
+        fmt.Println(x) // guaranteed to see 42
+        mu.Unlock()
+    }()
+    wg.Wait()
+}</code></pre>
+
+                        <h2>Stack vs Heap &amp; Escape Analysis</h2>
+
+                        <p>Go prefers stack allocation, which is cheap and automatically reclaimed when functions return. Values &ldquo;escape&rdquo; to the heap if the compiler cannot prove they won&rsquo;t outlive their scope or be referenced elsewhere.</p>
+
+<pre><code class="language-go">package main
+
+import "fmt"
+
+type Point struct{ X, Y int }
+
+// This may allocate on the heap because p escapes by returning its address.
+func newPoint(x, y int) *Point {
+    p := Point{X: x, Y: y}
+    return &amp;p // escape to heap
+}
+
+// This tends to stay on the stack if the value doesn&rsquo;t escape.
+func length(p Point) int {
+    return p.X*p.X + p.Y*p.Y
+}
+
+func main() {
+    // Check with: go build -gcflags="-m"
+    p := newPoint(3, 4)
+    fmt.Println(length(*p))
+}</code></pre>
+
+                        <p>Tip: Run <code>go build -gcflags="-m"</code> to observe escape analysis decisions and reduce heap pressure.</p>
+
+                        <h2>Slices, Maps, and Strings Internals</h2>
+
+                        <h3>Slices</h3>
+
+                        <p>Slices are descriptors containing pointer + length + capacity referencing a backing array. Appending beyond capacity reallocates a larger backing array. Preallocate capacity when possible.</p>
+
+<pre><code class="language-go">nums := make([]int, 0, 1024) // avoids repeated growth
+for i := 0; i &lt; 1000; i++ {
+    nums = append(nums, i)
+}</code></pre>
+
+                        <h3>Maps</h3>
+
+                        <p>Maps are hash tables managed by the runtime, always on the heap. Avoid mutating maps from multiple goroutines without synchronization.</p>
+
+<pre><code class="language-go">type counter struct {
+    // Single lock is simple but can bottleneck under contention.
+    mu sync.Mutex
+    m  map[string]int
+}
+
+func (c *counter) Inc(k string) {
+    c.mu.Lock()
+    c.m[k]++
+    c.mu.Unlock()
+}</code></pre>
+
+                        <h3>Strings</h3>
+
+                        <p>Strings are immutable byte slices; string to <code>[]byte</code> conversion copies by default. Use zero-copy patterns or <code>strings.Builder</code> to reduce allocations.</p>
+
+<pre><code class="language-go">var b strings.Builder
+b.Grow(1024)
+for i := 0; i &lt; 10; i++ {
+    b.WriteString("chunk")
+}
+s := b.String() // minimal allocations</code></pre>
+
+                        <h2>How Go&rsquo;s Garbage Collector Works</h2>
+
+                        <p>Go employs a non-moving, concurrent, tri-color mark-and-sweep GC with short STW (stop-the-world) phases:</p>
+
+                        <ul>
+                            <li><strong>Mark:</strong> Finds live objects starting from roots (stacks, globals).</li>
+                            <li><strong>Sweep:</strong> Reclaims memory from unmarked (dead) objects.</li>
+                            <li>Runs cycles based on heap growth targets and assists mutators to maintain pace.</li>
+                        </ul>
+
+                        <p>GC cost correlates with live data volume and allocation rate.</p>
+
+                        <h2>Tuning GC: GOGC and GOMEMLIMIT</h2>
+
+                        <ul>
+                            <li><code>GOGC</code> (default ~100): Adjusts target heap growth percentage between collections. Larger values mean fewer GC cycles but higher memory usage.</li>
+                            <li><code>GOMEMLIMIT</code>: Sets soft memory cap for Go heap (useful in containers), influencing pacing.</li>
+                        </ul>
+
+<pre><code class="language-go">package main
+
+import (
+    "fmt"
+    "runtime/debug"
+)
+
+func main() {
+    // Programmatic tuning (Go 1.19+)
+    debug.SetGCPercent(200)                  // similar to GOGC=200
+    debug.SetMemoryLimit(512 * 1024 * 1024)  // ~512MB, similar to GOMEMLIMIT=512MiB
+    fmt.Println("GC tuned for higher throughput and memory limit")
+}</code></pre>
+
+                        <p>Guidelines: Increase <code>GOGC</code> for throughput-heavy services with spare RAM; decrease for memory-constrained workloads. Use <code>GOMEMLIMIT</code> for container compliance.</p>
+
+                        <h2>Reducing Allocations &amp; GC Pressure</h2>
+
+                        <p>Strategies include:</p>
+
+                        <ul>
+                            <li>Preallocate slice capacity with <code>make</code>.</li>
+                            <li>Reuse buffers (e.g., <code>bytes.Buffer</code>, <code>sync.Pool</code>) for hot paths.</li>
+                            <li>Avoid pointer escapes by returning values instead of pointers when feasible.</li>
+                            <li>Use <code>strings.Builder</code> for concatenation in loops.</li>
+                            <li>Prefer stack-local temporaries; avoid closures capturing large variables.</li>
+                        </ul>
+
+<pre><code class="language-go">package main
+
+import (
+    "bytes"
+    "sync"
+)
+
+var bufPool = sync.Pool{
+    New: func() any { return new(bytes.Buffer) },
+}
+
+func encode(data []byte) []byte {
+    b := bufPool.Get().(*bytes.Buffer)
+    b.Reset()
+    // ... write into b ...
+    b.Write(data)
+    out := append([]byte(nil), b.Bytes()...) // copy out
+    bufPool.Put(b)
+    return out
+}</code></pre>
+
+                        <h2>Goroutine Leaks &amp; Synchronization Pitfalls</h2>
+
+                        <p>Leaked goroutines keep references alive and extend object lifetimes, increasing GC work. Always provide cancellation via <code>context</code> or closing channels.</p>
+
+<pre><code class="language-go">package main
+
+import (
+    "context"
+    "time"
+)
+
+func worker(ctx context.Context, jobs &lt;-chan int) {
+    for {
+        select {
+        case &lt;-ctx.Done():
+            return
+        case _, ok := &lt;-jobs:
+            if !ok { return }
+            // process job
+        }
+    }
+}
+
+func main() {
+    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+    defer cancel()
+    // pass ctx to all goroutines
+}</code></pre>
+
+                        <h2>Profiling &amp; Diagnostics</h2>
+
+                        <p>Built-in tools include:</p>
+
+                        <ul>
+                            <li><strong>pprof:</strong> CPU, heap, goroutine profiles&mdash;integrate via <code>net/http/pprof</code> or <code>runtime/pprof</code>.</li>
+                            <li><strong>trace:</strong> Visualize goroutines, GC cycles, network events.</li>
+                            <li><strong>race detector:</strong> Compile/run with <code>-race</code> to catch data races.</li>
+                        </ul>
+
+<pre><code class="language-go">package main
+
+import (
+    "log"
+    "net/http"
+    _ "net/http/pprof"
+)
+
+func main() {
+    go func() {
+        log.Println(http.ListenAndServe("localhost:6060", nil))
+    }()
+    select {} // run your app; visit /debug/pprof/
+}</code></pre>
+
+                        <h2>Concurrent Access: Channels vs Mutex vs Atomics</h2>
+
+                        <ul>
+                            <li><strong>Channels:</strong> Express ownership transfer and sequencing.</li>
+                            <li><strong>Mutexes:</strong> Protect shared state.</li>
+                            <li><strong>Atomics:</strong> For low-level counters/flags.</li>
+                        </ul>
+
+                        <p>Select the simplest tool that preserves invariants with minimal contention.</p>
+
+<pre><code class="language-go">type counter struct {
+    v int64
+}
+
+// For hot counters, atomics avoid lock contention:
+func (c *counter) Inc() {
+    atomic.AddInt64(&amp;c.v, 1)
+}</code></pre>
+
+                        <h2>Checklist For Production Services</h2>
+
+                        <ul>
+                            <li>Audit hot paths for allocations; run with <code>-gcflags="-m"</code>.</li>
+                            <li>Preallocate slices and reuse buffers; consider <code>sync.Pool</code>.</li>
+                            <li>Define clear cancellation for every goroutine.</li>
+                            <li>Set <code>GOMEMLIMIT</code> in containers and tune <code>GOGC</code>.</li>
+                            <li>Continuously profile with <code>pprof</code> in staging/production.</li>
+                            <li>Run the race detector in CI for test suites.</li>
+                        </ul>
+
+                        <h2>Conclusion</h2>
+
+                        <p>Mastering Go&rsquo;s memory model and garbage collector enables predictable performance through fewer allocations, less GC pressure, and safer concurrency. Thoughtful data structures, careful synchronization, and ongoing profiling unlock both throughput and low latency at scale.</p>
+                    </div>
+                </div>
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="go-json.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Working with JSON in Go</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-file-handling.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">File Handling in Go</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-http-server.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Creating an HTTP Server</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-logging.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Application Logging in Go</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-generic-data-structures.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Building Generic Data Structures in Go</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+
+</body>
+</html>

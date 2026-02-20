@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Symmetric Cryptography with Go &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="golang-tech-insights.html" class="back-link">&larr; Back to Go Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">October 2025</span>
+                            <span class="post-reading">18 min read</span>
+                        </div>
+                        <h1>Symmetric Cryptography with Go &mdash; Complete Guide</h1>
+                        <div class="post-tags">
+                            <span>Go</span>
+                            <span>Cryptography</span>
+                            <span>Security</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">This comprehensive guide covers secure data encryption and decryption in Go using the standard library and <code>golang.org/x/crypto</code> packages. You&rsquo;ll learn how to use AEAD modes that provide confidentiality <em>and</em> integrity &mdash; specifically <strong>AES-GCM</strong> and <strong>Secretbox</strong> &mdash; along with key derivation, legacy compatibility, and a reusable encryption API.</p>
+
+                        <h2>1) Choosing the Right Primitive</h2>
+
+                        <p>Always use AEAD modes that provide confidentiality <em>and</em> integrity: <strong>AES-GCM</strong> or <strong>Secretbox (XSalsa20-Poly1305)</strong>. Avoid deprecated DES/3DES and CFB/CBC modes without authentication. If you must use legacy modes, add an HMAC for integrity protection.</p>
+
+                        <h2>2) Modern Default: AES-GCM (AEAD)</h2>
+
+<pre><code class="language-go">package main
+
+import (
+    "crypto/aes"
+    "crypto/cipher"
+    "crypto/rand"
+    "encoding/base64"
+    "errors"
+    "fmt"
+    "io"
+)
+
+// EncryptGCM encrypts plaintext with AES-GCM. It returns base64(nonce || ciphertext).
+func EncryptGCM(key, plaintext, aad []byte) (string, error) {
+    block, err := aes.NewCipher(key) // key must be 16/24/32 bytes
+    if err != nil { return "", err }
+
+    gcm, err := cipher.NewGCM(block) // standard 12-byte nonce recommended
+    if err != nil { return "", err }
+
+    nonce := make([]byte, gcm.NonceSize())
+    if _, err := io.ReadFull(rand.Reader, nonce); err != nil { return "", err }
+
+    // Seal appends ciphertext + tag to first arg (dst). We include aad for integrity if needed.
+    ct := gcm.Seal(nil, nonce, plaintext, aad)
+
+    // Store nonce || ciphertext. Base64 for portability.
+    out := append(nonce, ct...)
+    return base64.StdEncoding.EncodeToString(out), nil
+}
+
+// DecryptGCM expects base64(nonce || ciphertext).
+func DecryptGCM(key []byte, b64 string, aad []byte) ([]byte, error) {
+    raw, err := base64.StdEncoding.DecodeString(b64)
+    if err != nil { return nil, err }
+
+    block, err := aes.NewCipher(key)
+    if err != nil { return nil, err }
+
+    gcm, err := cipher.NewGCM(block)
+    if err != nil { return nil, err }
+
+    if len(raw) &lt; gcm.NonceSize() { return nil, errors.New("ciphertext too short") }
+    nonce, ct := raw[:gcm.NonceSize()], raw[gcm.NonceSize():]
+
+    // Open verifies integrity. If tampered, returns error.
+    return gcm.Open(nil, nonce, ct, aad)
+}
+
+func main() {
+    key := make([]byte, 32)                     // AES-256
+    if _, err := io.ReadFull(rand.Reader, key); err != nil { panic(err) }
+
+    aad := []byte("context:example:v1")         // optional; empty is fine
+    b64, err := EncryptGCM(key, []byte("hello, world"), aad)
+    if err != nil { panic(err) }
+    fmt.Println("Ciphertext (b64):", b64)
+
+    pt, err := DecryptGCM(key, b64, aad)
+    if err != nil { panic(err) }
+    fmt.Println("Decrypted:", string(pt))
+}</code></pre>
+
+                        <h2>3) AES-CFB / AES-CBC (for Legacy Compatibility)</h2>
+
+                        <p>These modes lack integrity protection. <strong>Prefer AES-GCM.</strong> If you must use legacy modes, add an HMAC for integrity verification.</p>
+
+<pre><code class="language-go">package legacy
+
+import (
+    "crypto/aes"
+    "crypto/cipher"
+    "crypto/rand"
+    "encoding/hex"
+    "errors"
+    "io"
+)
+
+// EncryptCFB returns hex(iv || ciphertext). No integrity! Prefer AES-GCM.
+func EncryptCFB(key, plaintext []byte) (string, error) {
+    block, err := aes.NewCipher(key) // 16/24/32 bytes
+    if err != nil { return "", err }
+
+    iv := make([]byte, aes.BlockSize) // 16 bytes
+    if _, err := io.ReadFull(rand.Reader, iv); err != nil { return "", err }
+
+    stream := cipher.NewCFBEncrypter(block, iv)
+    ct := make([]byte, len(plaintext))
+    stream.XORKeyStream(ct, plaintext)
+
+    out := append(iv, ct...)
+    return hex.EncodeToString(out), nil
+}
+
+// DecryptCFB expects hex(iv || ciphertext).
+func DecryptCFB(key []byte, hexIn string) ([]byte, error) {
+    raw, err := hex.DecodeString(hexIn)
+    if err != nil { return nil, err }
+    if len(raw) &lt; aes.BlockSize { return nil, errors.New("ciphertext too short") }
+    iv, ct := raw[:aes.BlockSize], raw[aes.BlockSize:]
+
+    block, err := aes.NewCipher(key)
+    if err != nil { return nil, err }
+    stream := cipher.NewCFBDecrypter(block, iv)
+
+    pt := make([]byte, len(ct))
+    stream.XORKeyStream(pt, ct)
+    return pt, nil
+}</code></pre>
+
+                        <h2>4) Deriving Keys from Passwords (scrypt / argon2id)</h2>
+
+                        <p>When your encryption key comes from a user password, use a memory-hard Key Derivation Function (KDF) with a random salt. Store the derivation parameters alongside the ciphertext for future decryption.</p>
+
+<pre><code class="language-go">package kdf
+
+import (
+    "crypto/rand"
+    "encoding/base64"
+    "fmt"
+    "io"
+
+    "golang.org/x/crypto/argon2"
+    "golang.org/x/crypto/scrypt"
+)
+
+// DeriveKeyScrypt derives a 32-byte key with scrypt. Store salt &amp; params.
+func DeriveKeyScrypt(password []byte) (key, salt []byte, err error) {
+    salt = make([]byte, 16)
+    if _, err = io.ReadFull(rand.Reader, salt); err != nil { return nil, nil, err }
+    // N=32768, r=8, p=1 are good starting points; tune for your environment.
+    key, err = scrypt.Key(password, salt, 1&lt;&lt;15, 8, 1, 32)
+    return
+}
+
+// DeriveKeyArgon2id derives a 32-byte key with argon2id.
+func DeriveKeyArgon2id(password []byte) (key, salt []byte, params string, err error) {
+    salt = make([]byte, 16)
+    if _, err = io.ReadFull(rand.Reader, salt); err != nil { return nil, nil, "", err }
+    // Example parameters; tune for your environment.
+    t, m, p := uint32(1), uint32(64*1024), uint8(2) // time, memory KiB, parallelism
+    key = argon2.IDKey(password, salt, t, m, p, 32)
+    params = fmt.Sprintf("argon2id$t=%d$m=%d$p=%d$salt=%s", t, m, p, base64.StdEncoding.EncodeToString(salt))
+    return
+}</code></pre>
+
+                        <h2>5) Encoding and File I/O</h2>
+
+                        <p>Use base64 or hex encoding for portability when storing ciphertext in text-based formats. Set file permissions to <code>0600</code> (owner read/write only) for sensitive data.</p>
+
+<pre><code class="language-go">package storage
+
+import (
+    "os"
+)
+
+// Save writes base64 data; for binary, just write bytes.
+func Save(path string, b64 string) error {
+    return os.WriteFile(path, []byte(b64), 0600) // owner read/write only
+}
+
+func Load(path string) (string, error) {
+    b, err := os.ReadFile(path)
+    return string(b), err
+}</code></pre>
+
+                        <h2>6) Secretbox (XSalsa20-Poly1305) &mdash; Simple &amp; Safe</h2>
+
+                        <p>A simpler AEAD option from <code>golang.org/x/crypto/nacl/secretbox</code>. Requires a 32-byte key and 24-byte nonce. Critical: you <em>must</em> use the <strong>same nonce used for encryption</strong> during decryption by prepending it to the ciphertext.</p>
+
+<pre><code class="language-go">package main
+
+import (
+    "crypto/rand"
+    "encoding/base64"
+    "fmt"
+    "io"
+    "os"
+
+    "golang.org/x/crypto/nacl/secretbox"
+)
+
+func main() {
+    // 32-byte key
+    var key [32]byte
+    if _, err := io.ReadFull(rand.Reader, key[:]); err != nil { panic(err) }
+
+    // 24-byte nonce (MUST be unique per key)
+    var nonce [24]byte
+    if _, err := io.ReadFull(rand.Reader, nonce[:]); err != nil { panic(err) }
+
+    msg := []byte("password123")
+
+    // Seal appends MAC; we store nonce || ciphertext
+    sealed := secretbox.Seal(nonce[:], msg, &amp;nonce, &amp;key)
+
+    // Save as base64 (or write bytes directly)
+    b64 := base64.StdEncoding.EncodeToString(sealed)
+    if err := os.WriteFile("password.txt", []byte(b64), 0600); err != nil { panic(err) }
+
+    // Read back and decode
+    dataB64, _ := os.ReadFile("password.txt")
+    raw, err := base64.StdEncoding.DecodeString(string(dataB64))
+    if err != nil { panic(err) }
+    if len(raw) &lt; 24 { panic("ciphertext too short") }
+
+    // Split nonce and ciphertext
+    var n2 [24]byte
+    copy(n2[:], raw[:24])
+    ct := raw[24:]
+
+    // Open verifies integrity; returns ok=false if tampered
+    pt, ok := secretbox.Open(nil, ct, &amp;n2, &amp;key)
+    if !ok { panic("decryption failed or message tampered") }
+
+    fmt.Println("Decrypted:", string(pt))
+}</code></pre>
+
+                        <h2>7) Designing a Reusable Encryption API</h2>
+
+                        <p>A versioned encryption API enables algorithm rotation and future compatibility. The <code>Blob</code> struct stores version metadata alongside the encrypted data.</p>
+
+<pre><code class="language-go">package cryptoapi
+
+import (
+    "crypto/aes"
+    "crypto/cipher"
+    "crypto/rand"
+    "encoding/base64"
+    "fmt"
+    "io"
+)
+
+const Version = "aead/aes-gcm:v1"
+
+type Blob struct {
+    Version string // e.g., "aead/aes-gcm:v1"
+    DataB64 string // base64(nonce || ciphertext)
+}
+
+func Encrypt(key, pt, aad []byte) (Blob, error) {
+    block, err := aes.NewCipher(key)
+    if err != nil { return Blob{}, err }
+    gcm, err := cipher.NewGCM(block)
+    if err != nil { return Blob{}, err }
+    nonce := make([]byte, gcm.NonceSize())
+    if _, err := io.ReadFull(rand.Reader, nonce); err != nil { return Blob{}, err }
+    ct := gcm.Seal(nil, nonce, pt, aad)
+    out := append(nonce, ct...)
+    return Blob{Version: Version, DataB64: base64.StdEncoding.EncodeToString(out)}, nil
+}
+
+func Decrypt(key []byte, b Blob, aad []byte) ([]byte, error) {
+    if b.Version != Version {
+        return nil, fmt.Errorf("unsupported blob version: %s", b.Version)
+    }
+    raw, err := base64.StdEncoding.DecodeString(b.DataB64)
+    if err != nil { return nil, err }
+    block, err := aes.NewCipher(key)
+    if err != nil { return nil, err }
+    gcm, err := cipher.NewGCM(block)
+    if err != nil { return nil, err }
+    if len(raw) &lt; gcm.NonceSize() { return nil, fmt.Errorf("ciphertext too short") }
+    nonce, ct := raw[:gcm.NonceSize()], raw[gcm.NonceSize():]
+    return gcm.Open(nil, nonce, ct, aad)
+}</code></pre>
+
+                        <h2>8) Handy CLI Snippets (Generate Keys, Quick Tests)</h2>
+
+<pre><code class="language-go">package main
+
+import (
+    "crypto/rand"
+    "encoding/base64"
+    "fmt"
+    "io"
+)
+
+func main() {
+    key := make([]byte, 32) // 256-bit key
+    if _, err := io.ReadFull(rand.Reader, key); err != nil { panic(err) }
+    fmt.Println("AES-256 key (base64):", base64.StdEncoding.EncodeToString(key))
+}</code></pre>
+
+                        <h2>9) Common Pitfalls (and Fixes)</h2>
+
+                        <ul>
+                            <li><strong>Missing MACs:</strong> CFB/CBC without HMAC lacks integrity protection. Prefer AES-GCM or Secretbox.</li>
+                            <li><strong>Nonce reuse:</strong> Catastrophic for AES-GCM. Always generate a fresh random nonce per encryption.</li>
+                            <li><strong>Wrong key lengths:</strong> AES requires exactly 16, 24, or 32 bytes. Secretbox requires exactly 32 bytes.</li>
+                            <li><strong>Plaintext in logs:</strong> Never log keys, nonces, or plaintext. Use structured logging with redaction.</li>
+                            <li><strong>Using <code>math/rand</code>:</strong> Always use <code>crypto/rand</code> for cryptographic randomness.</li>
+                            <li><strong>DES/3DES in production:</strong> These are deprecated. Use AES-256 at minimum.</li>
+                        </ul>
+
+                        <h2>10) Security Checklist</h2>
+
+                        <ul>
+                            <li>Use AEAD (AES-GCM or Secretbox) for all new encryption.</li>
+                            <li>Derive keys from passwords using argon2id or scrypt with random salts.</li>
+                            <li>Generate unique nonces with <code>crypto/rand</code> for every encryption operation.</li>
+                            <li>Store derivation parameters and algorithm metadata alongside ciphertext.</li>
+                            <li>Protect keys using secret managers or hardware security modules.</li>
+                            <li>Handle decryption failures gracefully &mdash; do not leak information.</li>
+                            <li>Plan for key rotation from the start.</li>
+                            <li>Set file permissions to <code>0600</code> for sensitive data.</li>
+                        </ul>
+
+                        <h2>11) FAQ &amp; Notes</h2>
+
+                        <ul>
+                            <li><strong>When should I use Secretbox vs AES-GCM?</strong> Both are excellent AEAD choices. Secretbox is simpler (no block cipher setup), while AES-GCM is more widely supported and allows additional authenticated data (AAD).</li>
+                            <li><strong>Can I encrypt large files?</strong> For large files, consider streaming encryption or chunked approaches to avoid loading entire files into memory.</li>
+                            <li><strong>How do I rotate keys?</strong> Use the versioned Blob approach: decrypt with the old key, re-encrypt with the new key, and update the version tag.</li>
+                        </ul>
+                    </div>
+                </div>
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="go-installation-data-types.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">GO Installation and Data Types</div>
+                            <span class="sidebar-link-meta">Sep 2025</span>
+                        </a>
+                        <a href="go-oop.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Object Oriented Programming in GO</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-cross-compiling-docker.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Cross-Compiling &amp; Docker</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-dsls-generics.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Building DSLs in Go Using Generics</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                        <a href="go-arena-allocators.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Go</span>
+                            <div class="sidebar-link-title">Memory Optimization in Go: Arena Allocators</div>
+                            <span class="sidebar-link-meta">Oct 2025</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+
+</body>
+</html>

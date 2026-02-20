@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IA-32 and Intel 64 ISA Assembly Language (Part 10) &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="cybersecurity-tech-insights.html" class="back-link">&larr; Back to Cybersecurity</a>
+                        <div class="post-meta">
+                            <span class="post-date">Dec 2024</span>
+                            <span class="post-reading">16 min read</span>
+                        </div>
+                        <h1>IA-32 and Intel 64 ISA Assembly Language (Part 10)</h1>
+                        <div class="post-tags">
+                            <span>Assembly</span>
+                            <span>SIMD</span>
+                            <span>Floating-Point</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">This publication explores scalar floating-point instructions for single and double precision formats, demonstrating how SIMD enables processing multiple values simultaneously. Coverage includes register architecture, data movement operations, arithmetic functions, conversion and rounding mechanisms, comparison logic, memory alignment requirements, calling-convention considerations, and practical NASM implementations using System V AMD64 conventions.</p>
+
+                        <h2>Execution Units &amp; Registers</h2>
+                        <p>The <strong>x87 FPU</strong> represents the legacy stack-oriented floating-point unit operating at 80-bit precision, still available but not emphasized in this discussion. <strong>MMX</strong> provides 64-bit packed integer registers (MM0 through MM7), unsuitable for IEEE floats and requiring the <code>EMMS</code> instruction when mixing with x87 operations.</p>
+                        <p><strong>SSE</strong> and successive versions utilize <code>XMM0</code> through <code>XMM15</code> registers at 128-bit width, supporting scalar and packed single-precision (SS/PS) and double-precision (SD/PD) operations. <strong>AVX</strong> and <strong>AVX2</strong> extend this with <code>YMM0</code> through <code>YMM15</code> at 256-bit capacity using VEX encoding that eliminates false destination dependencies. <strong>AVX-512</strong> optionally provides ZMM 512-bit registers with masking capabilities, though beyond immediate scope.</p>
+
+                        <h3>Instruction Suffix Reference</h3>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Suffix</th>
+                                    <th>Width</th>
+                                    <th>Elements</th>
+                                    <th>Type</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>SS</td>
+                                    <td>Scalar (lower lane)</td>
+                                    <td>1 &times; 32-bit</td>
+                                    <td>float</td>
+                                </tr>
+                                <tr>
+                                    <td>SD</td>
+                                    <td>Scalar (lower lane)</td>
+                                    <td>1 &times; 64-bit</td>
+                                    <td>double</td>
+                                </tr>
+                                <tr>
+                                    <td>PS</td>
+                                    <td>128-bit</td>
+                                    <td>4 &times; 32-bit</td>
+                                    <td>float</td>
+                                </tr>
+                                <tr>
+                                    <td>PD</td>
+                                    <td>128-bit</td>
+                                    <td>2 &times; 64-bit</td>
+                                    <td>double</td>
+                                </tr>
+                                <tr>
+                                    <td>PS (YMM)</td>
+                                    <td>256-bit</td>
+                                    <td>8 &times; 32-bit</td>
+                                    <td>float</td>
+                                </tr>
+                                <tr>
+                                    <td>PD (YMM)</td>
+                                    <td>256-bit</td>
+                                    <td>4 &times; 64-bit</td>
+                                    <td>double</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <h2>Common Scalar FP Instructions (SSE2+)</h2>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Instruction</th>
+                                    <th>Purpose</th>
+                                    <th>Notes</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>MOVSS/MOVSD</td>
+                                    <td>Move scalar float/double</td>
+                                    <td>Moves only the low lane; upper lanes remain unchanged. Use PXOR/XORPS to zero first if needed.</td>
+                                </tr>
+                                <tr>
+                                    <td>ADDSS/ADDSD</td>
+                                    <td>Scalar add</td>
+                                    <td>Result in dest&rsquo;s low lane.</td>
+                                </tr>
+                                <tr>
+                                    <td>SUBSS/SUBSD</td>
+                                    <td>Scalar subtract</td>
+                                    <td>Dest = Dest &minus; Src (low lane).</td>
+                                </tr>
+                                <tr>
+                                    <td>MULSS/MULSD</td>
+                                    <td>Scalar multiply</td>
+                                    <td>&mdash;</td>
+                                </tr>
+                                <tr>
+                                    <td>DIVSS/DIVSD</td>
+                                    <td>Scalar divide</td>
+                                    <td>&mdash;</td>
+                                </tr>
+                                <tr>
+                                    <td>CVTSI2SS/CVTSI2SD</td>
+                                    <td>Int &rarr; float/double</td>
+                                    <td>Source can be 32/64-bit memory/reg; rounding per MXCSR.</td>
+                                </tr>
+                                <tr>
+                                    <td>CVTSS2SI/CVTSD2SI</td>
+                                    <td>Float/double &rarr; int</td>
+                                    <td>Traps on overflow if using &hellip;2SI; use &hellip;2SI/&hellip;2SIQ forms as needed.</td>
+                                </tr>
+                                <tr>
+                                    <td>UCOMISS/UCOMISD</td>
+                                    <td>FP compare</td>
+                                    <td>Sets flags for Jcc; handles NaNs (unordered &rarr; ZF, PF, CF set).</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <p><strong>Destination Dependency Note:</strong> SSE two-operand form overwrites and reads the destination simultaneously. AVX three-operand form (<code>VADDSS</code>) writes destination without reading it, reducing false dependencies.</p>
+
+                        <h2>Conversions, Rounding &amp; Exceptions</h2>
+                        <p>The <strong>MXCSR</strong> register controls SSE behavior, managing rounding mode (nearest, down, up, toward zero), exception masks, flush-to-zero, and denormals-are-zero settings. Rounding on convert operations honors MXCSR rounding unless using <code>_R</code> variants in AVX-512.</p>
+                        <p>IEEE-754 semantics handle NaNs, infinities, and signed zero correctly; comparisons with NaN are unordered, with <code>UCOMIS*</code> setting the PF flag. Flush-to-Zero (FTZ) and Denormals-Are-Zero (DAZ) can enhance performance at the cost of subnormal precision loss.</p>
+
+                        <h2>Memory Moves &amp; Alignment</h2>
+                        <p><code>MOVAPS</code>/<code>MOVAPD</code> execute aligned moves requiring 16-byte alignment, while <code>VMOVAPS</code> requires 32-byte alignment for YMM registers. <code>MOVUPS</code>/<code>MOVUPD</code> handle unaligned moves with potential performance reduction on certain CPUs, though generally safe. Naturally aligned data yields optimal throughput, particularly with YMM load/store operations.</p>
+
+                        <h2>Scalar Example: Sum of Float Array</h2>
+                        <p><strong>Input:</strong> <code>RDI</code> = base pointer to float array, <code>RSI</code> = element count<br>
+                        <strong>Return:</strong> <code>XMM0</code> = sum</p>
+
+<pre><code class="language-nasm">; sum_float_array: scalar single-precision accumulation
+;   RDI = float* arr
+;   RSI = size_t n
+; returns XMM0 = sum (float)
+global sum_float_array
+sum_float_array:
+    xorps xmm0, xmm0        ; sum = +0.0f in XMM0
+    xor   rax, rax          ; i = 0
+.sum_loop:
+    cmp   rax, rsi
+    jge   .done
+    addss xmm0, dword [rdi + rax*4] ; sum += arr[i]
+    inc   rax
+    jmp   .sum_loop
+.done:
+    ret</code></pre>
+
+                        <p><code>XORPS</code> is a fast idiom for zeroing XMM registers while breaking dependency chains. For AVX code, prefer <code>VXORPS xmm0, xmm0, xmm0</code>.</p>
+
+                        <h2>SIMD: Single Instruction, Multiple Data</h2>
+                        <p>SIMD applies one instruction across multiple data lanes in parallel. IA-32/Intel 64 offers several SIMD extensions:</p>
+                        <ul>
+                            <li><strong>MMX:</strong> 64-bit packed integers (legacy, unsuitable for IEEE floats).</li>
+                            <li><strong>SSE/SSE2+:</strong> 128-bit (XMM) packed single (PS) and double (PD) precision.</li>
+                            <li><strong>AVX/AVX2:</strong> 256-bit (YMM) packed operations using three-operand VEX encoding that reduces false dependencies.</li>
+                        </ul>
+                        <p>Instruction suffixes mirror scalar forms: <code>ADDPS</code> adds four floats in parallel; <code>ADDPD</code> adds two doubles in parallel.</p>
+
+                        <h3>Tiny SIMD Example</h3>
+<pre><code class="language-nasm">; add_four_float: XMM0 := XMM0 + XMM1 (packed 4xfloat)
+global add_four_float
+add_four_float:
+    addps xmm0, xmm1
+    ret</code></pre>
+
+                        <h2>SIMD Example: Sum of Float Array with SSE (4-wide)</h2>
+                        <p>This version accumulates four elements per iteration, then reduces the vector to scalar at completion. Arguments: <code>RDI</code>=ptr, <code>RSI</code>=count (multiple of 4 for main loop; tail handled separately).</p>
+
+<pre><code class="language-nasm">global sum_float_array_sse
+sum_float_array_sse:
+    xorps  xmm0, xmm0           ; acc = {0,0,0,0}
+    mov    rdx, rsi
+    and    rsi, -4              ; n4 = (n/4)*4
+    xor    rax, rax
+.loop4:
+    cmp    rax, rsi
+    jge    .tail
+    movups xmm1, [rdi + rax*4]  ; load 4 floats
+    addps  xmm0, xmm1           ; acc += vec
+    add    rax, 4
+    jmp    .loop4
+.tail:
+    ; horizontal reduce xmm0: sum lanes &rarr; xmm0[0]
+    movhlps xmm1, xmm0          ; xmm1 = {x3,x2}
+    addps  xmm0, xmm1           ; xmm0 = {x0+x2, x1+x3, ...}
+    pshufd xmm1, xmm0, 0x55     ; move lane1 to all lanes
+    addss  xmm0, xmm1           ; scalar add: (x0+x2) + (x1+x3)
+
+    ; handle leftover (rdx - rsi) elements
+    mov    rcx, rdx
+    sub    rcx, rsi             ; tail count 0..3
+    test   rcx, rcx
+    jz     .done
+.tloop:
+    cmp    rcx, 0
+    jle    .done
+    addss  xmm0, dword [rdi + rsi*4]
+    inc    rsi
+    dec    rcx
+    jmp    .tloop
+.done:
+    ret</code></pre>
+
+                        <p><strong>Horizontal Reduction Alternatives:</strong> <code>HADDPS</code> or shuffle combinations with <code>ADDSS</code>. On AVX platforms, utilize <code>VHADDPS</code> or combine <code>VADDPS</code> with <code>VEXTRACTF128</code>/<code>VADDPS</code>.</p>
+
+                        <h2>SIMD Example: Sum with AVX (8-wide)</h2>
+                        <p>AVX uses three-operand forms with destination separate from sources, operating on 256-bit YMM registers.</p>
+
+<pre><code class="language-nasm">global sum_float_array_avx
+sum_float_array_avx:
+    vxorps ymm0, ymm0, ymm0         ; acc = 0
+    mov    rdx, rsi
+    and    rsi, -8                  ; n8
+    xor    rax, rax
+.loop8:
+    cmp    rax, rsi
+    jge    .tail
+    vmovups ymm1, [rdi + rax*4]
+    vaddps  ymm0, ymm0, ymm1
+    add     rax, 8
+    jmp     .loop8
+.tail:
+    ; reduce ymm0 &rarr; xmm0 (lower half) by adding high/low 128
+    vextractf128 xmm1, ymm0, 1
+    vaddps       xmm0, xmm0, xmm1
+    ; now reduce 4 lanes in xmm0
+    movhlps xmm1, xmm0
+    addps  xmm0, xmm1
+    pshufd xmm1, xmm0, 0x55
+    addss  xmm0, xmm1
+
+    ; leftover
+    mov    rcx, rdx
+    sub    rcx, rsi
+    jz     .done
+.tloop:
+    addss  xmm0, dword [rdi + rsi*4]
+    inc    rsi
+    dec    rcx
+    jg     .tloop
+.done:
+    vzeroupper                     ; avoid AVX-SSE transition penalty on some CPUs
+    ret</code></pre>
+
+                        <p><strong>VZEROUPPER Directive:</strong> Call before returning to code using only SSE, preventing state transition stalls on legacy Intel processors.</p>
+
+                        <h2>Comparisons &amp; Branching with Floats</h2>
+                        <p>Use <code>UCOMISS</code>/<code>UCOMISD</code> for scalar float/double comparison, then branch with Jcc:</p>
+
+<pre><code class="language-nasm">ucomiss xmm0, xmm1      ; compare s0 ? s1
+ja    greater           ; unsigned &gt; (handles NaN as unordered: not taken)
+jb    less
+je    equal
+jp    unordered         ; true if NaN involved (PF set)</code></pre>
+
+                        <p>For packed data, employ <code>CMPSSD</code>/<code>CMPSPS</code> or <code>VCMP*</code> (AVX) to generate per-lane masks, then <code>TEST</code>/<code>PMOVMSKB</code> for control flow or <code>ANDPS</code>/<code>BLENDVPS</code> for masked computation.</p>
+
+                        <h2>ABI Cheat Sheet (Float Arguments/Returns)</h2>
+                        <p><strong>System V AMD64 (Linux/BSD/macOS):</strong> float/double arguments reside in <code>XMM0</code> through <code>XMM7</code> (following integer registers as needed); return in <code>XMM0</code>. Stack maintains 16-byte alignment at call instruction.</p>
+                        <p><strong>Windows x64:</strong> first four float/double arguments in <code>XMM0</code> through <code>XMM3</code>, shadow space of 32 bytes, return in <code>XMM0</code>, 16-byte alignment at call instruction.</p>
+
+                        <h2>Performance Tips</h2>
+                        <ul>
+                            <li>Prefer AVX three-operand forms to avoid false dependencies (<code>vaddps ymm0, ymm1, ymm2</code>).</li>
+                            <li>Maintain data alignment (16 B for XMM, 32 B for YMM) for fast-path <code>(V)MOVAPS</code>/<code>(V)MOVAPD</code> operations.</li>
+                            <li>When combining AVX and SSE, employ <code>VZEROUPPER</code> to prevent transition penalties on aging CPUs.</li>
+                            <li>Consider FTZ/DAZ when subnormals degrade performance and exact subnormal behavior proves unnecessary.</li>
+                            <li>Unroll loops conservatively and prefetch if bandwidth-limited; validate with profiling tools.</li>
+                        </ul>
+
+                        <h2>Reference Patterns</h2>
+
+                        <h3>Scalar Convert &amp; Add</h3>
+<pre><code class="language-nasm">; XMM0 += (double) EAX
+cvtsi2sd xmm1, eax
+addsd   xmm0, xmm1</code></pre>
+
+                        <h3>Load/Store (Unaligned Safe)</h3>
+<pre><code class="language-nasm">movups  xmm0, [rdi]      ; load 4 floats (unaligned ok)
+movups  [rdi], xmm0      ; store 4 floats</code></pre>
+
+                        <h3>Initialize to 0.0</h3>
+<pre><code class="language-nasm">xorps   xmm0, xmm0       ; SSE idiom
+vxorps  xmm0, xmm0, xmm0 ; AVX idiom</code></pre>
+
+                        <h2>Troubleshooting</h2>
+                        <ul>
+                            <li><strong>Crash on MOVAPS:</strong> likely indicates misaligned address; substitute <code>MOVUPS</code> or align data accordingly.</li>
+                            <li><strong>Unusual compare results:</strong> NaNs generate unordered outcomes; verify <code>JP</code> after <code>UCOMIS*</code>.</li>
+                            <li><strong>Slowdowns involving tiny values:</strong> subnormals degrade performance &mdash; consider enabling FTZ/DAZ in MXCSR.</li>
+                            <li><strong>Linker errors with AVX code:</strong> confirm assembler supports VEX (utilize recent NASM) and target appropriate CPU flags when compiling mixed C/ASM.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing large-scale distributed systems. Specialized in Generative AI, AI Agents, and cloud-native architectures.</p>
+                        <div class="sidebar-author-links">
+                            <a href="https://www.linkedin.com/in/paolo-mascia-italy" target="_blank" aria-label="LinkedIn"><svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg></a>
+                            <a href="https://github.com/paolomascia" target="_blank" aria-label="GitHub"><svg viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg></a>
+                            <a href="https://www.kaggle.com/paolomascia" target="_blank" aria-label="Kaggle"><svg viewBox="0 0 24 24"><path d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.233-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.075.378z"/></svg></a>
+                        </div>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="cs-assembly-part9.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Assembly</span>
+                            <div class="sidebar-link-title">IA-32 and Intel 64 ISA Assembly Language (Part 9)</div>
+                            <span class="sidebar-link-meta">Oct 2024</span>
+                        </a>
+                        <a href="cs-assembly-part8.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Assembly</span>
+                            <div class="sidebar-link-title">IA-32 and Intel 64 ISA Assembly Language (Part 8)</div>
+                            <span class="sidebar-link-meta">Jul 2024</span>
+                        </a>
+                        <a href="cs-assembly-part7.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Assembly</span>
+                            <div class="sidebar-link-title">IA-32 and Intel 64 ISA Assembly Language (Part 7)</div>
+                            <span class="sidebar-link-meta">Apr 2024</span>
+                        </a>
+                        <a href="cs-reverse-engineering.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Reverse Engineering</span>
+                            <div class="sidebar-link-title">Reverse Engineering</div>
+                            <span class="sidebar-link-meta">Aug 2024</span>
+                        </a>
+                        <a href="cs-buffer-overflow.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Exploitation</span>
+                            <div class="sidebar-link-title">Buffer Overflow</div>
+                            <span class="sidebar-link-meta">Sep 2023</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-nasm.min.js"></script>
+</body>
+</html>

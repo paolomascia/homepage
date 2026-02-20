@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Support Vector Machines in Python &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="ai-tech-insights.html" class="back-link">&larr; Back to Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Oct 2024</span>
+                            <span class="post-reading">16 min read</span>
+                        </div>
+                        <h1>Support Vector Machines in Python</h1>
+                        <div class="post-tags">
+                            <span>SVM</span>
+                            <span>Classification</span>
+                            <span>Regression</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Support Vector Machines (SVMs) are among the most elegant algorithms in machine learning. At their core, SVMs find the hyperplane that maximally separates classes &mdash; not just any boundary, but the one with the widest possible margin. This geometric elegance translates to strong generalization, especially in high-dimensional spaces where other algorithms struggle. Whether you are classifying text, detecting anomalies, or fitting regression curves, SVMs provide a principled, mathematically grounded approach that remains highly competitive even in the age of deep learning.</p>
+
+                        <h2>Geometric Intuition: Margin and Support Vectors</h2>
+
+                        <p>Imagine two classes of points in 2D space. Many possible lines could separate them, but SVM finds the one that maximizes the <strong>margin</strong> &mdash; the perpendicular distance between the decision boundary and the closest points from each class. Those closest points are called <strong>support vectors</strong>, and they are the only points that influence the boundary&rsquo;s position.</p>
+
+                        <p>This has profound implications:</p>
+
+                        <ul>
+                            <li>The model is <strong>sparse</strong> &mdash; only a small subset of training points (the support vectors) define the decision boundary. All other points could be removed without changing the model.</li>
+                            <li>Maximizing the margin provides <strong>structural risk minimization</strong>, which controls overfitting from a theoretical standpoint.</li>
+                            <li>The <strong>C parameter</strong> controls the trade-off between a wide margin and correct classification of training points. Small C allows more misclassifications (wider margin, more regularization); large C enforces strict classification (narrow margin, risk of overfitting).</li>
+                        </ul>
+
+<pre><code class="language-python"># The SVM optimization problem (simplified):
+# Minimize:  (1/2) ||w||^2 + C * sum(slack_i)
+# Subject to: y_i * (w . x_i + b) >= 1 - slack_i
+#             slack_i >= 0
+#
+# w = weight vector (defines hyperplane orientation)
+# b = bias (defines hyperplane offset)
+# slack_i = penalty for point i being inside the margin or misclassified
+# C = regularization parameter</code></pre>
+
+                        <h2>Kernels: Linear, RBF, and Polynomial</h2>
+
+                        <p>Real-world data is rarely linearly separable. SVMs handle this through the <strong>kernel trick</strong> &mdash; implicitly mapping data to a higher-dimensional space where a linear separator exists, without ever computing the transformation explicitly:</p>
+
+                        <ul>
+                            <li><strong>Linear kernel</strong> &mdash; <code>K(x, y) = x &middot; y</code>. Best for high-dimensional, sparse data (text classification, genomics). No extra hyperparameters beyond C.</li>
+                            <li><strong>RBF (Radial Basis Function) kernel</strong> &mdash; <code>K(x, y) = exp(-&gamma; ||x &ndash; y||&sup2;)</code>. The default and most versatile. Maps to infinite-dimensional space. Controlled by the <code>gamma</code> parameter, which defines how far a single training point&rsquo;s influence reaches.</li>
+                            <li><strong>Polynomial kernel</strong> &mdash; <code>K(x, y) = (&gamma; x &middot; y + r)<sup>d</sup></code>. Captures feature interactions up to degree <code>d</code>. Useful when you know interactions between features matter.</li>
+                        </ul>
+
+<pre><code class="language-python">from sklearn.svm import SVC
+
+# Compare kernels on the same data
+kernels = {
+    "Linear": SVC(kernel="linear", C=1.0),
+    "RBF":    SVC(kernel="rbf", C=1.0, gamma="scale"),
+    "Poly-3": SVC(kernel="poly", C=1.0, degree=3, gamma="scale"),
+}
+
+for name, model in kernels.items():
+    model.fit(X_train, y_train)
+    acc = model.score(X_test, y_test)
+    n_sv = model.n_support_.sum()
+    print(f"{name:8s}: accuracy={acc:.3f}, support vectors={n_sv}")</code></pre>
+
+                        <blockquote>
+                            <p><strong>Rule of thumb:</strong> Start with the RBF kernel. If the dataset is high-dimensional and sparse (n_features &gt; n_samples, like TF-IDF text features), switch to the linear kernel &mdash; it will be faster and often more accurate because the data is already linearly separable in high dimensions.</p>
+                        </blockquote>
+
+                        <h2>SVC Binary Classification</h2>
+
+                        <p>Let&rsquo;s walk through a complete binary classification example using <code>SVC</code>:</p>
+
+<pre><code class="language-python">import numpy as np
+from sklearn.svm import SVC
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import classification_report, confusion_matrix
+
+# Load and split data
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, stratify=y, random_state=42
+)
+
+# Scale features (critical for SVM!)
+scaler = StandardScaler()
+X_train_s = scaler.fit_transform(X_train)
+X_test_s = scaler.transform(X_test)
+
+# Fit SVC with RBF kernel
+svc = SVC(kernel="rbf", C=1.0, gamma="scale", random_state=42)
+svc.fit(X_train_s, y_train)
+
+# Evaluate
+y_pred = svc.predict(X_test_s)
+print(classification_report(y_test, y_pred))
+print("Confusion Matrix:")
+print(confusion_matrix(y_test, y_pred))
+
+# Model info
+print(f"\nSupport vectors per class: {svc.n_support_}")
+print(f"Total support vectors:     {svc.n_support_.sum()}")
+print(f"Training samples:          {len(X_train)}")</code></pre>
+
+                        <p>Key observations:</p>
+
+                        <ul>
+                            <li><strong>Feature scaling is mandatory</strong> for SVM. Without it, features with large ranges will dominate the kernel computation.</li>
+                            <li>The number of support vectors tells you about model complexity. If most training points are support vectors, the model may be underfitting (C too small) or the problem may not have clear class separation.</li>
+                            <li><code>gamma="scale"</code> sets gamma to <code>1 / (n_features * X.var())</code>, which is a sensible default that adapts to the data&rsquo;s scale.</li>
+                        </ul>
+
+                        <h2>Hyperparameter Tuning: C and Gamma</h2>
+
+                        <p>The two most important hyperparameters for RBF-SVM are <code>C</code> and <code>gamma</code>. They interact in complex ways, so a grid search with cross-validation is the standard approach:</p>
+
+<pre><code class="language-python">from sklearn.model_selection import GridSearchCV
+
+param_grid = {
+    "C": [0.01, 0.1, 1, 10, 100],
+    "gamma": [0.001, 0.01, 0.1, 1, "scale", "auto"]
+}
+
+grid = GridSearchCV(
+    SVC(kernel="rbf", random_state=42),
+    param_grid,
+    cv=5,
+    scoring="f1_weighted",
+    n_jobs=-1,
+    verbose=1
+)
+grid.fit(X_train_s, y_train)
+
+print(f"Best params: {grid.best_params_}")
+print(f"Best CV F1:  {grid.best_score_:.3f}")
+print(f"Test F1:     {grid.score(X_test_s, y_test):.3f}")</code></pre>
+
+                        <p>Understanding C and gamma:</p>
+
+                        <ul>
+                            <li><strong>C (regularization)</strong> &mdash; Low C creates a smoother, wider margin that tolerates more misclassifications. High C narrows the margin and fits training points more tightly. Think of C as the penalty for getting a training point wrong.</li>
+                            <li><strong>gamma (kernel width)</strong> &mdash; Low gamma means each point&rsquo;s influence reaches far (smooth boundary). High gamma means each point only affects nearby space (jagged, tightly-fitted boundary). Very high gamma leads to overfitting &mdash; each point creates its own tiny island of influence.</li>
+                            <li>The interaction: <strong>high C + high gamma</strong> = extreme overfitting (complex boundary, no tolerance for errors). <strong>Low C + low gamma</strong> = extreme underfitting (nearly linear, very tolerant).</li>
+                        </ul>
+
+                        <h2>LinearSVC for High-Dimensional Data</h2>
+
+                        <p>For high-dimensional datasets (thousands of features), <code>LinearSVC</code> is dramatically faster than <code>SVC(kernel="linear")</code> because it uses the liblinear solver instead of libsvm:</p>
+
+<pre><code class="language-python">from sklearn.svm import LinearSVC
+from sklearn.calibration import CalibratedClassifierCV
+
+# LinearSVC is optimized for linear classification
+linear_svc = LinearSVC(
+    C=1.0,
+    loss="squared_hinge",  # default
+    dual="auto",           # auto-selects based on n_samples vs n_features
+    max_iter=2000,
+    random_state=42
+)
+linear_svc.fit(X_train_s, y_train)
+
+print(f"Accuracy: {linear_svc.score(X_test_s, y_test):.3f}")
+print(f"Coefficients shape: {linear_svc.coef_.shape}")
+
+# LinearSVC doesn't support predict_proba natively
+# Wrap with CalibratedClassifierCV for probabilities
+cal_svc = CalibratedClassifierCV(linear_svc, cv=5)
+cal_svc.fit(X_train_s, y_train)
+probas = cal_svc.predict_proba(X_test_s)
+print(f"Probability shape: {probas.shape}")</code></pre>
+
+                        <p>When to use <code>LinearSVC</code> vs. <code>SVC</code>:</p>
+
+                        <ul>
+                            <li>Use <strong>LinearSVC</strong> when <code>n_features</code> is large (1,000+) or when you know the problem is approximately linearly separable (text classification, genomics).</li>
+                            <li>Use <strong>SVC with RBF</strong> when <code>n_features</code> is moderate (up to a few hundred) and you suspect non-linear boundaries.</li>
+                            <li>LinearSVC scales as <strong>O(n_samples &times; n_features)</strong> while kernel SVC scales as <strong>O(n_samples&sup2; &times; n_features)</strong> or worse, making LinearSVC orders of magnitude faster on large datasets.</li>
+                        </ul>
+
+                        <h2>Multiclass Classification</h2>
+
+                        <p>SVMs are inherently binary classifiers. For multiclass problems, scikit-learn automatically uses one of two strategies:</p>
+
+<pre><code class="language-python">from sklearn.multiclass import OneVsOneClassifier, OneVsRestClassifier
+
+# SVC uses One-vs-One (OVO) by default
+# This creates K*(K-1)/2 binary classifiers for K classes
+svc_ovo = SVC(kernel="rbf", C=1.0, gamma="scale",
+              decision_function_shape="ovo", random_state=42)
+svc_ovo.fit(X_train_s, y_train)
+
+# LinearSVC uses One-vs-Rest (OVR) by default
+# This creates K binary classifiers
+lsvc_ovr = LinearSVC(C=1.0, multi_class="ovr", random_state=42)
+lsvc_ovr.fit(X_train_s, y_train)
+
+print(f"SVC (OVO) accuracy:       {svc_ovo.score(X_test_s, y_test):.3f}")
+print(f"LinearSVC (OVR) accuracy: {lsvc_ovr.score(X_test_s, y_test):.3f}")
+
+# Explicit OVR wrapper (useful for custom base estimators)
+ovr = OneVsRestClassifier(SVC(kernel="rbf", C=1.0, gamma="scale",
+                               random_state=42))
+ovr.fit(X_train_s, y_train)
+print(f"Explicit OVR accuracy:    {ovr.score(X_test_s, y_test):.3f}")</code></pre>
+
+                        <p>For most multiclass problems, the default strategies work well. OVO trains more classifiers but each sees less data; OVR trains fewer classifiers but each must handle the full dataset. In practice, the accuracy difference is usually small.</p>
+
+                        <h2>SVR: Support Vector Regression</h2>
+
+                        <p>Support Vector Regression (SVR) adapts the SVM framework for continuous targets using an <strong>epsilon-insensitive loss</strong> &mdash; predictions within &epsilon; of the true value incur zero loss, while predictions outside this tube are penalized linearly:</p>
+
+<pre><code class="language-python">from sklearn.svm import SVR
+from sklearn.metrics import mean_squared_error, r2_score
+
+# Fit SVR with RBF kernel
+svr = SVR(
+    kernel="rbf",
+    C=100.0,        # regularization
+    epsilon=0.1,    # width of the epsilon-insensitive tube
+    gamma="scale"
+)
+svr.fit(X_train_s, y_train_reg)
+
+# Predict and evaluate
+y_pred_reg = svr.predict(X_test_s)
+rmse = mean_squared_error(y_test_reg, y_pred_reg, squared=False)
+r2 = r2_score(y_test_reg, y_pred_reg)
+print(f"RMSE: {rmse:.3f}")
+print(f"R&sup2;:   {r2:.3f}")
+print(f"Support vectors: {len(svr.support_)}")</code></pre>
+
+                        <p>Key SVR parameters:</p>
+
+                        <ul>
+                            <li><strong>epsilon (&epsilon;)</strong> &mdash; defines the tube width. Larger epsilon means more points fall inside the tube (zero loss), producing a smoother fit with fewer support vectors. Think of it as the tolerance for prediction error.</li>
+                            <li><strong>C</strong> &mdash; controls the trade-off between fitting the training data and model complexity, just like in classification.</li>
+                            <li>The <strong>kernel</strong> choice follows the same logic as classification &mdash; RBF for non-linear relationships, linear for high-dimensional sparse data.</li>
+                        </ul>
+
+<pre><code class="language-python"># Tune SVR hyperparameters
+from sklearn.model_selection import GridSearchCV
+
+svr_grid = GridSearchCV(
+    SVR(kernel="rbf"),
+    param_grid={
+        "C": [1, 10, 100, 1000],
+        "gamma": ["scale", 0.01, 0.1],
+        "epsilon": [0.01, 0.1, 0.5]
+    },
+    cv=5,
+    scoring="neg_root_mean_squared_error",
+    n_jobs=-1
+)
+svr_grid.fit(X_train_s, y_train_reg)
+
+print(f"Best params: {svr_grid.best_params_}")
+print(f"Best CV RMSE: {-svr_grid.best_score_:.3f}")</code></pre>
+
+                        <h2>Probability Calibration</h2>
+
+                        <p>By default, <code>SVC</code> does not output probabilities. Setting <code>probability=True</code> enables Platt scaling, which fits a logistic regression on the SVM&rsquo;s decision function outputs using an internal 5-fold cross-validation:</p>
+
+<pre><code class="language-python"># Enable probability estimates
+svc_prob = SVC(kernel="rbf", C=1.0, gamma="scale",
+               probability=True, random_state=42)
+svc_prob.fit(X_train_s, y_train)
+
+# Get probabilities
+probas = svc_prob.predict_proba(X_test_s)
+print(f"Probabilities shape: {probas.shape}")
+print(f"Sample probabilities: {probas[0]}")
+
+# Calibration plot
+from sklearn.calibration import calibration_curve
+
+prob_pos = probas[:, 1]  # probability of positive class
+fraction_pos, mean_predicted = calibration_curve(
+    y_test, prob_pos, n_bins=10
+)
+
+import matplotlib.pyplot as plt
+plt.figure(figsize=(6, 6))
+plt.plot(mean_predicted, fraction_pos, "s-", label="SVC + Platt")
+plt.plot([0, 1], [0, 1], "k--", label="Perfectly calibrated")
+plt.xlabel("Mean predicted probability")
+plt.ylabel("Fraction of positives")
+plt.title("Calibration Curve")
+plt.legend()
+plt.tight_layout()
+plt.show()</code></pre>
+
+                        <p>Caveats about SVM probabilities:</p>
+
+                        <ul>
+                            <li>Platt scaling adds significant training time because of the internal cross-validation.</li>
+                            <li>The probabilities may not be well-calibrated, especially with small datasets. For critical applications, use <code>CalibratedClassifierCV</code> with isotonic regression for better calibration.</li>
+                            <li>If you only need probabilities for ranking (not for their exact values), use <code>decision_function()</code> instead &mdash; it&rsquo;s faster and provides a natural ranking score.</li>
+                        </ul>
+
+                        <h2>Pipelines with Categoricals</h2>
+
+                        <p>A production-ready SVM pipeline handles both numerical and categorical features, scales appropriately, and tunes hyperparameters end-to-end:</p>
+
+<pre><code class="language-python">from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.model_selection import GridSearchCV
+
+# Define feature types
+num_features = ["age", "bmi", "blood_pressure", "glucose"]
+cat_features = ["smoker", "region", "sex"]
+
+# Build preprocessor
+preprocessor = ColumnTransformer([
+    ("num", StandardScaler(), num_features),
+    ("cat", OneHotEncoder(drop="first", sparse_output=False), cat_features)
+])
+
+# Full pipeline
+pipe = Pipeline([
+    ("preprocess", preprocessor),
+    ("svm", SVC(kernel="rbf", random_state=42))
+])
+
+# Tune with nested parameter names
+param_grid = {
+    "svm__C": [0.1, 1, 10, 100],
+    "svm__gamma": ["scale", 0.01, 0.1]
+}
+
+search = GridSearchCV(pipe, param_grid, cv=5,
+                      scoring="f1_weighted", n_jobs=-1)
+search.fit(df[num_features + cat_features], df["target"])
+
+print(f"Best params: {search.best_params_}")
+print(f"Best CV F1:  {search.best_score_:.3f}")</code></pre>
+
+                        <blockquote>
+                            <p><strong>Tip:</strong> Always put the scaler inside the pipeline, never outside it. If you scale before splitting into cross-validation folds, you&rsquo;re leaking information from the validation fold into the training fold, which inflates your performance estimate.</p>
+                        </blockquote>
+
+                        <h2>Interpretation Aids: Permutation Importance</h2>
+
+                        <p>SVMs, especially with non-linear kernels, are often called &ldquo;black box&rdquo; models. While you can&rsquo;t interpret individual predictions as easily as with decision trees, <strong>permutation importance</strong> reveals which features matter most:</p>
+
+<pre><code class="language-python">from sklearn.inspection import permutation_importance
+
+# Compute permutation importance on the test set
+result = permutation_importance(
+    svc, X_test_s, y_test,
+    n_repeats=30,
+    random_state=42,
+    scoring="accuracy"
+)
+
+# Sort by importance
+sorted_idx = result.importances_mean.argsort()[::-1]
+
+print("Feature Importance (permutation):")
+for i in sorted_idx[:10]:
+    print(f"  {feature_names[i]:25s}: "
+          f"{result.importances_mean[i]:.4f} "
+          f"+/- {result.importances_std[i]:.4f}")</code></pre>
+
+                        <p>For linear SVMs, you can also examine the <strong>coefficient vector</strong> directly:</p>
+
+<pre><code class="language-python"># LinearSVC coefficients (only for linear kernel)
+lsvc = LinearSVC(C=1.0, random_state=42)
+lsvc.fit(X_train_s, y_train)
+
+# For binary classification, coef_ has shape (1, n_features)
+coef_importance = np.abs(lsvc.coef_[0])
+sorted_idx = coef_importance.argsort()[::-1]
+
+print("Feature Importance (linear coefficients):")
+for i in sorted_idx[:10]:
+    print(f"  {feature_names[i]:25s}: "
+          f"coef = {lsvc.coef_[0][i]:+.4f}, "
+          f"|coef| = {coef_importance[i]:.4f}")</code></pre>
+
+                        <p>Additional interpretation tools:</p>
+
+                        <ul>
+                            <li><strong>SHAP values</strong> &mdash; the <code>shap</code> library supports kernel SHAP for SVMs, providing both global and local explanations.</li>
+                            <li><strong>Partial dependence plots</strong> &mdash; show how a feature affects the prediction on average, even for non-linear SVMs.</li>
+                            <li><strong>Decision boundary visualization</strong> &mdash; for 2D data, plot the decision surface to understand how the kernel shapes the boundary.</li>
+                        </ul>
+
+                        <h2>Common Pitfalls</h2>
+
+                        <ul>
+                            <li><strong>Forgetting to scale features.</strong> SVMs are extremely sensitive to feature scales. A feature ranging from 0 to 1,000,000 will dominate one ranging from 0 to 1. Always use <code>StandardScaler</code> or <code>MinMaxScaler</code>.</li>
+                            <li><strong>Using RBF kernel on huge datasets.</strong> Kernel SVM has O(n&sup2;) to O(n&sup3;) training complexity. For datasets with 100K+ samples, use <code>LinearSVC</code> or consider stochastic gradient descent (<code>SGDClassifier</code> with <code>loss="hinge"</code>).</li>
+                            <li><strong>Not tuning C and gamma together.</strong> These parameters interact strongly. Tuning one while holding the other fixed gives suboptimal results. Always grid-search both simultaneously.</li>
+                            <li><strong>Trusting SVM probabilities blindly.</strong> Platt-scaled probabilities from <code>SVC(probability=True)</code> can be poorly calibrated. Validate with a calibration curve before using them for decision-making.</li>
+                            <li><strong>Ignoring class imbalance.</strong> SVMs with default settings will bias toward the majority class. Use <code>class_weight="balanced"</code> to automatically adjust C inversely proportional to class frequency.</li>
+                            <li><strong>Using kernel SVM for text classification.</strong> TF-IDF features are high-dimensional and sparse &mdash; perfect for <code>LinearSVC</code>, which is 10&ndash;100x faster and often more accurate than RBF kernel SVM on text data.</li>
+                            <li><strong>Interpreting support vector count as model quality.</strong> Many support vectors can mean the problem is hard, not that the model is bad. Few support vectors mean the margin is wide and the problem is well-separated.</li>
+                        </ul>
+
+                        <h2>Key Takeaways</h2>
+
+                        <ul>
+                            <li>SVMs find the <strong>maximum-margin hyperplane</strong> that separates classes, using only the closest points (support vectors) to define the boundary.</li>
+                            <li>The <strong>kernel trick</strong> enables non-linear classification without explicitly transforming features. RBF is the most versatile default; linear is best for high-dimensional sparse data.</li>
+                            <li><strong>C and gamma</strong> are the critical hyperparameters. C controls the margin-misclassification trade-off; gamma controls the kernel&rsquo;s locality. Always tune both together via cross-validated grid search.</li>
+                            <li><strong>LinearSVC</strong> is dramatically faster than kernel SVC for high-dimensional problems and should be your first choice for text, genomics, and other high-dimensional sparse data.</li>
+                            <li>For multiclass problems, scikit-learn handles the OVO/OVR decomposition automatically. The default strategies work well in most cases.</li>
+                            <li><strong>SVR</strong> adapts the SVM framework to regression using an epsilon-insensitive loss tube. The epsilon parameter controls prediction tolerance.</li>
+                            <li>SVM <strong>probabilities</strong> (via Platt scaling) are approximate. Use <code>CalibratedClassifierCV</code> for better calibration, or use <code>decision_function()</code> for ranking.</li>
+                            <li>Always build <strong>end-to-end pipelines</strong> that include scaling and encoding inside the cross-validation loop to prevent data leakage.</li>
+                            <li>Use <strong>permutation importance</strong> for non-linear SVMs and <strong>coefficient magnitudes</strong> for linear SVMs to understand feature contributions.</li>
+                            <li><strong>Feature scaling is non-negotiable</strong> for SVMs. Put the scaler inside the pipeline and never scale before the train-test split.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing large-scale distributed systems. Specialized in Generative AI, AI Agents, and cloud-native architectures.</p>
+                        <div class="sidebar-author-links">
+                            <a href="https://www.linkedin.com/in/paolo-mascia-italy" target="_blank" aria-label="LinkedIn">
+                                <svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                            </a>
+                            <a href="https://github.com/paolomascia" target="_blank" aria-label="GitHub">
+                                <svg viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+                            </a>
+                            <a href="https://www.kaggle.com/paolomascia" target="_blank" aria-label="Kaggle">
+                                <svg viewBox="0 0 24 24"><path d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.233-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.075.378z"/></svg>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="post-logistic-regression.html" class="sidebar-link">
+                            <span class="sidebar-link-title">Logistic Regression in Python</span>
+                            <span class="sidebar-link-meta">Logistic Regression &middot; Jan 2024</span>
+                        </a>
+                        <a href="post-random-forest.html" class="sidebar-link">
+                            <span class="sidebar-link-title">Random Forest Model Evaluation</span>
+                            <span class="sidebar-link-meta">Model Evaluation &middot; Dec 2023</span>
+                        </a>
+                        <a href="post-decision-tree.html" class="sidebar-link">
+                            <span class="sidebar-link-title">Decision Tree Regression in Python</span>
+                            <span class="sidebar-link-meta">Decision Tree &middot; Apr 2024</span>
+                        </a>
+                        <a href="post-knn.html" class="sidebar-link">
+                            <span class="sidebar-link-title">K-Nearest Neighbors Regression</span>
+                            <span class="sidebar-link-meta">KNN &middot; Jun 2024</span>
+                        </a>
+                        <a href="post-ml-pipelines.html" class="sidebar-link">
+                            <span class="sidebar-link-title">Building ML Pipelines in Python</span>
+                            <span class="sidebar-link-meta">Pipelines &middot; Nov 2025</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+</body>
+</html>

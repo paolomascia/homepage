@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retrieval-Augmented Generation (RAG): Enhancing LLMs with External Knowledge — Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="ai-tech-insights.html" class="back-link">&larr; Back to Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Feb 2025</span>
+                            <span class="post-reading">12 min read</span>
+                        </div>
+                        <h1>Retrieval-Augmented Generation (RAG): Enhancing LLMs with External Knowledge</h1>
+                        <div class="post-tags">
+                            <span>RAG</span>
+                            <span>LLM</span>
+                            <span>FAISS</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+
+                        <p>Large Language Models encode knowledge in their parameters, but they cannot be reliably updated without retraining, they hallucinate when uncertain, and they cannot reference proprietary or fresh domain-specific data by default. RAG solves this by adding an external searchable knowledge source.</p>
+
+                        <p>Instead of relying solely on what the model memorized during pre-training, RAG retrieves relevant context from a knowledge base at inference time and feeds it into the prompt. The result: <strong>grounded, verifiable, up-to-date answers</strong> without touching the model weights.</p>
+
+                        <h2>RAG Pipeline Overview</h2>
+
+                        <p>A RAG system has two phases: an offline <strong>indexing</strong> phase and an online <strong>query</strong> phase.</p>
+
+                        <p><strong>Indexing (offline):</strong></p>
+                        <ol>
+                            <li>Collect source documents (PDFs, web pages, databases, APIs).</li>
+                            <li>Chunk documents into passages of manageable size (typically 256&ndash;512 tokens).</li>
+                            <li>Encode each chunk into a dense vector using an embedding model.</li>
+                            <li>Store vectors (and metadata) in a vector database.</li>
+                        </ol>
+
+                        <p><strong>Query (online):</strong></p>
+                        <ol>
+                            <li>User submits a question.</li>
+                            <li>The question is encoded into a query vector using the same embedding model.</li>
+                            <li>The retriever searches the vector database for the top-k most similar chunks.</li>
+                            <li>Retrieved chunks are injected into the LLM prompt as context.</li>
+                            <li>The LLM generates an answer grounded in the retrieved evidence.</li>
+                        </ol>
+
+                        <h2>Core Components</h2>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Component</th>
+                                    <th>Role</th>
+                                    <th>Example</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>Embedding Model</strong></td>
+                                    <td>Converts text to dense vectors</td>
+                                    <td>all-MiniLM-L6-v2, BGE-large, E5</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Vector Database</strong></td>
+                                    <td>Stores and retrieves vectors</td>
+                                    <td>FAISS, Pinecone, Weaviate, Qdrant</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Retriever</strong></td>
+                                    <td>Fetches top-k relevant chunks</td>
+                                    <td>Dense retriever, hybrid BM25 + dense</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>LLM Generator</strong></td>
+                                    <td>Produces the final answer</td>
+                                    <td>GPT-4, Claude, Llama, Mistral</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <h2>End-to-End RAG with HuggingFace + FAISS</h2>
+
+                        <p>Here is a complete, minimal RAG pipeline using open-source tools:</p>
+
+<pre><code class="language-python">from sentence_transformers import SentenceTransformer
+from transformers import pipeline
+import faiss
+import numpy as np
+
+# --- 1. Prepare the knowledge base ---
+documents = [
+    "RAG combines retrieval with generation to ground LLM responses in facts.",
+    "FAISS is a library for efficient nearest-neighbor search in dense vectors.",
+    "Chunking documents into 256-512 token passages improves retrieval quality.",
+    "The embedding model encodes both queries and documents into the same space.",
+    "Cross-encoders can re-rank initial retrieval results for higher precision.",
+    "Metadata filtering allows restricting search to specific document categories.",
+    "Hybrid retrieval combines BM25 keyword search with dense vector search.",
+    "RAG reduces hallucination by providing the LLM with evidence from the source.",
+]
+
+# --- 2. Build the index ---
+encoder = SentenceTransformer("all-MiniLM-L6-v2")
+doc_embeddings = encoder.encode(documents, normalize_embeddings=True)
+
+dimension = doc_embeddings.shape[1]
+index = faiss.IndexFlatIP(dimension)
+index.add(doc_embeddings)
+
+print(f"Indexed {index.ntotal} documents (dim={dimension})")
+
+# --- 3. Retrieve ---
+def retrieve(query, k=3):
+    query_vec = encoder.encode([query], normalize_embeddings=True)
+    scores, indices = index.search(query_vec, k)
+    results = []
+    for idx, score in zip(indices[0], scores[0]):
+        results.append({"text": documents[idx], "score": float(score)})
+    return results
+
+# --- 4. Generate ---
+generator = pipeline("text-generation", model="mistralai/Mistral-7B-Instruct-v0.2")
+
+def rag_answer(query, k=3):
+    # Retrieve relevant context
+    retrieved = retrieve(query, k=k)
+    context = "\n".join([f"- {r['text']}" for r in retrieved])
+
+    # Build the prompt
+    prompt = f"""Use the following context to answer the question.
+If the context does not contain enough information, say so.
+
+Context:
+{context}
+
+Question: {query}
+
+Answer:"""
+
+    # Generate
+    output = generator(prompt, max_new_tokens=256, do_sample=False)
+    return {
+        "answer": output[0]["generated_text"].split("Answer:")[-1].strip(),
+        "sources": retrieved,
+    }
+
+# --- 5. Run ---
+result = rag_answer("How does RAG reduce hallucination?")
+print(f"Answer: {result['answer']}")
+print(f"\nSources:")
+for src in result["sources"]:
+    print(f"  [{src['score']:.4f}] {src['text']}")
+</code></pre>
+
+                        <h2>Before and After RAG</h2>
+
+                        <p>To illustrate why RAG matters, consider the difference in responses:</p>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Scenario</th>
+                                    <th>Question</th>
+                                    <th>Response</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>Without RAG</strong></td>
+                                    <td>&ldquo;What is our company&rsquo;s refund policy?&rdquo;</td>
+                                    <td>The model guesses or hallucinates a generic policy.</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>With RAG</strong></td>
+                                    <td>&ldquo;What is our company&rsquo;s refund policy?&rdquo;</td>
+                                    <td>The model retrieves the actual policy document and quotes it accurately.</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Without RAG</strong></td>
+                                    <td>&ldquo;What were Q3 2025 earnings?&rdquo;</td>
+                                    <td>The model cannot answer &mdash; data is beyond its training cutoff.</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>With RAG</strong></td>
+                                    <td>&ldquo;What were Q3 2025 earnings?&rdquo;</td>
+                                    <td>The model retrieves the latest earnings report and provides exact figures.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <h2>Advantages of RAG</h2>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Advantage</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>No retraining needed</strong></td>
+                                    <td>Update the knowledge base without touching model weights.</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Reduced hallucination</strong></td>
+                                    <td>The model generates from retrieved evidence, not memory alone.</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Source attribution</strong></td>
+                                    <td>Every answer can point to the documents it was derived from.</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Domain adaptation</strong></td>
+                                    <td>Inject proprietary, domain-specific knowledge at inference time.</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Cost-effective</strong></td>
+                                    <td>Cheaper than fine-tuning &mdash; especially for frequently changing data.</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Access control</strong></td>
+                                    <td>Filter retrieval by user permissions or metadata at query time.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <h2>RAG Encoders</h2>
+
+                        <p>The choice of embedding model is critical. Different encoders trade off between speed, accuracy, and domain specificity:</p>
+
+                        <h3>Dense Passage Retrieval (DPR)</h3>
+
+                        <p>DPR uses separate BERT-based encoders for queries and passages, trained on question-passage pairs from Natural Questions. It was one of the first models to demonstrate that learned dense representations can outperform BM25 on open-domain QA:</p>
+
+<pre><code class="language-python">from transformers import DPRQuestionEncoder, DPRQuestionEncoderTokenizer
+from transformers import DPRContextEncoder, DPRContextEncoderTokenizer
+
+# Separate encoders for queries and documents
+q_encoder = DPRQuestionEncoder.from_pretrained(
+    "facebook/dpr-question_encoder-single-nq-base"
+)
+q_tokenizer = DPRQuestionEncoderTokenizer.from_pretrained(
+    "facebook/dpr-question_encoder-single-nq-base"
+)
+
+ctx_encoder = DPRContextEncoder.from_pretrained(
+    "facebook/dpr-ctx_encoder-single-nq-base"
+)
+ctx_tokenizer = DPRContextEncoderTokenizer.from_pretrained(
+    "facebook/dpr-ctx_encoder-single-nq-base"
+)
+
+# Encode a query
+q_input = q_tokenizer("What is RAG?", return_tensors="pt")
+q_embedding = q_encoder(**q_input).pooler_output  # (1, 768)
+
+# Encode a passage
+ctx_input = ctx_tokenizer(
+    "RAG retrieves relevant documents to ground LLM responses.",
+    return_tensors="pt"
+)
+ctx_embedding = ctx_encoder(**ctx_input).pooler_output  # (1, 768)
+</code></pre>
+
+                        <h3>Sentence Transformers</h3>
+
+                        <p>Sentence Transformers use a single encoder for both queries and documents (symmetric architecture). They are easier to use and often outperform DPR on a wide range of tasks:</p>
+
+<pre><code class="language-python">from sentence_transformers import SentenceTransformer
+
+# Single model for both queries and documents
+model = SentenceTransformer("all-MiniLM-L6-v2")
+
+query_embedding = model.encode(
+    "What is RAG?", normalize_embeddings=True
+)  # (384,)
+
+doc_embedding = model.encode(
+    "RAG retrieves documents to ground LLM responses.",
+    normalize_embeddings=True
+)  # (384,)
+</code></pre>
+
+                        <h3>Domain-Specific Encoders</h3>
+
+                        <p>For specialized domains (legal, medical, financial), general-purpose encoders may underperform. Options include:</p>
+                        <ul>
+                            <li><strong>Fine-tuning</strong> a Sentence Transformer on domain-specific pairs</li>
+                            <li><strong>Using domain-adapted models</strong> like PubMedBERT for biomedical text</li>
+                            <li><strong>Contrastive learning</strong> on your own (query, positive, negative) triplets</li>
+                        </ul>
+
+                        <h2>Cosine Similarity in RAG</h2>
+
+                        <p>Cosine similarity is the standard metric for comparing query and document embeddings. It measures the angle between two vectors, ignoring their magnitude:</p>
+
+<pre><code class="language-python">import numpy as np
+
+def cosine_similarity(a, b):
+    return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
+
+# When embeddings are already normalized (unit length),
+# cosine similarity equals the dot product:
+score = np.dot(query_embedding, doc_embedding)
+</code></pre>
+
+                        <p>This is why normalizing embeddings and using FAISS <code>IndexFlatIP</code> is the standard approach &mdash; you get exact cosine similarity with the speed of a dot-product operation.</p>
+
+                        <h2>FAISS for RAG: Scaling to Millions</h2>
+
+                        <p>For production RAG systems with millions of chunks, exact brute-force search becomes impractical. FAISS provides approximate methods that trade a small amount of recall for massive speed gains:</p>
+
+                        <h3>IVF for Partitioned Search</h3>
+
+<pre><code class="language-python">import faiss
+import numpy as np
+
+dimension = 384
+nlist = 256       # number of partitions
+nprobe = 16       # partitions to search per query
+
+# Build the IVF index
+quantizer = faiss.IndexFlatIP(dimension)
+index = faiss.IndexIVFFlat(
+    quantizer, dimension, nlist,
+    faiss.METRIC_INNER_PRODUCT
+)
+
+# Train on your document embeddings (or a representative sample)
+index.train(doc_embeddings)
+index.add(doc_embeddings)
+
+# At query time
+index.nprobe = nprobe
+scores, indices = index.search(query_vec, k=10)
+</code></pre>
+
+                        <h3>Product Quantization for Memory Reduction</h3>
+
+<pre><code class="language-python">dimension = 384
+nlist = 256
+m = 48            # sub-quantizers
+nbits = 8         # 256 centroids per sub-quantizer
+
+quantizer = faiss.IndexFlatIP(dimension)
+index = faiss.IndexIVFPQ(
+    quantizer, dimension, nlist, m, nbits,
+    faiss.METRIC_INNER_PRODUCT
+)
+
+index.train(doc_embeddings)
+index.add(doc_embeddings)
+
+index.nprobe = 16
+scores, indices = index.search(query_vec, k=10)
+</code></pre>
+
+                        <p>With PQ, a 10-million-document index at 384 dimensions fits in roughly 480 MB instead of 14 GB.</p>
+
+                        <h3>GPU Acceleration</h3>
+
+<pre><code class="language-python">import faiss
+
+# Move any CPU index to GPU for faster search
+gpu_res = faiss.StandardGpuResources()
+gpu_index = faiss.index_cpu_to_gpu(gpu_res, 0, cpu_index)
+
+# Or use all available GPUs
+gpu_index = faiss.index_cpu_to_all_gpus(cpu_index)
+
+scores, indices = gpu_index.search(query_vec, k=10)
+</code></pre>
+
+                        <h2>Metadata Filtering</h2>
+
+                        <p>In real-world RAG systems, you often need to filter results by metadata (e.g., document type, date range, access permissions). While FAISS itself does not support metadata natively, the pattern is straightforward:</p>
+
+<pre><code class="language-python">import faiss
+import numpy as np
+
+# Store metadata alongside your index
+metadata = [
+    {"source": "policy", "date": "2025-01", "access": "public"},
+    {"source": "report", "date": "2025-03", "access": "internal"},
+    {"source": "faq", "date": "2025-02", "access": "public"},
+    # ...
+]
+
+def retrieve_with_filter(query_vec, k=5, source_filter=None):
+    """Retrieve top-k results with optional metadata filtering."""
+    # Over-fetch to account for filtered-out results
+    scores, indices = index.search(query_vec, k=k * 5)
+
+    results = []
+    for idx, score in zip(indices[0], scores[0]):
+        if idx == -1:
+            continue
+        meta = metadata[idx]
+        if source_filter and meta["source"] != source_filter:
+            continue
+        results.append({
+            "text": documents[idx],
+            "score": float(score),
+            "metadata": meta,
+        })
+        if len(results) == k:
+            break
+
+    return results
+
+# Only retrieve from FAQ documents
+results = retrieve_with_filter(query_vec, k=3, source_filter="faq")
+</code></pre>
+
+                        <p>Managed vector databases like Pinecone, Weaviate, and Qdrant provide built-in metadata filtering that is more efficient than this post-filtering approach.</p>
+
+                        <h2>Key Takeaways</h2>
+
+                        <ul>
+                            <li>RAG decouples <strong>knowledge</strong> from <strong>reasoning</strong> &mdash; the LLM reasons; the knowledge base remembers.</li>
+                            <li>The retriever quality is the bottleneck. Invest in the right <strong>embedding model</strong>, <strong>chunking strategy</strong>, and <strong>index type</strong>.</li>
+                            <li>Use <strong>cosine similarity</strong> (via normalized embeddings + IndexFlatIP) as your default metric.</li>
+                            <li>Scale with <strong>IVF + PQ</strong> when your knowledge base grows beyond hundreds of thousands of chunks.</li>
+                            <li><strong>Hybrid retrieval</strong> (BM25 + dense) and <strong>cross-encoder re-ranking</strong> improve precision significantly.</li>
+                            <li>RAG is not a silver bullet &mdash; it requires careful tuning of chunk size, overlap, retrieval depth, and prompt engineering.</li>
+                        </ul>
+
+                        <p>RAG has become the standard pattern for building knowledge-grounded AI applications. It bridges the gap between what an LLM knows and what your users need, delivering accurate, attributable answers from your own data.</p>
+
+                    </div>
+                </div>
+
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing large-scale distributed systems. Specialized in Generative AI, AI Agents, and cloud-native architectures.</p>
+                        <div class="sidebar-author-links">
+                            <a href="https://www.linkedin.com/in/paolo-mascia-italy" target="_blank" aria-label="LinkedIn">
+                                <svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                            </a>
+                            <a href="https://github.com/paolomascia" target="_blank" aria-label="GitHub">
+                                <svg viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+                            </a>
+                            <a href="https://www.kaggle.com/paolomascia" target="_blank" aria-label="Kaggle">
+                                <svg viewBox="0 0 24 24"><path d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.233-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.075.378z"/></svg>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="post-vector-databases.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Vector Databases</span>
+                            <div class="sidebar-link-title">Vector Databases: Storage and Retrieval for Embedding-Based AI Systems</div>
+                            <span class="sidebar-link-meta">May 2025</span>
+                        </a>
+                        <a href="post-transformers.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Transformers</span>
+                            <div class="sidebar-link-title">Transformers: The Architecture That Revolutionized Deep Learning</div>
+                            <span class="sidebar-link-meta">Mar 2025</span>
+                        </a>
+                        <a href="post-rlhf.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">RLHF</span>
+                            <div class="sidebar-link-title">Reinforcement Learning from Human Feedback (RLHF)</div>
+                            <span class="sidebar-link-meta">Jun 2025</span>
+                        </a>
+                        <a href="post-ml-pipelines.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Pipelines</span>
+                            <div class="sidebar-link-title">Building Machine Learning Pipelines in Python</div>
+                            <span class="sidebar-link-meta">Nov 2025</span>
+                        </a>
+                        <a href="post-agentic-ai.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Agentic AI</span>
+                            <div class="sidebar-link-title">The Rise of Agentic AI: Why 2025 Changed Everything</div>
+                            <span class="sidebar-link-meta">Sep 2025</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+</body>
+</html>

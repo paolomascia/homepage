@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Decision Tree Regression in Python &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="ai-tech-insights.html" class="back-link">&larr; Back to Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Apr 2024</span>
+                            <span class="post-reading">14 min read</span>
+                        </div>
+                        <h1>Decision Tree Regression in Python</h1>
+                        <div class="post-tags">
+                            <span>Decision Tree</span>
+                            <span>Regression</span>
+                            <span>Scikit-Learn</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+
+                        <p class="lead">Decision tree regression is one of the most interpretable machine learning algorithms available. It works by recursively partitioning the feature space into rectangular regions and assigning a constant prediction &mdash; typically the mean of training targets &mdash; within each region. The result is a piecewise-constant function that can capture complex, non-linear relationships without requiring any feature scaling or distributional assumptions.</p>
+
+                        <p>In this guide we will cover how regression trees work, how to control their complexity to avoid overfitting, how to prune them effectively, how to interpret and visualize them, and how to build production-ready pipelines. By the end you will have a thorough understanding of when and how to use decision tree regression in Python.</p>
+
+                        <!-- Section 1 -->
+                        <h2>What a Regression Tree Does</h2>
+
+                        <p>A regression tree predicts a continuous target variable by learning a hierarchy of if&ndash;else rules from the training data. At each internal node, it splits the data on a single feature and a threshold that best reduces prediction error. At each leaf, it outputs a constant value &mdash; the mean (or median) of the training targets that landed in that region.</p>
+
+                        <blockquote>A decision tree asks a series of yes/no questions about the features, funneling each data point down a path until it reaches a leaf. The prediction is just the average of the training targets that ended up in that same leaf.</blockquote>
+
+                        <p>The algorithm is greedy: at each node, it evaluates every possible split across every feature and chooses the one that minimizes the chosen impurity criterion. This process is called <strong>recursive partitioning</strong>.</p>
+
+                        <pre><code class="language-python">from sklearn.tree import DecisionTreeRegressor
+import numpy as np
+
+# Simple 1-D example
+X_train = np.array([[1], [2], [3], [4], [5], [6], [7], [8]])
+y_train = np.array([1.1, 1.9, 3.2, 3.8, 5.1, 5.9, 7.0, 8.1])
+
+tree = DecisionTreeRegressor(max_depth=2, random_state=42)
+tree.fit(X_train, y_train)
+
+# Predictions are piecewise constant
+X_test = np.array([[2.5], [5.5], [7.5]])
+predictions = tree.predict(X_test)
+for x, p in zip(X_test.ravel(), predictions):
+    print(f"X={x} &rarr; predicted {p:.2f}")</code></pre>
+
+                        <p>With <code>max_depth=2</code>, the tree has at most 4 leaves. Each leaf predicts the mean of whatever training points fell into that region, producing a step-function approximation of the true relationship.</p>
+
+                        <!-- Section 2 -->
+                        <h2>Splitting Criteria</h2>
+
+                        <p>Scikit-Learn&rsquo;s <code>DecisionTreeRegressor</code> supports two splitting criteria via the <code>criterion</code> parameter:</p>
+
+                        <h3>Squared Error (default)</h3>
+                        <p>Minimizes the mean squared error (MSE) within each split. This is equivalent to minimizing variance. It is sensitive to outliers because squared errors amplify large deviations.</p>
+
+                        <pre><code class="language-python"># Default criterion
+tree_mse = DecisionTreeRegressor(criterion='squared_error', max_depth=4)
+tree_mse.fit(X_train, y_train)</code></pre>
+
+                        <h3>Absolute Error</h3>
+                        <p>Minimizes the mean absolute error (MAE). Each leaf predicts the <strong>median</strong> of training targets rather than the mean. This makes the tree more robust to outliers.</p>
+
+                        <pre><code class="language-python"># MAE criterion &mdash; more robust to outliers
+tree_mae = DecisionTreeRegressor(criterion='absolute_error', max_depth=4)
+tree_mae.fit(X_train, y_train)</code></pre>
+
+                        <p>In practice, <code>squared_error</code> is the default for good reason: it tends to produce better overall predictions when outliers are not a major concern. Switch to <code>absolute_error</code> when your data has significant outliers or when you care more about median performance than mean performance.</p>
+
+                        <!-- Section 3 -->
+                        <h2>Key Hyperparameters</h2>
+
+                        <p>Decision trees have several hyperparameters that control the complexity of the tree. Understanding these is essential for preventing overfitting.</p>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Parameter</th>
+                                    <th>Default</th>
+                                    <th>Effect</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><code>max_depth</code></td>
+                                    <td>None (grow until pure)</td>
+                                    <td>Maximum depth of the tree. Lower values = simpler tree.</td>
+                                </tr>
+                                <tr>
+                                    <td><code>min_samples_split</code></td>
+                                    <td>2</td>
+                                    <td>Minimum samples required to split an internal node.</td>
+                                </tr>
+                                <tr>
+                                    <td><code>min_samples_leaf</code></td>
+                                    <td>1</td>
+                                    <td>Minimum samples in a leaf. Higher = smoother predictions.</td>
+                                </tr>
+                                <tr>
+                                    <td><code>max_features</code></td>
+                                    <td>None (all features)</td>
+                                    <td>Number of features to consider per split. Adds randomness.</td>
+                                </tr>
+                                <tr>
+                                    <td><code>max_leaf_nodes</code></td>
+                                    <td>None (unlimited)</td>
+                                    <td>Maximum number of leaf nodes. Direct control on complexity.</td>
+                                </tr>
+                                <tr>
+                                    <td><code>ccp_alpha</code></td>
+                                    <td>0.0</td>
+                                    <td>Cost-complexity pruning parameter. Higher = more pruning.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <!-- Section 4 -->
+                        <h2>Minimal Example</h2>
+
+                        <p>Let us build a quick decision tree regression model on synthetic data to see the full workflow:</p>
+
+                        <pre><code class="language-python">import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_absolute_error, r2_score
+
+# Generate non-linear data
+np.random.seed(42)
+X = np.sort(np.random.uniform(0, 10, 200)).reshape(-1, 1)
+y = np.sin(X.ravel()) * X.ravel() + np.random.normal(0, 1, 200)
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Fit trees with different depths
+fig, axes = plt.subplots(1, 3, figsize=(15, 4))
+for ax, depth in zip(axes, [2, 5, None]):
+    tree = DecisionTreeRegressor(max_depth=depth, random_state=42)
+    tree.fit(X_train, y_train)
+    y_pred = tree.predict(X_test)
+
+    # Plot
+    X_plot = np.linspace(0, 10, 500).reshape(-1, 1)
+    y_plot = tree.predict(X_plot)
+    ax.scatter(X_test, y_test, alpha=0.5, s=20, label='Test data')
+    ax.plot(X_plot, y_plot, color='red', linewidth=2, label='Prediction')
+    ax.set_title(f'max_depth={depth}\nMAE={mean_absolute_error(y_test, y_pred):.2f}')
+    ax.legend(fontsize=8)
+
+plt.tight_layout()
+plt.show()</code></pre>
+
+                        <p>You will see that <code>max_depth=2</code> underfits (too few splits), <code>max_depth=None</code> overfits (memorizes noise), and <code>max_depth=5</code> strikes a reasonable balance. This is the fundamental tradeoff in tree-based models.</p>
+
+                        <!-- Section 5 -->
+                        <h2>Controlling Overfitting with Depth and Min Samples</h2>
+
+                        <p>An unrestricted decision tree will grow until every leaf contains exactly one training sample, perfectly memorizing the training data. This yields zero training error but terrible generalization. There are two main strategies to rein this in:</p>
+
+                        <h3>Pre-Pruning (Restricting Growth)</h3>
+                        <p>Stop the tree from growing too large in the first place:</p>
+
+                        <pre><code class="language-python">from sklearn.tree import DecisionTreeRegressor
+
+# Restrict depth
+tree_depth = DecisionTreeRegressor(max_depth=5, random_state=42)
+
+# Require at least 10 samples to split a node
+tree_split = DecisionTreeRegressor(min_samples_split=10, random_state=42)
+
+# Require at least 5 samples in every leaf
+tree_leaf = DecisionTreeRegressor(min_samples_leaf=5, random_state=42)
+
+# Limit the total number of leaves
+tree_leaves = DecisionTreeRegressor(max_leaf_nodes=20, random_state=42)
+
+# Combine multiple constraints
+tree_combined = DecisionTreeRegressor(
+    max_depth=8,
+    min_samples_split=10,
+    min_samples_leaf=5,
+    random_state=42
+)</code></pre>
+
+                        <h3>Which Constraint to Use?</h3>
+                        <ul>
+                            <li><code>max_depth</code> is the easiest to reason about &mdash; it directly controls how many questions the tree can ask.</li>
+                            <li><code>min_samples_leaf</code> provides a statistical guarantee: every prediction is based on at least <em>N</em> training samples.</li>
+                            <li><code>max_leaf_nodes</code> gives you direct control over model complexity (number of distinct predictions).</li>
+                            <li>In practice, combining <code>max_depth</code> with <code>min_samples_leaf</code> covers most use cases.</li>
+                        </ul>
+
+                        <!-- Section 6 -->
+                        <h2>Cost-Complexity Pruning</h2>
+
+                        <p>Post-pruning (also called cost-complexity pruning or minimal cost-complexity pruning) takes a different approach: first grow a full tree, then prune back branches that do not improve performance enough to justify their added complexity.</p>
+
+                        <p>The pruning strength is controlled by <code>ccp_alpha</code>. A higher alpha means more aggressive pruning.</p>
+
+                        <pre><code class="language-python">from sklearn.tree import DecisionTreeRegressor
+from sklearn.model_selection import cross_val_score
+import numpy as np
+import matplotlib.pyplot as plt
+
+# First, find the effective alpha range
+tree_full = DecisionTreeRegressor(random_state=42)
+tree_full.fit(X_train, y_train)
+path = tree_full.cost_complexity_pruning_path(X_train, y_train)
+ccp_alphas = path.ccp_alphas
+impurities = path.impurities
+
+print(f"Number of candidate alphas: {len(ccp_alphas)}")
+print(f"Alpha range: [{ccp_alphas.min():.6f}, {ccp_alphas.max():.2f}]")
+
+# Cross-validate across alpha values
+alpha_scores = []
+for alpha in ccp_alphas:
+    tree = DecisionTreeRegressor(ccp_alpha=alpha, random_state=42)
+    scores = cross_val_score(tree, X_train, y_train, cv=5, scoring='neg_mean_squared_error')
+    alpha_scores.append(-scores.mean())
+
+# Find the best alpha
+best_idx = np.argmin(alpha_scores)
+best_alpha = ccp_alphas[best_idx]
+print(f"\nBest alpha: {best_alpha:.6f}")
+print(f"Best CV MSE: {alpha_scores[best_idx]:.4f}")
+
+# Plot
+plt.figure(figsize=(8, 4))
+plt.plot(ccp_alphas, alpha_scores, marker='.', markersize=3)
+plt.axvline(best_alpha, color='red', linestyle='--', label=f'Best alpha = {best_alpha:.4f}')
+plt.xlabel('ccp_alpha')
+plt.ylabel('Mean Squared Error (CV)')
+plt.title('Cost-Complexity Pruning &mdash; Selecting Alpha')
+plt.legend()
+plt.tight_layout()
+plt.show()
+
+# Final pruned tree
+tree_pruned = DecisionTreeRegressor(ccp_alpha=best_alpha, random_state=42)
+tree_pruned.fit(X_train, y_train)</code></pre>
+
+                        <p>Cost-complexity pruning is elegant because it lets the data decide how much to prune. You grow the most detailed tree possible, then systematically remove branches that are not pulling their weight.</p>
+
+                        <!-- Section 7 -->
+                        <h2>Interpreting the Tree</h2>
+
+                        <p>One of the biggest strengths of decision trees is interpretability. Scikit-Learn provides multiple ways to visualize and understand the tree.</p>
+
+                        <h3>Text Representation</h3>
+
+                        <pre><code class="language-python">from sklearn.tree import export_text
+
+tree = DecisionTreeRegressor(max_depth=3, random_state=42)
+tree.fit(X_train, y_train)
+
+text_repr = export_text(tree, feature_names=['x'])
+print(text_repr)</code></pre>
+
+                        <h3>Graphical Visualization</h3>
+
+                        <pre><code class="language-python">from sklearn.tree import plot_tree
+import matplotlib.pyplot as plt
+
+fig, ax = plt.subplots(figsize=(16, 8))
+plot_tree(
+    tree,
+    feature_names=['x'],
+    filled=True,
+    rounded=True,
+    fontsize=9,
+    ax=ax
+)
+plt.title('Decision Tree Regression &mdash; max_depth=3')
+plt.tight_layout()
+plt.show()</code></pre>
+
+                        <h3>Feature Importance</h3>
+
+                        <pre><code class="language-python">import pandas as pd
+
+# For multi-feature trees
+feature_names = ['sqft', 'bedrooms', 'age', 'distance_to_center']
+importances = tree_multi.feature_importances_
+
+importance_df = pd.DataFrame({
+    'Feature': feature_names,
+    'Importance': importances
+}).sort_values('Importance', ascending=False)
+
+print(importance_df.to_string(index=False))</code></pre>
+
+                        <p>Feature importance in decision trees is computed as the total reduction in the splitting criterion (e.g., MSE) brought by each feature, normalized to sum to 1. A feature that appears in many splits near the root will have high importance.</p>
+
+                        <blockquote>Decision tree feature importances tell you which features the tree found most useful for splitting, but they do not measure the direction or magnitude of the effect. For causal or directional interpretations, consider SHAP values or partial dependence plots.</blockquote>
+
+                        <!-- Section 8 -->
+                        <h2>Multi-Feature Regression with Pipelines</h2>
+
+                        <p>Decision trees have a major practical advantage: they do not require feature scaling. Splits are based on thresholds within individual features, so the scale of each feature is irrelevant. However, you still need to handle categorical features.</p>
+
+                        <pre><code class="language-python">import pandas as pd
+import numpy as np
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OrdinalEncoder
+from sklearn.model_selection import train_test_split, cross_val_score
+
+# Simulated dataset
+np.random.seed(42)
+n = 800
+df = pd.DataFrame({
+    'sqft': np.random.randint(500, 4000, n),
+    'bedrooms': np.random.randint(1, 6, n),
+    'neighborhood': np.random.choice(['downtown', 'suburbs', 'rural'], n),
+    'condition': np.random.choice(['poor', 'fair', 'good', 'excellent'], n),
+    'age': np.random.randint(0, 60, n),
+})
+neigh_map = {'downtown': 60000, 'suburbs': 20000, 'rural': -15000}
+cond_map = {'poor': -20000, 'fair': 0, 'good': 15000, 'excellent': 35000}
+df['price'] = (
+    130 * df['sqft']
+    + 18000 * df['bedrooms']
+    - 900 * df['age']
+    + df['neighborhood'].map(neigh_map)
+    + df['condition'].map(cond_map)
+    + np.random.normal(0, 30000, n)
+)
+
+X = df.drop('price', axis=1)
+y = df['price']
+
+# Trees can handle ordinal encoding (no need for one-hot)
+num_features = ['sqft', 'bedrooms', 'age']
+cat_features = ['neighborhood', 'condition']
+
+preprocessor = ColumnTransformer([
+    ('num', 'passthrough', num_features),
+    ('cat', OrdinalEncoder(), cat_features),
+])
+
+pipe = Pipeline([
+    ('preprocessor', preprocessor),
+    ('tree', DecisionTreeRegressor(max_depth=8, min_samples_leaf=10, random_state=42))
+])
+
+scores = cross_val_score(pipe, X, y, cv=5, scoring='r2')
+print(f"R&sup2; (5-fold CV): {scores.mean():.4f} &plusmn; {scores.std():.4f}")</code></pre>
+
+                        <p>Note that we use <code>OrdinalEncoder</code> rather than <code>OneHotEncoder</code>. Trees can split on ordinal-encoded features naturally (e.g., &ldquo;is category &le; 1?&rdquo;), and ordinal encoding keeps the dimensionality low. One-hot encoding works too but creates more columns and can lead to slightly different tree structures.</p>
+
+                        <!-- Section 9 -->
+                        <h2>Choosing the Splitting Criterion</h2>
+
+                        <p>When should you switch from the default <code>squared_error</code> to <code>absolute_error</code>? Consider these scenarios:</p>
+
+                        <pre><code class="language-python">from sklearn.tree import DecisionTreeRegressor
+from sklearn.model_selection import cross_val_score
+import numpy as np
+
+# Create data with outliers
+np.random.seed(42)
+X = np.random.uniform(0, 10, (300, 3))
+y = 2 * X[:, 0] + 3 * X[:, 1] - X[:, 2] + np.random.normal(0, 2, 300)
+# Inject outliers
+y[:10] = y[:10] + 100
+
+# Compare criteria
+for criterion in ['squared_error', 'absolute_error']:
+    tree = DecisionTreeRegressor(
+        criterion=criterion,
+        max_depth=6,
+        min_samples_leaf=5,
+        random_state=42
+    )
+    scores = cross_val_score(tree, X, y, cv=5, scoring='neg_mean_absolute_error')
+    print(f"{criterion:>15}: MAE = {-scores.mean():.2f}")</code></pre>
+
+                        <p>With outliers present, <code>absolute_error</code> tends to produce lower MAE because the tree splits aim to minimize absolute deviations, and each leaf predicts the median rather than the mean. If your data is clean or you care about MSE/RMSE, stick with <code>squared_error</code>.</p>
+
+                        <!-- Section 10 -->
+                        <h2>Visualizing Predictions vs. Ground Truth</h2>
+
+                        <p>A predicted-vs-actual scatter plot is one of the most useful diagnostics for any regression model:</p>
+
+                        <pre><code class="language-python">import matplotlib.pyplot as plt
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_absolute_error, r2_score
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+tree = DecisionTreeRegressor(max_depth=6, min_samples_leaf=5, random_state=42)
+tree.fit(X_train, y_train)
+y_pred = tree.predict(X_test)
+
+fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+# Predicted vs Actual
+axes[0].scatter(y_test, y_pred, alpha=0.5, s=20)
+lims = [min(y_test.min(), y_pred.min()), max(y_test.max(), y_pred.max())]
+axes[0].plot(lims, lims, 'r--', linewidth=1)
+axes[0].set_xlabel('Actual')
+axes[0].set_ylabel('Predicted')
+axes[0].set_title(f'Predicted vs Actual (R&sup2;={r2_score(y_test, y_pred):.3f})')
+
+# Residuals
+residuals = y_test - y_pred
+axes[1].scatter(y_pred, residuals, alpha=0.5, s=20)
+axes[1].axhline(y=0, color='red', linestyle='--')
+axes[1].set_xlabel('Predicted')
+axes[1].set_ylabel('Residual')
+axes[1].set_title(f'Residual Plot (MAE={mean_absolute_error(y_test, y_pred):.2f})')
+
+plt.tight_layout()
+plt.show()</code></pre>
+
+                        <p>Look for patterns in the residual plot. Because decision trees make piecewise-constant predictions, you will often see horizontal bands of residuals. This is expected behavior, not a defect. If you see large systematic patterns (e.g., residuals increasing with predicted value), the tree may need more depth or the data may have heteroscedasticity that warrants a different approach.</p>
+
+                        <!-- Section 11 -->
+                        <h2>Hyperparameter Tuning with Cross-Validation</h2>
+
+                        <p>With several interacting hyperparameters, grid search or randomized search is the practical way to find a good configuration:</p>
+
+                        <pre><code class="language-python">from sklearn.tree import DecisionTreeRegressor
+from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
+from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OrdinalEncoder
+import numpy as np
+
+# Using the pipeline from earlier
+preprocessor = ColumnTransformer([
+    ('num', 'passthrough', num_features),
+    ('cat', OrdinalEncoder(), cat_features),
+])
+
+pipe = Pipeline([
+    ('preprocessor', preprocessor),
+    ('tree', DecisionTreeRegressor(random_state=42))
+])
+
+# Grid search
+param_grid = {
+    'tree__max_depth': [3, 5, 8, 12, None],
+    'tree__min_samples_split': [2, 5, 10, 20],
+    'tree__min_samples_leaf': [1, 3, 5, 10, 20],
+    'tree__criterion': ['squared_error', 'absolute_error'],
+}
+
+search = GridSearchCV(
+    pipe, param_grid, cv=5,
+    scoring='neg_mean_absolute_error',
+    n_jobs=-1, verbose=1
+)
+search.fit(X_train, y_train)
+
+print(f"Best params: {search.best_params_}")
+print(f"Best CV MAE: {-search.best_score_:,.0f}")
+
+# For larger search spaces, use RandomizedSearchCV
+from scipy.stats import randint, uniform
+
+param_dist = {
+    'tree__max_depth': randint(3, 20),
+    'tree__min_samples_split': randint(2, 50),
+    'tree__min_samples_leaf': randint(1, 30),
+    'tree__ccp_alpha': uniform(0, 0.05),
+}
+
+random_search = RandomizedSearchCV(
+    pipe, param_dist, n_iter=100, cv=5,
+    scoring='neg_mean_absolute_error',
+    n_jobs=-1, random_state=42, verbose=1
+)
+random_search.fit(X_train, y_train)
+
+print(f"Best params: {random_search.best_params_}")
+print(f"Best CV MAE: {-random_search.best_score_:,.0f}")</code></pre>
+
+                        <!-- Section 12 -->
+                        <h2>Quantile Uncertainty with Ensembles</h2>
+
+                        <p>A single decision tree does not provide uncertainty estimates, but you can approximate prediction intervals using ensemble methods. Scikit-Learn&rsquo;s <code>GradientBoostingRegressor</code> supports quantile loss, allowing you to estimate any percentile of the conditional distribution:</p>
+
+                        <pre><code class="language-python">from sklearn.ensemble import GradientBoostingRegressor
+import numpy as np
+
+# Fit models for lower bound, median, and upper bound
+models = {}
+for alpha, name in [(0.1, 'lower'), (0.5, 'median'), (0.9, 'upper')]:
+    model = GradientBoostingRegressor(
+        loss='quantile', alpha=alpha,
+        n_estimators=200, max_depth=4,
+        learning_rate=0.1, random_state=42
+    )
+    model.fit(X_train, y_train)
+    models[name] = model
+
+# Predict intervals
+y_lower = models['lower'].predict(X_test)
+y_median = models['median'].predict(X_test)
+y_upper = models['upper'].predict(X_test)
+
+# Display first 5 predictions
+print(f"{'Lower (10th)':>14}  {'Median':>10}  {'Upper (90th)':>14}  {'Actual':>10}")
+print("-" * 55)
+for i in range(5):
+    print(f"{y_lower[i]:>14.1f}  {y_median[i]:>10.1f}  {y_upper[i]:>14.1f}  {y_test.iloc[i]:>10.1f}")</code></pre>
+
+                        <p>Alternatively, you can use a <code>RandomForestRegressor</code> and look at the distribution of individual tree predictions:</p>
+
+                        <pre><code class="language-python">from sklearn.ensemble import RandomForestRegressor
+import numpy as np
+
+rf = RandomForestRegressor(n_estimators=200, max_depth=8, random_state=42)
+rf.fit(X_train, y_train)
+
+# Get predictions from each individual tree
+tree_preds = np.array([tree.predict(X_test) for tree in rf.estimators_])
+
+# Compute percentiles across trees
+y_pred = tree_preds.mean(axis=0)
+y_lower = np.percentile(tree_preds, 10, axis=0)
+y_upper = np.percentile(tree_preds, 90, axis=0)
+
+interval_width = (y_upper - y_lower).mean()
+print(f"Average 80% interval width: {interval_width:,.0f}")</code></pre>
+
+                        <!-- Section 13 -->
+                        <h2>Common Pitfalls</h2>
+
+                        <h3>1. Overfitting with Default Parameters</h3>
+                        <p>An unrestricted tree (<code>max_depth=None</code>, <code>min_samples_leaf=1</code>) will perfectly memorize the training data. Always set at least one complexity constraint.</p>
+
+                        <pre><code class="language-python">from sklearn.tree import DecisionTreeRegressor
+from sklearn.metrics import r2_score
+
+# This will overfit
+tree_overfit = DecisionTreeRegressor(random_state=42)  # no constraints!
+tree_overfit.fit(X_train, y_train)
+print(f"Train R&sup2;: {r2_score(y_train, tree_overfit.predict(X_train)):.4f}")  # ~1.0
+print(f"Test  R&sup2;: {r2_score(y_test, tree_overfit.predict(X_test)):.4f}")    # much lower</code></pre>
+
+                        <h3>2. Instability</h3>
+                        <p>Small changes in the training data can produce completely different tree structures. This is inherent to the greedy splitting algorithm. If stability matters, use ensemble methods (Random Forest, Gradient Boosting) that average over many trees.</p>
+
+                        <h3>3. Piecewise-Constant Predictions</h3>
+                        <p>Trees produce step-function predictions, which means they cannot smoothly interpolate between training points. For smooth functions, you may need many splits (deep trees), which risks overfitting. If you know the underlying relationship is smooth, consider polynomial regression or spline-based methods instead.</p>
+
+                        <h3>4. Extrapolation Failure</h3>
+                        <p>Like KNN, decision trees <strong>cannot extrapolate</strong>. Predictions outside the range of training targets are clamped to the nearest leaf value. If your test data extends beyond training ranges, trees will produce flat, inaccurate predictions at the boundaries.</p>
+
+                        <h3>5. Biased Feature Importance with High-Cardinality Features</h3>
+                        <p>Features with many unique values (e.g., continuous features or high-cardinality categoricals) are favored by the splitting algorithm because they offer more potential split points. This can inflate their apparent importance relative to low-cardinality features.</p>
+
+                        <!-- Section 14 -->
+                        <h2>End-to-End Template</h2>
+
+                        <p>Here is a complete, production-ready template for decision tree regression:</p>
+
+                        <pre><code class="language-python">import numpy as np
+import pandas as pd
+from sklearn.tree import DecisionTreeRegressor, export_text, plot_tree
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OrdinalEncoder
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+import matplotlib.pyplot as plt
+
+# ----- 1. Load Data -----
+# df = pd.read_csv('your_data.csv')
+# For demo, generate synthetic data
+np.random.seed(42)
+n = 1000
+df = pd.DataFrame({
+    'feature_1': np.random.uniform(0, 100, n),
+    'feature_2': np.random.randint(1, 10, n),
+    'category': np.random.choice(['A', 'B', 'C', 'D'], n),
+    'target': np.random.uniform(10, 500, n),
+})
+df['target'] = (
+    2.5 * df['feature_1']
+    + 15 * df['feature_2']
+    + df['category'].map({'A': 40, 'B': 10, 'C': -20, 'D': -40})
+    + np.random.normal(0, 20, n)
+)
+
+# ----- 2. Define Features and Target -----
+X = df.drop('target', axis=1)
+y = df['target']
+
+num_cols = ['feature_1', 'feature_2']
+cat_cols = ['category']
+
+# ----- 3. Train/Test Split -----
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+
+# ----- 4. Preprocessing (no scaling needed for trees) -----
+preprocessor = ColumnTransformer([
+    ('num', 'passthrough', num_cols),
+    ('cat', OrdinalEncoder(), cat_cols),
+])
+
+# ----- 5. Pipeline -----
+pipe = Pipeline([
+    ('preprocessor', preprocessor),
+    ('tree', DecisionTreeRegressor(random_state=42))
+])
+
+# ----- 6. Hyperparameter Search -----
+param_grid = {
+    'tree__max_depth': [3, 5, 8, 12, None],
+    'tree__min_samples_split': [2, 5, 10, 20],
+    'tree__min_samples_leaf': [1, 3, 5, 10],
+    'tree__criterion': ['squared_error', 'absolute_error'],
+}
+
+search = GridSearchCV(
+    pipe, param_grid, cv=5,
+    scoring='neg_mean_absolute_error',
+    n_jobs=-1, verbose=1
+)
+search.fit(X_train, y_train)
+
+print(f"Best params: {search.best_params_}")
+print(f"Best CV MAE: {-search.best_score_:.2f}")
+
+# ----- 7. Evaluate on Test Set -----
+y_pred = search.predict(X_test)
+print(f"\nTest MAE:  {mean_absolute_error(y_test, y_pred):.2f}")
+print(f"Test RMSE: {np.sqrt(mean_squared_error(y_test, y_pred)):.2f}")
+print(f"Test R&sup2;:   {r2_score(y_test, y_pred):.4f}")
+
+# ----- 8. Visualize the Best Tree -----
+best_tree = search.best_estimator_.named_steps['tree']
+print(f"\nTree depth: {best_tree.get_depth()}")
+print(f"Number of leaves: {best_tree.get_n_leaves()}")
+
+fig, ax = plt.subplots(figsize=(20, 10))
+plot_tree(best_tree, filled=True, rounded=True, fontsize=7, ax=ax)
+plt.title('Best Decision Tree')
+plt.tight_layout()
+plt.show()</code></pre>
+
+                        <!-- Section 15 -->
+                        <h2>Key Takeaways</h2>
+
+                        <ul>
+                            <li><strong>Decision trees partition the feature space</strong> into rectangular regions and predict the mean (or median) of training targets in each region. They are inherently non-linear and require no feature scaling.</li>
+                            <li><strong>Overfitting is the main risk:</strong> an unrestricted tree will memorize the training data. Always constrain depth, min samples, or use cost-complexity pruning.</li>
+                            <li><strong>Cost-complexity pruning</strong> (<code>ccp_alpha</code>) is an elegant, data-driven way to find the right tree complexity. Cross-validate over the alpha path to select the best value.</li>
+                            <li><strong>Interpretability is a major strength:</strong> you can visualize the tree, export it as text, and inspect feature importances. This makes decision trees excellent for exploratory analysis and explainable models.</li>
+                            <li><strong>Piecewise-constant predictions</strong> mean trees cannot smoothly interpolate or extrapolate. For smooth targets, deeper trees help but risk overfitting.</li>
+                            <li><strong>Instability is inherent:</strong> small data changes can yield very different trees. For stability and better performance, consider ensemble methods like Random Forest or Gradient Boosting.</li>
+                            <li><strong>Use OrdinalEncoder for categoricals:</strong> trees split on thresholds, so ordinal encoding works naturally and keeps dimensionality low.</li>
+                            <li><strong>Combine with ensembles for uncertainty:</strong> individual trees do not provide confidence intervals, but quantile gradient boosting or random forest prediction distributions can approximate them.</li>
+                        </ul>
+
+                    </div>
+                </div>
+
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing large-scale distributed systems. Specialized in Generative AI, AI Agents, and cloud-native architectures.</p>
+                        <div class="sidebar-author-links">
+                            <a href="https://www.linkedin.com/in/paolo-mascia-italy" target="_blank" aria-label="LinkedIn">
+                                <svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                            </a>
+                            <a href="https://github.com/paolomascia" target="_blank" aria-label="GitHub">
+                                <svg viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+                            </a>
+                            <a href="https://www.kaggle.com/paolomascia" target="_blank" aria-label="Kaggle">
+                                <svg viewBox="0 0 24 24"><path d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.233-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.075.378z"/></svg>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <ul>
+                            <li><a href="post-regression-trees.html">Regression Trees in Python</a><span class="sidebar-meta">Decision Tree &middot; Aug 2023</span></li>
+                            <li><a href="post-random-forest-regression.html">Random Forest Regression in Python</a><span class="sidebar-meta">Random Forest &middot; Mar 2024</span></li>
+                            <li><a href="post-random-forest.html">Random Forest Model Evaluation</a><span class="sidebar-meta">Model Evaluation &middot; Dec 2023</span></li>
+                            <li><a href="post-knn.html">K-Nearest Neighbors Regression</a><span class="sidebar-meta">KNN &middot; Jun 2024</span></li>
+                            <li><a href="post-svm.html">Support Vector Machines in Python</a><span class="sidebar-meta">SVM &middot; Oct 2024</span></li>
+                        </ul>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+</body>
+</html>

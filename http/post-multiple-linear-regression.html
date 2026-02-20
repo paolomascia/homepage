@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multiple Linear Regression in Python &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="ai-tech-insights.html" class="back-link">&larr; Back to Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">May 2023</span>
+                            <span class="post-reading">20 min read</span>
+                        </div>
+                        <h1>Multiple Linear Regression in Python</h1>
+                        <div class="post-tags">
+                            <span>Linear Regression</span>
+                            <span>Python</span>
+                            <span>Scikit-Learn</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+
+                        <p>Multiple Linear Regression extends the straight-line idea to many predictors. The expected value of the target is modeled as a linear combination of multiple features, making it one of the most widely used and interpretable techniques in data science.</p>
+
+                        <h2>Mathematical Formulation</h2>
+
+                        <p>The model with <em>p</em> predictors is:</p>
+
+                        <p><strong>y = &beta;<sub>0</sub> + &beta;<sub>1</sub>x<sub>1</sub> + &beta;<sub>2</sub>x<sub>2</sub> + &hellip; + &beta;<sub>p</sub>x<sub>p</sub> + &epsilon;</strong></p>
+
+                        <p>In matrix notation:</p>
+
+                        <p><strong>y = X&beta; + &epsilon;</strong></p>
+
+                        <p>The OLS estimator is:</p>
+
+                        <p><strong>&beta;&#770; = (X<sup>T</sup>X)<sup>&minus;1</sup>X<sup>T</sup>y</strong></p>
+
+                        <p>Each coefficient &beta;<sub>j</sub> represents the expected change in <em>y</em> for a one-unit increase in <em>x<sub>j</sub></em>, <strong>holding all other predictors constant</strong>.</p>
+
+                        <h2>Why Multiple Regression Matters</h2>
+
+                        <ul>
+                            <li><strong>Real-world outcomes</strong> depend on many factors simultaneously.</li>
+                            <li>Controlling for confounders &mdash; isolating the effect of one variable while accounting for others.</li>
+                            <li>Foundation for regularization (Ridge, Lasso), polynomial regression, and generalized linear models.</li>
+                            <li>Highly interpretable: each coefficient has a clear &ldquo;all else being equal&rdquo; meaning.</li>
+                        </ul>
+
+                        <h2>Assumptions</h2>
+
+                        <p>Multiple linear regression rests on five key assumptions. Violating them undermines the validity of the coefficients and their p-values.</p>
+
+                        <ol>
+                            <li><strong>Linearity</strong> &mdash; the relationship between each predictor and the target is linear (in the parameters).</li>
+                            <li><strong>Independence</strong> &mdash; observations are independent of each other (no autocorrelation).</li>
+                            <li><strong>Homoscedasticity</strong> &mdash; the variance of residuals is constant across all levels of the predictors.</li>
+                            <li><strong>Normality</strong> &mdash; residuals are approximately normally distributed (important for inference, less critical for prediction).</li>
+                            <li><strong>No perfect multicollinearity</strong> &mdash; no predictor is a perfect linear combination of others.</li>
+                        </ol>
+
+                        <h2>First Example: Synthetic Data with Scikit-Learn</h2>
+
+<pre><code class="language-python">import numpy as np
+import pandas as pd
+from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_squared_error, r2_score
+
+np.random.seed(42)
+n = 500
+
+# Generate three predictors
+x1 = np.random.uniform(0, 10, n)
+x2 = np.random.uniform(20, 50, n)
+x3 = np.random.uniform(1, 5, n)
+
+# True relationship: y = 3 + 2*x1 - 0.5*x2 + 4*x3 + noise
+y = 3 + 2 * x1 - 0.5 * x2 + 4 * x3 + np.random.randn(n) * 2
+
+# Assemble into a DataFrame
+df = pd.DataFrame({
+    'x1': x1, 'x2': x2, 'x3': x3, 'y': y
+})
+
+print(df.head())
+print(df.describe())</code></pre>
+
+<pre><code class="language-python"># Train-test split
+X = df[['x1', 'x2', 'x3']]
+y = df['y']
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+
+# Fit multiple linear regression
+model = LinearRegression()
+model.fit(X_train, y_train)
+
+print(f"Intercept: {model.intercept_:.4f}")
+for name, coef in zip(X.columns, model.coef_):
+    print(f"  {name}: {coef:.4f}")
+
+# Evaluate
+y_pred = model.predict(X_test)
+print(f"\nTest MSE:  {mean_squared_error(y_test, y_pred):.4f}")
+print(f"Test RMSE: {np.sqrt(mean_squared_error(y_test, y_pred)):.4f}")
+print(f"Test R^2:  {r2_score(y_test, y_pred):.4f}")</code></pre>
+
+                        <h2>Adjusted R-Squared with Statsmodels</h2>
+
+                        <p>R&sup2; always increases when you add more predictors, even irrelevant ones. <strong>Adjusted R&sup2;</strong> penalizes for the number of predictors and only increases if the new variable genuinely improves the model.</p>
+
+<pre><code class="language-python">import statsmodels.api as sm
+
+X_train_sm = sm.add_constant(X_train)
+ols_model = sm.OLS(y_train, X_train_sm).fit()
+
+print(ols_model.summary())</code></pre>
+
+                        <p>Key items in the summary:</p>
+
+                        <ul>
+                            <li><strong>R-squared</strong> vs <strong>Adj. R-squared</strong> &mdash; compare these to detect overfitting from too many predictors.</li>
+                            <li><strong>F-statistic</strong> &mdash; tests whether the overall model is statistically significant.</li>
+                            <li><strong>coef</strong>, <strong>std err</strong>, <strong>t</strong>, <strong>P&gt;|t|</strong> &mdash; significance and precision of each coefficient.</li>
+                            <li><strong>Durbin-Watson</strong> &mdash; tests for autocorrelation in residuals (values near 2 indicate no autocorrelation).</li>
+                            <li><strong>Condition Number</strong> &mdash; a high value flags potential multicollinearity.</li>
+                        </ul>
+
+                        <h2>Handling Categorical Variables</h2>
+
+                        <p>Categorical features must be converted to numeric form. <strong>One-hot encoding</strong> creates binary columns for each category. Drop one column to avoid the <strong>dummy variable trap</strong> (perfect multicollinearity).</p>
+
+<pre><code class="language-python"># Example with a categorical predictor
+df_cat = pd.DataFrame({
+    'sqft': np.random.uniform(800, 3000, 200),
+    'bedrooms': np.random.randint(1, 6, 200),
+    'neighborhood': np.random.choice(['Downtown', 'Suburbs', 'Rural'], 200),
+    'price': np.random.uniform(100000, 500000, 200)
+})
+
+# One-hot encode, drop_first=True to avoid dummy variable trap
+df_encoded = pd.get_dummies(df_cat, columns=['neighborhood'],
+                            drop_first=True, dtype=int)
+
+print(df_encoded.head())
+print(f"\nColumns: {list(df_encoded.columns)}")
+
+# Fit
+X_cat = df_encoded.drop('price', axis=1)
+y_cat = df_encoded['price']
+
+model_cat = LinearRegression()
+model_cat.fit(X_cat, y_cat)
+
+for name, coef in zip(X_cat.columns, model_cat.coef_):
+    print(f"  {name}: {coef:.2f}")</code></pre>
+
+                        <h2>Scaling and Collinearity</h2>
+
+                        <p>When predictors are on different scales (e.g., square footage in thousands vs. number of bedrooms in single digits), <strong>standardization</strong> makes the coefficients directly comparable.</p>
+
+<pre><code class="language-python">from sklearn.preprocessing import StandardScaler
+
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled  = scaler.transform(X_test)
+
+model_scaled = LinearRegression()
+model_scaled.fit(X_train_scaled, y_train)
+
+print("Standardized coefficients (comparable effect sizes):")
+for name, coef in zip(X.columns, model_scaled.coef_):
+    print(f"  {name}: {coef:.4f}")
+
+# After scaling, the largest absolute coefficient has the biggest effect</code></pre>
+
+                        <h2>VIF: Diagnosing Multicollinearity</h2>
+
+                        <p>The <strong>Variance Inflation Factor</strong> (VIF) measures how much the variance of a coefficient is inflated due to correlation with other predictors. A VIF above 5&ndash;10 signals problematic multicollinearity.</p>
+
+<pre><code class="language-python">from statsmodels.stats.outliers_influence import variance_inflation_factor
+
+X_vif = sm.add_constant(X_train)
+vif_data = pd.DataFrame({
+    'Feature': X_vif.columns,
+    'VIF': [variance_inflation_factor(X_vif.values, i)
+            for i in range(X_vif.shape[1])]
+})
+print(vif_data)
+
+# Remedies for high VIF:
+# 1. Remove one of the correlated predictors
+# 2. Combine correlated predictors (e.g., PCA)
+# 3. Use regularization (Ridge regression)</code></pre>
+
+                        <h2>Interactions and Polynomial Terms</h2>
+
+                        <p>An <strong>interaction term</strong> captures the idea that the effect of one predictor depends on the level of another. <strong>Polynomial terms</strong> capture nonlinear relationships.</p>
+
+<pre><code class="language-python">from sklearn.preprocessing import PolynomialFeatures
+
+# Generate interaction and polynomial features (degree 2)
+poly = PolynomialFeatures(degree=2, interaction_only=False,
+                          include_bias=False)
+X_poly = poly.fit_transform(X_train)
+
+print(f"Original features:  {X_train.shape[1]}")
+print(f"Polynomial features: {X_poly.shape[1]}")
+print(f"Feature names: {poly.get_feature_names_out()}")
+
+# Fit with polynomial features
+model_poly = LinearRegression()
+model_poly.fit(X_poly, y_train)
+
+X_test_poly = poly.transform(X_test)
+r2_poly = r2_score(y_test, model_poly.predict(X_test_poly))
+
+print(f"\nR^2 (linear):     {r2_score(y_test, model.predict(X_test)):.4f}")
+print(f"R^2 (polynomial): {r2_poly:.4f}")</code></pre>
+
+                        <h2>End-to-End Pipeline with Mixed Types</h2>
+
+                        <p>Real datasets contain both numeric and categorical columns. A <strong>ColumnTransformer</strong> combined with a <strong>Pipeline</strong> handles all preprocessing and modeling in a single, reproducible object.</p>
+
+<pre><code class="language-python">from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import cross_val_score
+
+# Assume a mixed-type DataFrame
+# df has columns: sqft, bedrooms, age, neighborhood, has_garage, price
+
+numeric_features = ['sqft', 'bedrooms', 'age']
+categorical_features = ['neighborhood', 'has_garage']
+
+# Preprocessing
+preprocessor = ColumnTransformer(
+    transformers=[
+        ('num', StandardScaler(), numeric_features),
+        ('cat', OneHotEncoder(drop='first', sparse_output=False),
+         categorical_features)
+    ]
+)
+
+# Full pipeline
+pipeline = Pipeline([
+    ('preprocessor', preprocessor),
+    ('regressor', LinearRegression())
+])
+
+# Fit
+X_all = df.drop('price', axis=1)
+y_all = df['price']
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X_all, y_all, test_size=0.2, random_state=42
+)
+
+pipeline.fit(X_train, y_train)
+
+# Evaluate
+train_r2 = pipeline.score(X_train, y_train)
+test_r2  = pipeline.score(X_test, y_test)
+print(f"Train R^2: {train_r2:.4f}")
+print(f"Test  R^2: {test_r2:.4f}")
+
+# Cross-validation
+cv_scores = cross_val_score(pipeline, X_all, y_all, cv=5,
+                            scoring='r2')
+print(f"\n5-fold CV R^2: {cv_scores.mean():.4f} +/- {cv_scores.std():.4f}")</code></pre>
+
+                        <h2>Model Interpretation</h2>
+
+<pre><code class="language-python"># Extract coefficients from the pipeline
+regressor = pipeline.named_steps['regressor']
+preprocessor = pipeline.named_steps['preprocessor']
+
+# Get feature names after transformation
+feature_names = preprocessor.get_feature_names_out()
+
+coef_df = pd.DataFrame({
+    'Feature': feature_names,
+    'Coefficient': regressor.coef_
+}).sort_values('Coefficient', key=abs, ascending=False)
+
+print("Coefficient magnitudes (standardized):")
+print(coef_df.to_string(index=False))
+
+# Visualize
+import matplotlib.pyplot as plt
+
+fig, ax = plt.subplots(figsize=(10, 6))
+colors = ['steelblue' if c &gt; 0 else 'salmon'
+          for c in coef_df['Coefficient']]
+ax.barh(coef_df['Feature'], coef_df['Coefficient'], color=colors)
+ax.set_xlabel('Coefficient Value')
+ax.set_title('Feature Importance (Standardized Coefficients)')
+ax.axvline(x=0, color='black', linewidth=0.5)
+plt.tight_layout()
+plt.show()</code></pre>
+
+                        <h2>Inference with Statsmodels</h2>
+
+<pre><code class="language-python"># After pipeline preprocessing, get transformed arrays
+X_train_transformed = preprocessor.transform(X_train)
+
+# Add constant for statsmodels
+X_train_sm = sm.add_constant(X_train_transformed)
+ols_full = sm.OLS(y_train, X_train_sm).fit()
+
+print(ols_full.summary())
+
+# Confidence intervals for all coefficients
+print("\n95% Confidence Intervals:")
+print(ols_full.conf_int(alpha=0.05))
+
+# Test specific hypotheses
+# H0: coefficient of first feature = 0
+print(f"\nF-test p-value (overall model): {ols_full.f_pvalue:.2e}")
+print(f"AIC: {ols_full.aic:.2f}")
+print(f"BIC: {ols_full.bic:.2f}")</code></pre>
+
+                        <h2>Diagnostics</h2>
+
+                        <h3>Residual Plots</h3>
+
+<pre><code class="language-python">y_train_pred = pipeline.predict(X_train)
+residuals = y_train - y_train_pred
+
+fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+
+# 1. Residuals vs Fitted
+axes[0, 0].scatter(y_train_pred, residuals, alpha=0.5,
+                   edgecolors='k', linewidth=0.3)
+axes[0, 0].axhline(y=0, color='red', linestyle='--')
+axes[0, 0].set_xlabel('Fitted values')
+axes[0, 0].set_ylabel('Residuals')
+axes[0, 0].set_title('Residuals vs Fitted')
+
+# 2. Q-Q Plot
+import scipy.stats as stats
+(osm, osr), (slope, intercept, r) = stats.probplot(residuals, dist='norm')
+axes[0, 1].scatter(osm, osr, alpha=0.5, edgecolors='k', linewidth=0.3)
+axes[0, 1].plot(osm, slope * np.array(osm) + intercept, 'r-')
+axes[0, 1].set_title('Normal Q-Q Plot')
+axes[0, 1].set_xlabel('Theoretical Quantiles')
+axes[0, 1].set_ylabel('Sample Quantiles')
+
+# 3. Scale-Location
+axes[1, 0].scatter(y_train_pred, np.sqrt(np.abs(residuals)),
+                   alpha=0.5, edgecolors='k', linewidth=0.3)
+axes[1, 0].set_xlabel('Fitted values')
+axes[1, 0].set_ylabel('sqrt(|Residuals|)')
+axes[1, 0].set_title('Scale-Location')
+
+# 4. Residuals distribution
+axes[1, 1].hist(residuals, bins=30, edgecolor='black', alpha=0.7)
+axes[1, 1].set_xlabel('Residual value')
+axes[1, 1].set_ylabel('Frequency')
+axes[1, 1].set_title('Residual Distribution')
+
+plt.tight_layout()
+plt.show()</code></pre>
+
+                        <h3>Testing for Heteroscedasticity</h3>
+
+<pre><code class="language-python">from statsmodels.stats.diagnostic import het_breuschpagan, het_white
+
+# Breusch-Pagan test
+bp_stat, bp_pvalue, _, _ = het_breuschpagan(ols_full.resid,
+                                             ols_full.model.exog)
+print(f"Breusch-Pagan statistic: {bp_stat:.4f}")
+print(f"Breusch-Pagan p-value:   {bp_pvalue:.4f}")
+# p &lt; 0.05 suggests heteroscedasticity
+
+# White test
+white_stat, white_pvalue, _, _ = het_white(ols_full.resid,
+                                            ols_full.model.exog)
+print(f"White statistic: {white_stat:.4f}")
+print(f"White p-value:   {white_pvalue:.4f}")</code></pre>
+
+                        <h3>Cook&rsquo;s Distance</h3>
+
+<pre><code class="language-python">from statsmodels.stats.outliers_influence import OLSInfluence
+
+influence = OLSInfluence(ols_full)
+cooks_d = influence.cooks_distance[0]
+
+fig, ax = plt.subplots(figsize=(12, 5))
+ax.stem(range(len(cooks_d)), cooks_d, markerfmt=',')
+threshold = 4 / len(y_train)
+ax.axhline(y=threshold, color='red', linestyle='--',
+           label=f'Threshold (4/n = {threshold:.4f})')
+ax.set_xlabel('Observation index')
+ax.set_ylabel("Cook's distance")
+ax.set_title("Cook's Distance: Identifying Influential Observations")
+ax.legend()
+plt.tight_layout()
+plt.show()
+
+n_influential = np.sum(cooks_d &gt; threshold)
+print(f"Influential observations (Cook's d &gt; {threshold:.4f}): "
+      f"{n_influential}")</code></pre>
+
+                        <h2>Feature Selection</h2>
+
+                        <p>Not every predictor improves the model. Feature selection helps identify the most informative subset.</p>
+
+<pre><code class="language-python">from sklearn.feature_selection import (
+    f_regression, SelectKBest, SequentialFeatureSelector
+)
+
+# 1. Univariate F-test
+f_scores, p_values = f_regression(X_train_transformed, y_train)
+f_df = pd.DataFrame({
+    'Feature': feature_names,
+    'F-score': f_scores,
+    'p-value': p_values
+}).sort_values('F-score', ascending=False)
+print("Univariate F-test:")
+print(f_df.to_string(index=False))
+
+# 2. SelectKBest
+selector = SelectKBest(f_regression, k=3)
+X_selected = selector.fit_transform(X_train_transformed, y_train)
+selected_mask = selector.get_support()
+print(f"\nSelected features: {feature_names[selected_mask]}")
+
+# 3. Sequential (Forward) Feature Selection
+sfs = SequentialFeatureSelector(
+    LinearRegression(), n_features_to_select=3,
+    direction='forward', cv=5, scoring='r2'
+)
+sfs.fit(X_train_transformed, y_train)
+print(f"Forward selection: {feature_names[sfs.get_support()]}")</code></pre>
+
+                        <h2>Exporting and Deploying with Joblib</h2>
+
+                        <p>Once you have a trained pipeline, you can serialize it to disk and load it later for inference &mdash; in a web app, an API, or a batch job.</p>
+
+<pre><code class="language-python">import joblib
+
+# Save the entire pipeline (preprocessing + model)
+joblib.dump(pipeline, 'house_price_model.joblib')
+print("Model saved to house_price_model.joblib")
+
+# Load and use in production
+loaded_pipeline = joblib.load('house_price_model.joblib')
+
+# Predict on new data (raw, unprocessed DataFrame)
+new_data = pd.DataFrame({
+    'sqft': [1500, 2200],
+    'bedrooms': [3, 4],
+    'age': [10, 25],
+    'neighborhood': ['Downtown', 'Suburbs'],
+    'has_garage': ['Yes', 'No']
+})
+
+predictions = loaded_pipeline.predict(new_data)
+for i, pred in enumerate(predictions):
+    print(f"House {i+1}: ${pred:,.0f}")</code></pre>
+
+                        <h2>Common Pitfalls</h2>
+
+                        <h3>1. Multicollinearity</h3>
+
+                        <p>When predictors are highly correlated, individual coefficients become unstable and hard to interpret. Always check VIF and correlation matrices.</p>
+
+<pre><code class="language-python"># Correlation heatmap
+import seaborn as sns
+
+fig, ax = plt.subplots(figsize=(8, 6))
+corr_matrix = df[numeric_features].corr()
+sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', center=0,
+            fmt='.2f', ax=ax)
+ax.set_title('Feature Correlation Matrix')
+plt.tight_layout()
+plt.show()</code></pre>
+
+                        <h3>2. Ignoring Nonlinearity</h3>
+
+                        <p>If the true relationship is nonlinear, a purely linear model will underfit. Check residual plots for curves, and add polynomial or interaction terms as needed.</p>
+
+                        <h3>3. Overfitting with Too Many Features</h3>
+
+                        <p>Adding every possible feature, interaction, and polynomial term inflates R&sup2; on training data but destroys generalization. Use cross-validation and adjusted R&sup2; to guard against this.</p>
+
+                        <h3>4. Data Leakage</h3>
+
+                        <p>Fitting the scaler on the full dataset before splitting causes data leakage. Always fit preprocessing steps on the training set only (which a <code>Pipeline</code> handles correctly).</p>
+
+<pre><code class="language-python"># WRONG: data leakage
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)       # fits on ALL data
+X_train, X_test = train_test_split(X_scaled, ...)
+
+# RIGHT: no leakage
+X_train, X_test = train_test_split(X, ...)
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)  # fit on train only
+X_test_scaled  = scaler.transform(X_test)        # transform only</code></pre>
+
+                        <h3>5. Extrapolation</h3>
+
+                        <p>Predictions outside the range of the training data are unreliable. The linear assumption may not hold in unexplored regions of the feature space.</p>
+
+                        <h3>6. Treating All Variables as Numeric</h3>
+
+                        <p>Encoding a categorical variable like zip code (10001, 10002, &hellip;) as a number implies an ordinal relationship that does not exist. Always one-hot encode nominal categories.</p>
+
+                        <h2>Key Takeaways</h2>
+
+                        <ol>
+                            <li><strong>Multiple linear regression</strong> models <em>y</em> as a linear combination of <em>p</em> predictors, with each coefficient measuring the effect of one variable while holding the others constant.</li>
+                            <li>Check the <strong>five assumptions</strong> (linearity, independence, homoscedasticity, normality, no perfect multicollinearity) before trusting the results.</li>
+                            <li>Use <strong>scikit-learn</strong> for prediction-focused workflows and <strong>statsmodels</strong> for statistical inference (p-values, confidence intervals, hypothesis tests).</li>
+                            <li><strong>Adjusted R&sup2;</strong> and <strong>cross-validation</strong> are more reliable than R&sup2; for assessing model quality.</li>
+                            <li>Always <strong>one-hot encode</strong> categorical variables and <strong>standardize</strong> numeric features for comparable coefficient magnitudes.</li>
+                            <li>Diagnose <strong>multicollinearity</strong> with VIF; values above 5&ndash;10 require attention.</li>
+                            <li><strong>Interaction and polynomial terms</strong> extend linear regression to capture nonlinear and conditional relationships.</li>
+                            <li>Use <strong>ColumnTransformer + Pipeline</strong> to build reproducible, leak-free preprocessing and modeling workflows.</li>
+                            <li>Perform thorough <strong>diagnostics</strong>: residual plots, Q-Q plots, Breusch-Pagan test, and Cook&rsquo;s distance.</li>
+                            <li><strong>Serialize</strong> your trained pipeline with joblib for easy deployment to production.</li>
+                            <li>Guard against <strong>common pitfalls</strong>: multicollinearity, data leakage, overfitting, extrapolation, and improper encoding of categorical variables.</li>
+                        </ol>
+
+                    </div>
+                </div>
+
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing large-scale distributed systems. Specialized in Generative AI, AI Agents, and cloud-native architectures.</p>
+                        <div class="sidebar-author-links">
+                            <a href="https://www.linkedin.com/in/paolo-mascia-italy" target="_blank" aria-label="LinkedIn">
+                                <svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                            </a>
+                            <a href="https://github.com/paolomascia" target="_blank" aria-label="GitHub">
+                                <svg viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+                            </a>
+                            <a href="https://www.kaggle.com/paolomascia" target="_blank" aria-label="Kaggle">
+                                <svg viewBox="0 0 24 24"><path d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.374v5.111c0 .235-.117.352-.351.352H5.505c-.236 0-.354-.117-.354-.352V.353c0-.233.118-.353.354-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.144 0 .236.06.281.18.046.149.034.233-.036.315l-6.555 6.344 6.836 8.507c.095.104.117.208.075.378z"/></svg>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>More Articles</h4>
+                        <a href="post-simple-linear-regression.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Linear Regression</span>
+                            <div class="sidebar-link-title">Simple Linear Regression in Python</div>
+                            <span class="sidebar-link-meta">Feb 2023</span>
+                        </a>
+                        <a href="post-regularization.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Regularization</span>
+                            <div class="sidebar-link-title">Regularization: Ridge, Lasso, and Elastic Net</div>
+                            <span class="sidebar-link-meta">Jul 2023</span>
+                        </a>
+                        <a href="post-logistic-regression.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Classification</span>
+                            <div class="sidebar-link-title">Logistic Regression in Python</div>
+                            <span class="sidebar-link-meta">Jan 2024</span>
+                        </a>
+                        <a href="post-ml-pipelines.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Pipelines</span>
+                            <div class="sidebar-link-title">Building Machine Learning Pipelines in Python</div>
+                            <span class="sidebar-link-meta">Nov 2025</span>
+                        </a>
+                        <a href="post-random-forest.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Model Evaluation</span>
+                            <div class="sidebar-link-title">Random Forest Model Evaluation in Python</div>
+                            <span class="sidebar-link-meta">Dec 2023</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+</body>
+</html>
