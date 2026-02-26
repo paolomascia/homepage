@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Traits: Definition, Implementation &amp; Default Methods in Rust &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="rust-tech-insights.html">Rust</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+            <button class="nav-toggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="rust-tech-insights.html" class="back-link">&larr; Back to Rust Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Feb 2026</span>
+                            <span class="post-reading">16 min read</span>
+                        </div>
+                        <h1>Traits: Definition, Implementation &amp; Default Methods</h1>
+                        <div class="post-tags">
+                            <span>Rust</span>
+                            <span>Traits</span>
+                            <span>Generics</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Traits are Rust's answer to the question: how do you share behaviour across unrelated types without inheritance? A trait defines a contract &mdash; a set of methods that any type implementing the trait must provide. This single mechanism covers what other languages spread across interfaces, abstract classes, type classes, and protocols. Understanding traits deeply is the key to writing idiomatic, composable, zero-cost Rust.</p>
+
+                        <h2>Defining and Implementing Traits</h2>
+                        <p>A trait definition lists method signatures. It says: "any type that wants to be called X must be able to do these things." The <code>impl TraitName for TypeName</code> block is the explicit declaration that a type fulfils that contract. Rust never applies trait implementations implicitly &mdash; every implementation is visible in the source, making it straightforward to search for all types that implement a given trait.</p>
+                        <p>The most important property of trait implementations in Rust is the <em>orphan rule</em>: you can only implement a trait for a type if either the trait or the type is defined in your crate. You cannot implement <code>Display</code> for <code>Vec&lt;T&gt;</code> in your own crate, because both are from the standard library. This rule prevents two libraries from providing conflicting implementations and makes the system globally coherent.</p>
+
+                        <h3>A Basic Trait</h3>
+                        <p><em>A <code>Summary</code> trait with a required method, implemented for two unrelated types, then called through a shared function that accepts any type implementing the trait.</em></p>
+<pre><code class="language-rust">trait Summary {
+    fn summarize(&amp;self) -> String;
+}
+
+struct Article {
+    title:  String,
+    author: String,
+    body:   String,
+}
+
+struct Tweet {
+    username: String,
+    content:  String,
+}
+
+impl Summary for Article {
+    fn summarize(&amp;self) -> String {
+        format!("{}, by {} — {}...", self.title, self.author, &amp;self.body[..50.min(self.body.len())])
+    }
+}
+
+impl Summary for Tweet {
+    fn summarize(&amp;self) -> String {
+        format!("{}: {}", self.username, self.content)
+    }
+}
+
+// `impl Trait` syntax: accepts any type that implements Summary
+fn notify(item: &amp;impl Summary) {
+    println!("Breaking news! {}", item.summarize());
+}
+
+fn main() {
+    let article = Article {
+        title:  "Rust 2026 Edition".to_string(),
+        author: "Paolo Mascia".to_string(),
+        body:   "The new edition brings many ergonomic improvements...".to_string(),
+    };
+    let tweet = Tweet {
+        username: "rustlang".to_string(),
+        content:  "Exciting things coming in the next release!".to_string(),
+    };
+
+    notify(&amp;article);
+    notify(&amp;tweet);
+}</code></pre>
+
+                        <h2>Default Method Implementations</h2>
+                        <p>A trait can provide a <em>default implementation</em> for any of its methods. Types implementing the trait can use the default as-is, or override it with their own version. This is the primary mechanism for sharing common behaviour across multiple types without code duplication, and without the complexity of inheritance. Default methods can call other methods in the same trait, even required ones &mdash; this is how the standard library's <code>Iterator</code> trait provides dozens of adapters built entirely on top of the single required <code>next()</code> method.</p>
+
+                        <p><em>A <code>Printable</code> trait with a required <code>format_output</code> method and a default <code>print</code> method that calls it, showing how some types use the default and others override it.</em></p>
+<pre><code class="language-rust">trait Printable {
+    // Required: implementors must provide this.
+    fn format_output(&amp;self) -> String;
+
+    // Default: calls the required method; implementors can override.
+    fn print(&amp;self) {
+        println!("{}", self.format_output());
+    }
+
+    fn print_with_border(&amp;self) {
+        let s = self.format_output();
+        let border = "-".repeat(s.len() + 4);
+        println!("{border}");
+        println!("| {s} |");
+        println!("{border}");
+    }
+}
+
+struct Temperature(f64);
+struct Humidity(f64);
+struct Pressure(f64);
+
+impl Printable for Temperature {
+    fn format_output(&amp;self) -> String { format!("{:.1}°C", self.0) }
+    // Uses default `print` and `print_with_border`
+}
+
+impl Printable for Humidity {
+    fn format_output(&amp;self) -> String { format!("{:.0}% RH", self.0) }
+
+    // Override the default print behaviour
+    fn print(&amp;self) {
+        println!("Humidity reading: {}", self.format_output());
+    }
+}
+
+impl Printable for Pressure {
+    fn format_output(&amp;self) -> String { format!("{:.1} hPa", self.0) }
+}
+
+fn main() {
+    let t = Temperature(23.5);
+    let h = Humidity(65.0);
+    let p = Pressure(1013.25);
+
+    t.print();             // 23.5°C
+    h.print();             // Humidity reading: 65% RH  (overridden)
+    p.print_with_border(); // bordered 1013.2 hPa
+}</code></pre>
+
+                        <h2>Trait Bounds</h2>
+                        <p>A trait bound is a constraint on a generic type parameter, expressing "this parameter must implement the given trait." Trait bounds are the bridge between generics and traits: they let you write a single generic function that works with many types while still calling trait methods on them. Without bounds, the compiler refuses to call any methods on a generic type, because it has no guarantee those methods exist.</p>
+                        <p>There are three equivalent syntaxes for trait bounds, each useful in different contexts:</p>
+                        <ul>
+                            <li><strong><code>impl Trait</code></strong> in argument position: concise, good for simple cases</li>
+                            <li><strong><code>T: Trait</code></strong> in angle brackets: explicit, good for multiple parameters</li>
+                            <li><strong><code>where T: Trait</code></strong> clause: cleanest for complex bounds with many parameters</li>
+                        </ul>
+
+                        <p><em>Three equivalent ways to write the same bounded generic function, plus multiple bounds using <code>+</code> syntax.</em></p>
+<pre><code class="language-rust">use std::fmt;
+
+// Syntax 1: `impl Trait` -- simplest
+fn print_item(item: &amp;impl fmt::Display) {
+    println!("{item}");
+}
+
+// Syntax 2: explicit type parameter bound
+fn print_item2&lt;T: fmt::Display&gt;(item: &amp;T) {
+    println!("{item}");
+}
+
+// Syntax 3: where clause -- best for multiple or complex bounds
+fn print_item3&lt;T&gt;(item: &amp;T) where T: fmt::Display {
+    println!("{item}");
+}
+
+// Multiple bounds with `+`
+fn print_and_debug&lt;T: fmt::Display + fmt::Debug&gt;(item: &amp;T) {
+    println!("Display: {item}");
+    println!("Debug:   {item:?}");
+}
+
+// Multiple type parameters with different bounds
+fn compare_and_display&lt;T, U&gt;(t: &amp;T, u: &amp;U)
+where
+    T: fmt::Display + PartialOrd,
+    U: fmt::Display,
+{
+    println!("t={t}, u={u}");
+}
+
+fn main() {
+    print_item(&amp;42);
+    print_item(&amp;"hello");
+    print_and_debug(&amp;vec![1, 2, 3]);
+    compare_and_display(&amp;10, &amp;"world");
+}</code></pre>
+
+                        <h2>Associated Types</h2>
+                        <p>An <em>associated type</em> is a type placeholder defined inside a trait and filled in by each implementation. It is similar to a generic type parameter on the trait, but with one key difference: a type can implement a trait with generics multiple times (once per type argument), but can only implement a trait with an associated type once. This makes associated types the right tool when there is a single canonical output type for a given implementor.</p>
+                        <p>The <code>Iterator</code> trait's <code>Item</code> is the canonical example: a <code>Vec&lt;i32&gt;</code> iterator always yields <code>i32</code>; there is no reason to allow it to yield different types depending on context. An associated type expresses this "one type per implementation" constraint precisely and makes call sites cleaner &mdash; you do not have to specify the type argument everywhere the trait is used.</p>
+
+                        <p><em>A <code>Converter</code> trait with an associated output type, implemented for two types that produce different outputs.</em></p>
+<pre><code class="language-rust">trait Converter {
+    type Output;
+    fn convert(&amp;self) -> Self::Output;
+}
+
+struct Celsius(f64);
+struct Fahrenheit(f64);
+
+impl Converter for Celsius {
+    type Output = Fahrenheit;
+    fn convert(&amp;self) -> Fahrenheit {
+        Fahrenheit(self.0 * 9.0 / 5.0 + 32.0)
+    }
+}
+
+impl Converter for Fahrenheit {
+    type Output = Celsius;
+    fn convert(&amp;self) -> Celsius {
+        Celsius((self.0 - 32.0) * 5.0 / 9.0)
+    }
+}
+
+// Using the associated type in a bound
+fn convert_and_print&lt;T&gt;(val: &amp;T)
+where
+    T: Converter,
+    T::Output: std::fmt::Debug,
+{
+    println!("{:?}", val.convert());
+}
+
+fn main() {
+    let boiling = Celsius(100.0);
+    let f = boiling.convert();
+    println!("{:.1}°F", f.0); // 212.0°F
+
+    let body_temp = Fahrenheit(98.6);
+    let c = body_temp.convert();
+    println!("{:.1}°C", c.0); // 37.0°C
+}</code></pre>
+
+                        <h2>Trait Inheritance and Supertraits</h2>
+                        <p>A trait can require that implementors also implement one or more other traits. This is called a <em>supertrait</em> relationship and is expressed with <code>trait Child: Parent</code>. It means: to implement <code>Child</code>, a type must also implement <code>Parent</code>. This is not inheritance in the object-oriented sense &mdash; there is no method resolution order or field sharing. It is purely a constraint: implementing <code>Child</code> implies implementing <code>Parent</code>, and methods of <code>Parent</code> are available in the body of <code>Child</code>'s default methods.</p>
+
+                        <p><em>A <code>PrettyPrint</code> supertrait that requires <code>fmt::Display</code>, and a blanket implementation for anything that implements <code>PrettyPrint</code>.</em></p>
+<pre><code class="language-rust">use std::fmt;
+
+// Supertrait: implementing Animal requires implementing fmt::Display
+trait Animal: fmt::Display {
+    fn name(&amp;self) -> &amp;str;
+    fn sound(&amp;self) -> &amp;str;
+
+    // Default method can call supertrait methods (Display here)
+    fn describe(&amp;self) {
+        println!("{} says '{}'", self, self.sound());
+    }
+}
+
+struct Dog { name: String }
+struct Cat { name: String }
+
+impl fmt::Display for Dog {
+    fn fmt(&amp;self, f: &amp;mut fmt::Formatter&lt;'_&gt;) -> fmt::Result {
+        write!(f, "Dog({})", self.name)
+    }
+}
+impl Animal for Dog {
+    fn name(&amp;self) -> &amp;str { &amp;self.name }
+    fn sound(&amp;self) -> &amp;str { "woof" }
+}
+
+impl fmt::Display for Cat {
+    fn fmt(&amp;self, f: &amp;mut fmt::Formatter&lt;'_&gt;) -> fmt::Result {
+        write!(f, "Cat({})", self.name)
+    }
+}
+impl Animal for Cat {
+    fn name(&amp;self) -> &amp;str { &amp;self.name }
+    fn sound(&amp;self) -> &amp;str { "meow" }
+}
+
+fn main() {
+    let dog = Dog { name: "Rex".to_string() };
+    let cat = Cat { name: "Whiskers".to_string() };
+    dog.describe(); // Dog(Rex) says 'woof'
+    cat.describe(); // Cat(Whiskers) says 'meow'
+    println!("{dog}"); // Dog(Rex)  -- Display from supertrait
+}</code></pre>
+
+                        <h2>Blanket Implementations</h2>
+                        <p>A <em>blanket implementation</em> implements a trait for every type that satisfies some bound, rather than for a specific named type. The standard library uses this extensively: for example, <code>impl&lt;T: Display&gt; ToString for T</code> gives every type that implements <code>Display</code> a free <code>to_string()</code> method. Blanket implementations are written with a generic parameter in the <code>impl</code> block instead of a concrete type name.</p>
+                        <p>This is a powerful technique for providing convenience methods to an entire family of types at once. The key constraint is the orphan rule: a blanket implementation of a foreign trait for a foreign bound is not allowed.</p>
+
+                        <p><em>A custom <code>Describable</code> trait with a blanket implementation for any type that implements both <code>Display</code> and <code>Debug</code>.</em></p>
+<pre><code class="language-rust">use std::fmt;
+
+trait Describable {
+    fn describe(&amp;self) -> String;
+}
+
+// Blanket impl: every type that is both Display and Debug gets Describable for free.
+impl&lt;T: fmt::Display + fmt::Debug&gt; Describable for T {
+    fn describe(&amp;self) -> String {
+        format!("display='{}', debug='{:?}'", self, self)
+    }
+}
+
+fn print_description(item: &amp;impl Describable) {
+    println!("{}", item.describe());
+}
+
+fn main() {
+    print_description(&amp;42_i32);
+    print_description(&amp;"hello");
+    print_description(&amp;vec![1, 2, 3]);
+    print_description(&amp;3.14_f64);
+}</code></pre>
+
+                        <h2>The Standard Library's Core Traits</h2>
+                        <p>The standard library defines a small set of foundational traits that the language itself is built around. Understanding these is essential for writing idiomatic Rust:</p>
+
+                        <h3>Iterator</h3>
+                        <p>The <code>Iterator</code> trait is perhaps the most important trait in the standard library. Requiring only <code>next(&amp;mut self) -&gt; Option&lt;Self::Item&gt;</code>, it grants access to all iterator adapter methods. Any type can become an iterator by implementing this one method.</p>
+
+                        <h3>From and Into</h3>
+                        <p><code>From&lt;T&gt;</code> and <code>Into&lt;T&gt;</code> are reciprocal conversion traits. Implementing <code>From&lt;A&gt; for B</code> automatically provides <code>Into&lt;B&gt; for A</code>. They enable the idiomatic <code>.into()</code> call and are used heavily with error handling (<code>?</code> uses <code>From</code> for error conversion).</p>
+
+                        <h3>Clone and Copy</h3>
+                        <p><code>Clone</code> enables explicit deep duplication with <code>.clone()</code>. <code>Copy</code> is a marker trait (no methods) that tells the compiler values can be duplicated with a bitwise copy, making them behave like primitives. <code>Copy</code> requires <code>Clone</code> and can only be applied to types whose all fields are also <code>Copy</code>.</p>
+
+                        <h3>PartialEq, Eq, PartialOrd, Ord</h3>
+                        <p>These four traits govern comparison operators. <code>PartialEq</code> allows <code>==</code> and <code>!=</code>; <code>Eq</code> additionally asserts that equality is total (reflexive, symmetric, transitive) &mdash; required for use as a <code>HashMap</code> key. <code>PartialOrd</code> allows <code>&lt;</code>, <code>&gt;</code> etc.; <code>Ord</code> requires a total ordering and is required for <code>sort()</code>.</p>
+
+                        <h3>Display and Debug</h3>
+                        <p><code>Display</code> (for <code>{}</code>) is for human-readable output. <code>Debug</code> (for <code>{:?}</code>) is for developer-readable output and must be implemented on all error types. Almost always derived with <code>#[derive(Debug)]</code>.</p>
+
+                        <p><em>A comprehensive example implementing several standard traits for a custom <code>Matrix2x2</code> type, demonstrating how each trait integrates with the language.</em></p>
+<pre><code class="language-rust">use std::fmt;
+use std::ops::{Add, Mul, Neg};
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Matrix2x2 {
+    a: f64, b: f64,
+    c: f64, d: f64,
+}
+
+impl Matrix2x2 {
+    fn new(a: f64, b: f64, c: f64, d: f64) -> Self { Matrix2x2 { a, b, c, d } }
+    fn identity() -> Self { Matrix2x2::new(1.0, 0.0, 0.0, 1.0) }
+    fn det(&amp;self) -> f64 { self.a * self.d - self.b * self.c }
+    fn transpose(&amp;self) -> Self { Matrix2x2::new(self.a, self.c, self.b, self.d) }
+}
+
+impl fmt::Display for Matrix2x2 {
+    fn fmt(&amp;self, f: &amp;mut fmt::Formatter&lt;'_&gt;) -> fmt::Result {
+        write!(f, "[[{}, {}], [{}, {}]]", self.a, self.b, self.c, self.d)
+    }
+}
+
+impl Add for Matrix2x2 {
+    type Output = Matrix2x2;
+    fn add(self, rhs: Matrix2x2) -> Matrix2x2 {
+        Matrix2x2::new(self.a + rhs.a, self.b + rhs.b, self.c + rhs.c, self.d + rhs.d)
+    }
+}
+
+impl Mul for Matrix2x2 {
+    type Output = Matrix2x2;
+    fn mul(self, rhs: Matrix2x2) -> Matrix2x2 {
+        Matrix2x2::new(
+            self.a * rhs.a + self.b * rhs.c,
+            self.a * rhs.b + self.b * rhs.d,
+            self.c * rhs.a + self.d * rhs.c,
+            self.c * rhs.b + self.d * rhs.d,
+        )
+    }
+}
+
+impl Default for Matrix2x2 {
+    fn default() -> Self { Matrix2x2::identity() }
+}
+
+fn main() {
+    let m = Matrix2x2::new(1.0, 2.0, 3.0, 4.0);
+    let n = Matrix2x2::new(5.0, 6.0, 7.0, 8.0);
+
+    println!("m = {m}");
+    println!("n = {n}");
+    println!("m + n = {}", m + n);
+    println!("m * n = {}", m * n);
+    println!("det(m) = {}", m.det()); // -2
+    println!("m^T = {}", m.transpose());
+    println!("identity = {}", Matrix2x2::default());
+    println!("m == m.clone(): {}", m == m.clone()); // true (Copy makes this a copy)
+}</code></pre>
+
+                        <h2>Newtype Pattern and Trait Coherence</h2>
+                        <p>The orphan rule sometimes prevents you from implementing the trait you want for a type you do not own. The standard workaround is the <em>newtype pattern</em>: wrap the foreign type in a local single-field tuple struct. The wrapper is defined in your crate, so you can implement any trait for it. The overhead is zero: the wrapper is a transparent compile-time construct with no runtime cost.</p>
+
+                        <p><em>A <code>Wrapper(Vec&lt;String&gt;)</code> newtype that circumvents the orphan rule to implement <code>Display</code> for a foreign type.</em></p>
+<pre><code class="language-rust">use std::fmt;
+
+// We want to implement Display for Vec&lt;String&gt;, but both Vec and Display
+// are from the standard library, so the orphan rule forbids it.
+// Solution: wrap Vec&lt;String&gt; in a local newtype.
+struct Wrapper(Vec&lt;String&gt;);
+
+impl fmt::Display for Wrapper {
+    fn fmt(&amp;self, f: &amp;mut fmt::Formatter&lt;'_&gt;) -> fmt::Result {
+        write!(f, "[{}]", self.0.join(", "))
+    }
+}
+
+// Implement Deref so Wrapper behaves like Vec&lt;String&gt; for most operations
+impl std::ops::Deref for Wrapper {
+    type Target = Vec&lt;String&gt;;
+    fn deref(&amp;self) -> &amp;Vec&lt;String&gt; { &amp;self.0 }
+}
+
+fn main() {
+    let w = Wrapper(vec!["one".to_string(), "two".to_string(), "three".to_string()]);
+    println!("{w}");        // [one, two, three]
+    println!("{}", w.len()); // 3  -- via Deref
+    println!("{}", w.join(" | ")); // one | two | three  -- via Deref
+}</code></pre>
+
+                    </div>
+                </div>
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>Rust Series &mdash; Module 2</h4>
+                        <a href="rust-traits.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Traits: Definition, Implementation &amp; Default Methods</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-trait-objects.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Trait Objects &amp; Dynamic Dispatch</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-generics.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Generics: Bounds, Where Clauses &amp; Monomorphization</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-lifetimes-advanced.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Advanced Lifetimes &amp; HRTB</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-rust.min.js"></script>
+    <script>
+        const toggle = document.querySelector('.nav-toggle');
+        const navLinks = document.querySelector('.nav-links');
+        toggle.addEventListener('click', () => {
+            navLinks.classList.toggle('active');
+            toggle.classList.toggle('active');
+        });
+    </script>
+
+</body>
+</html>

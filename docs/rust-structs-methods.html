@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Structs, Methods &amp; Associated Functions in Rust &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="rust-tech-insights.html">Rust</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+            <button class="nav-toggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="rust-tech-insights.html" class="back-link">&larr; Back to Rust Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Feb 2026</span>
+                            <span class="post-reading">15 min read</span>
+                        </div>
+                        <h1>Structs, Methods &amp; Associated Functions in Rust</h1>
+                        <div class="post-tags">
+                            <span>Rust</span>
+                            <span>Structs</span>
+                            <span>Methods</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Structs are Rust's primary mechanism for grouping related data into a single, named type. Together with <code>impl</code> blocks that attach methods and associated functions, they give you everything you need to build the kind of domain objects and data-centric APIs that object-oriented languages express through classes &mdash; but without inheritance, and with all of Rust's ownership guarantees intact.</p>
+
+                        <h2>Defining Structs</h2>
+                        <p>A struct definition names a type and lists its <em>fields</em>: named pieces of data each with their own type. Unlike tuples, every field has a name, which makes struct values self-documenting and lets you access individual fields without worrying about positional order. The naming convention in Rust is <code>UpperCamelCase</code> for the struct name and <code>snake_case</code> for field names, and the compiler will warn you if you deviate from these conventions.</p>
+                        <p>Visibility is private by default. A field defined without <code>pub</code> is accessible only inside the module that defines the struct. This encapsulation is a deliberate choice: it lets you change internal representation later without breaking callers, as long as the public interface (methods and associated functions) stays stable. When you do want fields to be publicly accessible, you mark them individually with <code>pub</code>, giving you fine-grained control over what is part of the public API.</p>
+
+                        <h3>Struct Basics</h3>
+                        <p>Creating a struct value requires naming every field. There is no concept of a zero-initialized default unless you implement the <code>Default</code> trait (or derive it). This explicitness prevents subtle bugs where a field is accidentally left at some unspecified initial value.</p>
+
+                        <p><em>Three struct definitions &mdash; a typical named-field struct, a tuple struct for lightweight wrappers, and a unit struct &mdash; with construction and field access for each.</em></p>
+<pre><code class="language-rust">// Named-field struct: the most common form.
+struct Point {
+    x: f64,
+    y: f64,
+}
+
+// Tuple struct: fields have positions, not names.
+// Useful for lightweight newtypes (e.g. wrapping a primitive).
+struct Meters(f64);
+struct Kilograms(f64);
+
+// Unit struct: no fields at all. Useful as a marker type or ZST sentinel.
+struct Marker;
+
+fn main() {
+    // Construction: all fields must be provided.
+    let p = Point { x: 3.0, y: 4.0 };
+
+    // Field access with `.`.
+    println!("x={}, y={}", p.x, p.y);
+
+    // Struct update syntax: copy all unspecified fields from another instance.
+    let q = Point { x: 1.0, ..p };
+    println!("q.y={}", q.y); // inherits p.y = 4.0
+
+    // Tuple structs accessed by index.
+    let d = Meters(100.0);
+    let w = Kilograms(70.5);
+    println!("{} m, {} kg", d.0, w.0);
+
+    // Destructuring a struct.
+    let Point { x, y } = p;
+    println!("destructured: x={x}, y={y}");
+
+    // Partial destructuring (ignore some fields with `..`).
+    let Point { x: px, .. } = p;
+    println!("px={px}");
+}</code></pre>
+
+                        <h3>Mutable Structs</h3>
+                        <p>Mutability in Rust is a property of the <em>binding</em>, not of the type. When you declare a struct variable with <code>let mut</code>, all its fields become mutable. There is no per-field mutability control in Rust &mdash; you cannot have one field be mutable while another is immutable on the same binding. If you need that level of control, you use interior mutability patterns (<code>Cell</code>, <code>RefCell</code>, <code>Mutex</code>), which are discussed in the ownership article.</p>
+
+                        <p><em>A mutable struct binding, demonstrating field assignment and showing that mutability is all-or-nothing on a binding.</em></p>
+<pre><code class="language-rust">struct Rectangle {
+    width: f64,
+    height: f64,
+}
+
+fn main() {
+    let mut rect = Rectangle { width: 10.0, height: 5.0 };
+
+    println!("area: {}", rect.width * rect.height); // 50
+
+    rect.width = 20.0; // fine: binding is `mut`
+    println!("new area: {}", rect.width * rect.height); // 100
+
+    let immutable = Rectangle { width: 3.0, height: 4.0 };
+    // immutable.width = 1.0; // compile error: cannot assign to field of immutable binding
+}</code></pre>
+
+                        <h2>Methods and <code>impl</code> Blocks</h2>
+                        <p>A method is a function that is associated with a specific type and takes <code>self</code>, <code>&amp;self</code>, or <code>&amp;mut self</code> as its first parameter. Methods are defined inside an <code>impl</code> (implementation) block. You can have multiple <code>impl</code> blocks for the same type &mdash; Rust merges them &mdash; which is useful for organising large types or for conditional implementations gated on generics or feature flags.</p>
+                        <p>The three <code>self</code> receivers correspond directly to Rust's ownership model:</p>
+                        <ul>
+                            <li><strong><code>&amp;self</code></strong> borrows the receiver immutably. The method can read fields but not modify them. This is by far the most common form and should be your default choice.</li>
+                            <li><strong><code>&amp;mut self</code></strong> borrows the receiver mutably. The method can read and modify fields. The caller must hold a mutable binding to the struct.</li>
+                            <li><strong><code>self</code></strong> takes ownership. After calling this method, the original value is consumed. Use this for methods that transform the value into something else (builder patterns, consuming iterators, conversion methods).</li>
+                        </ul>
+
+                        <h3>Defining Methods</h3>
+                        <p><em>A <code>Rectangle</code> type with a suite of methods covering all three receiver forms, demonstrating read-only queries, mutation, and consuming transformations.</em></p>
+<pre><code class="language-rust">struct Rectangle {
+    width: f64,
+    height: f64,
+}
+
+impl Rectangle {
+    // &amp;self: read-only, does not take ownership
+    fn area(&amp;self) -> f64 {
+        self.width * self.height
+    }
+
+    fn perimeter(&amp;self) -> f64 {
+        2.0 * (self.width + self.height)
+    }
+
+    fn is_square(&amp;self) -> bool {
+        (self.width - self.height).abs() &lt; f64::EPSILON
+    }
+
+    fn can_contain(&amp;self, other: &amp;Rectangle) -> bool {
+        self.width > other.width &amp;&amp; self.height > other.height
+    }
+
+    // &amp;mut self: modifies in place
+    fn scale(&amp;mut self, factor: f64) {
+        self.width  *= factor;
+        self.height *= factor;
+    }
+
+    // self: consumes the struct and returns a new one (builder-style)
+    fn rotate(self) -> Rectangle {
+        Rectangle { width: self.height, height: self.width }
+    }
+}
+
+fn main() {
+    let mut r = Rectangle { width: 10.0, height: 5.0 };
+    println!("area={}, perimeter={}", r.area(), r.perimeter()); // 50, 30
+    println!("is square: {}", r.is_square()); // false
+
+    r.scale(2.0);
+    println!("after scale: {}x{}", r.width, r.height); // 20x10
+
+    let r2 = r.rotate();      // r is moved here
+    println!("rotated: {}x{}", r2.width, r2.height); // 10x20
+}</code></pre>
+
+                        <h3>Associated Functions (Static Methods)</h3>
+                        <p>An associated function is defined in an <code>impl</code> block but does not take <code>self</code> as a parameter. It belongs to the type, not to any instance. Associated functions are called with the <code>Type::function_name()</code> syntax, which is why they are sometimes called "static methods" in other languages. The most common use case is a constructor: conventionally named <code>new</code>, though Rust has no enforced convention here. You might also have named constructors like <code>from_radius</code> or <code>default</code> when there are multiple sensible ways to build a value.</p>
+
+                        <p><em>A <code>Circle</code> type with two associated constructors and a type-level constant, demonstrating the <code>Type::function()</code> call syntax.</em></p>
+<pre><code class="language-rust">use std::f64::consts::PI;
+
+struct Circle {
+    radius: f64,
+}
+
+impl Circle {
+    // Associated constructor: no `self` parameter
+    fn new(radius: f64) -> Circle {
+        assert!(radius >= 0.0, "radius must be non-negative");
+        Circle { radius }
+    }
+
+    // Alternative constructor -- another common pattern
+    fn from_diameter(diameter: f64) -> Circle {
+        Circle::new(diameter / 2.0)
+    }
+
+    fn area(&amp;self) -> f64 {
+        PI * self.radius * self.radius
+    }
+
+    fn circumference(&amp;self) -> f64 {
+        2.0 * PI * self.radius
+    }
+
+    fn diameter(&amp;self) -> f64 {
+        self.radius * 2.0
+    }
+}
+
+fn main() {
+    let c = Circle::new(5.0);
+    println!("area: {:.2}", c.area());          // 78.54
+    println!("circumference: {:.2}", c.circumference()); // 31.42
+
+    let c2 = Circle::from_diameter(10.0);
+    println!("radius from diameter: {}", c2.radius); // 5
+}</code></pre>
+
+                        <h2>Derived Traits</h2>
+                        <p>Many common behaviours &mdash; printing a value for debugging, comparing two values for equality, copying a value cheaply &mdash; follow a mechanical pattern: apply the operation recursively to each field. Rust automates this with <em>derive macros</em>. Annotating a struct with <code>#[derive(Debug, Clone, PartialEq)]</code> tells the compiler to generate implementations of those traits automatically, saving you from writing repetitive boilerplate.</p>
+                        <p>The most commonly derived traits are:</p>
+                        <ul>
+                            <li><strong><code>Debug</code></strong>: enables <code>{:?}</code> and <code>{:#?}</code> formatting. Essential for logging and testing. Derive this on virtually every struct.</li>
+                            <li><strong><code>Clone</code></strong>: enables <code>.clone()</code>, producing a deep copy. Required when you want to duplicate a value that cannot be implicitly copied.</li>
+                            <li><strong><code>Copy</code></strong>: makes values implicitly bitwise-copyable, like primitive integers. Can only be derived when all fields are <code>Copy</code> too. Appropriate for small, cheap types (coordinates, IDs, flags).</li>
+                            <li><strong><code>PartialEq</code> / <code>Eq</code></strong>: enables <code>==</code> and <code>!=</code> comparison. <code>Eq</code> requires that equality is reflexive and total; <code>PartialEq</code> is sufficient for most purposes.</li>
+                            <li><strong><code>PartialOrd</code> / <code>Ord</code></strong>: enables <code>&lt;</code>, <code>&gt;</code>, etc. <code>Ord</code> is required for sorting.</li>
+                            <li><strong><code>Hash</code></strong>: required for use as a key in <code>HashMap</code> or <code>HashSet</code>.</li>
+                            <li><strong><code>Default</code></strong>: enables <code>Type::default()</code>, returning a zeroed/empty instance. Convenient for configuration structs with many optional fields.</li>
+                        </ul>
+
+                        <p><em>A struct accumulating common derived traits, with usage of each in <code>main</code>.</em></p>
+<pre><code class="language-rust">#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
+struct Color {
+    r: u8,
+    g: u8,
+    b: u8,
+}
+
+impl Color {
+    fn new(r: u8, g: u8, b: u8) -> Self {
+        Color { r, g, b }
+    }
+
+    fn to_hex(&amp;self) -> String {
+        format!("#{:02X}{:02X}{:02X}", self.r, self.g, self.b)
+    }
+}
+
+fn main() {
+    let red   = Color::new(255, 0, 0);
+    let green = Color::new(0, 255, 0);
+    let also_red = red.clone();
+
+    // Debug formatting
+    println!("{:?}", red);      // Color { r: 255, g: 0, b: 0 }
+    println!("{:#?}", red);     // pretty-printed
+
+    // Equality
+    println!("{}", red == also_red); // true
+    println!("{}", red == green);    // false
+
+    // Default
+    let black = Color::default();
+    println!("{}", black.to_hex()); // #000000
+
+    // HashMap key (requires Hash + Eq)
+    use std::collections::HashMap;
+    let mut palette: HashMap&lt;Color, &amp;str&gt; = HashMap::new();
+    palette.insert(red, "red");
+    palette.insert(green, "green");
+    println!("{:?}", palette.get(&amp;Color::new(255, 0, 0))); // Some("red")
+}</code></pre>
+
+                        <h2>Generic Structs</h2>
+                        <p>Structs can be parameterised over one or more types using angle-bracket syntax. A generic struct is a family of types: <code>Pair&lt;i32&gt;</code> and <code>Pair&lt;String&gt;</code> are different types, both generated from the same <code>Pair&lt;T&gt;</code> definition. This is the same monomorphization strategy used for generic functions: the compiler generates a concrete copy for each type argument it encounters, with zero runtime overhead.</p>
+                        <p>You can add trait bounds to type parameters either in the struct definition (<code>struct Foo&lt;T: Display&gt;</code>) or, more commonly, on the <code>impl</code> block (<code>impl&lt;T: Display&gt; Foo&lt;T&gt;</code>). The latter is generally preferred because it keeps the struct definition clean and allows you to implement different methods depending on different bounds.</p>
+
+                        <p><em>A generic <code>Stack&lt;T&gt;</code> and a bounded <code>MinMax&lt;T: PartialOrd&gt;</code>, with <code>impl</code> blocks that are themselves generic.</em></p>
+<pre><code class="language-rust">#[derive(Debug)]
+struct Stack&lt;T&gt; {
+    items: Vec&lt;T&gt;,
+}
+
+impl&lt;T&gt; Stack&lt;T&gt; {
+    fn new() -> Self {
+        Stack { items: Vec::new() }
+    }
+
+    fn push(&amp;mut self, item: T) {
+        self.items.push(item);
+    }
+
+    fn pop(&amp;mut self) -> Option&lt;T&gt; {
+        self.items.pop()
+    }
+
+    fn peek(&amp;self) -> Option&lt;&amp;T&gt; {
+        self.items.last()
+    }
+
+    fn is_empty(&amp;self) -> bool {
+        self.items.is_empty()
+    }
+
+    fn size(&amp;self) -> usize {
+        self.items.len()
+    }
+}
+
+#[derive(Debug)]
+struct MinMax&lt;T&gt; {
+    min: T,
+    max: T,
+}
+
+impl&lt;T: PartialOrd + Copy&gt; MinMax&lt;T&gt; {
+    fn from_slice(data: &amp;[T]) -> Option&lt;Self&gt; {
+        if data.is_empty() { return None; }
+        let mut min = data[0];
+        let mut max = data[0];
+        for &amp;val in data.iter() {
+            if val &lt; min { min = val; }
+            if val > max { max = val; }
+        }
+        Some(MinMax { min, max })
+    }
+}
+
+fn main() {
+    let mut s: Stack&lt;i32&gt; = Stack::new();
+    s.push(1); s.push(2); s.push(3);
+    println!("peek: {:?}", s.peek()); // Some(3)
+    println!("pop:  {:?}", s.pop());  // Some(3)
+    println!("size: {}",   s.size()); // 2
+
+    let data = vec![5, 2, 9, 1, 7];
+    let mm = MinMax::from_slice(&amp;data).unwrap();
+    println!("min={}, max={}", mm.min, mm.max); // min=1, max=9
+}</code></pre>
+
+                        <h2>Implementing Traits for Structs</h2>
+                        <p>A trait defines a contract: a set of methods (and optionally associated types or constants) that a type must provide. Implementing a trait for a struct connects the struct to that contract and unlocks all the infrastructure that depends on the trait. For example, implementing <code>Display</code> enables <code>{}</code> formatting everywhere in the standard library; implementing <code>Iterator</code> gives you access to all iterator adapter methods for free; implementing <code>From&lt;T&gt;</code> automatically provides <code>Into&lt;Self&gt;</code>.</p>
+                        <p>Trait implementations live in <code>impl TraitName for StructName</code> blocks, separate from the type's inherent <code>impl</code> block. The <em>orphan rule</em> requires that either the trait or the type is defined in the current crate, preventing conflicting implementations from different libraries.</p>
+
+                        <h3>Display and From/Into</h3>
+                        <p><em>A <code>Vector2D</code> struct implementing <code>Display</code> for human-readable formatting and <code>From</code> for seamless conversion from tuples, which automatically provides <code>Into</code> as well.</em></p>
+<pre><code class="language-rust">use std::fmt;
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Vector2D {
+    x: f64,
+    y: f64,
+}
+
+impl Vector2D {
+    fn new(x: f64, y: f64) -> Self { Vector2D { x, y } }
+    fn magnitude(&amp;self) -> f64 { (self.x * self.x + self.y * self.y).sqrt() }
+    fn dot(&amp;self, other: &amp;Vector2D) -> f64 { self.x * other.x + self.y * other.y }
+}
+
+// Human-readable formatting: enables `{}` in format strings.
+impl fmt::Display for Vector2D {
+    fn fmt(&amp;self, f: &amp;mut fmt::Formatter&lt;'_&gt;) -> fmt::Result {
+        write!(f, "({:.2}, {:.2})", self.x, self.y)
+    }
+}
+
+// Conversion from tuple -- automatically provides `Into&lt;Vector2D&gt;` for (f64, f64).
+impl From&lt;(f64, f64)&gt; for Vector2D {
+    fn from((x, y): (f64, f64)) -> Self {
+        Vector2D { x, y }
+    }
+}
+
+fn main() {
+    let v = Vector2D::new(3.0, 4.0);
+    println!("v = {v}");               // (3.00, 4.00)
+    println!("|v| = {:.2}", v.magnitude()); // 5.00
+
+    // From
+    let v2 = Vector2D::from((1.0, 0.0));
+    println!("dot: {}", v.dot(&amp;v2)); // 3.0
+
+    // Into (provided automatically by From)
+    let v3: Vector2D = (0.0, 1.0).into();
+    println!("v3 = {v3}"); // (0.00, 1.00)
+}</code></pre>
+
+                        <h3>Operator Overloading with <code>std::ops</code></h3>
+                        <p>Rust allows operator overloading through traits in <code>std::ops</code>. Each operator maps to a trait: <code>Add</code> for <code>+</code>, <code>Sub</code> for <code>-</code>, <code>Mul</code> for <code>*</code>, <code>Neg</code> for unary <code>-</code>, <code>Index</code> for <code>[]</code>, and so on. Implementing the relevant trait gives your struct the corresponding operator syntax. This is not magic &mdash; the compiler simply rewrites <code>a + b</code> as <code>a.add(b)</code> &mdash; which means it follows all the usual ownership rules.</p>
+
+                        <p><em><code>Vector2D</code> extended with <code>Add</code>, <code>Sub</code>, <code>Mul</code> (scalar), and <code>Neg</code> operator implementations.</em></p>
+<pre><code class="language-rust">use std::ops::{Add, Sub, Mul, Neg};
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Vec2 { x: f64, y: f64 }
+
+impl Vec2 {
+    fn new(x: f64, y: f64) -> Self { Vec2 { x, y } }
+}
+
+impl Add for Vec2 {
+    type Output = Vec2;
+    fn add(self, rhs: Vec2) -> Vec2 { Vec2::new(self.x + rhs.x, self.y + rhs.y) }
+}
+
+impl Sub for Vec2 {
+    type Output = Vec2;
+    fn sub(self, rhs: Vec2) -> Vec2 { Vec2::new(self.x - rhs.x, self.y - rhs.y) }
+}
+
+impl Mul&lt;f64&gt; for Vec2 {
+    type Output = Vec2;
+    fn mul(self, scalar: f64) -> Vec2 { Vec2::new(self.x * scalar, self.y * scalar) }
+}
+
+impl Neg for Vec2 {
+    type Output = Vec2;
+    fn neg(self) -> Vec2 { Vec2::new(-self.x, -self.y) }
+}
+
+fn main() {
+    let a = Vec2::new(1.0, 2.0);
+    let b = Vec2::new(3.0, 4.0);
+
+    println!("{:?}", a + b);     // Vec2 { x: 4.0, y: 6.0 }
+    println!("{:?}", b - a);     // Vec2 { x: 2.0, y: 2.0 }
+    println!("{:?}", a * 3.0);   // Vec2 { x: 3.0, y: 6.0 }
+    println!("{:?}", -a);        // Vec2 { x: -1.0, y: -2.0 }
+}</code></pre>
+
+                        <h3>Custom Iterators</h3>
+                        <p>Any struct can become an iterator by implementing the <code>Iterator</code> trait, which requires a single method: <code>next(&amp;mut self) -&gt; Option&lt;Self::Item&gt;</code>. Return <code>Some(value)</code> to yield the next element and <code>None</code> to signal exhaustion. Once you implement <code>next</code>, every other iterator adapter method &mdash; <code>map</code>, <code>filter</code>, <code>fold</code>, <code>collect</code>, and dozens more &mdash; is automatically available for free, because they are all defined as default methods on the <code>Iterator</code> trait in terms of <code>next</code>.</p>
+
+                        <p><em>A <code>Fibonacci</code> struct that yields an infinite sequence of Fibonacci numbers by implementing <code>Iterator</code>.</em></p>
+<pre><code class="language-rust">struct Fibonacci {
+    a: u64,
+    b: u64,
+}
+
+impl Fibonacci {
+    fn new() -> Self {
+        Fibonacci { a: 0, b: 1 }
+    }
+}
+
+impl Iterator for Fibonacci {
+    type Item = u64;
+
+    fn next(&amp;mut self) -> Option&lt;u64&gt; {
+        let next = self.a;
+        self.a = self.b;
+        self.b = next + self.b;
+        Some(next) // infinite: never returns None
+    }
+}
+
+fn main() {
+    // take() limits an infinite iterator
+    let first_ten: Vec&lt;u64&gt; = Fibonacci::new().take(10).collect();
+    println!("{first_ten:?}"); // [0, 1, 1, 2, 3, 5, 8, 13, 21, 34]
+
+    // Use all iterator adapters for free
+    let sum: u64 = Fibonacci::new().take(10).sum();
+    println!("sum of first 10: {sum}"); // 88
+
+    let even_fibs: Vec&lt;u64&gt; = Fibonacci::new()
+        .take(20)
+        .filter(|n| n % 2 == 0)
+        .collect();
+    println!("even fibs: {even_fibs:?}"); // [0, 2, 8, 34, 144, 610]
+}</code></pre>
+
+                        <h2>The Builder Pattern</h2>
+                        <p>When a struct has many fields &mdash; especially optional ones with sensible defaults &mdash; constructing it directly becomes verbose and error-prone. The builder pattern solves this by providing a separate <em>builder</em> struct with setter methods that each return <code>Self</code>, enabling a fluent method-chaining API. The final <code>.build()</code> call consumes the builder and produces the target struct, optionally validating that required fields were set and returning a <code>Result</code> if validation can fail.</p>
+                        <p>Rust does not have named or optional parameters in function signatures, so the builder pattern is the idiomatic way to handle complex construction. Many popular crates (Tokio, Reqwest, SQLx) use this pattern extensively for their configuration types.</p>
+
+                        <p><em>A <code>ServerConfig</code> builder with required and optional fields, method chaining, and validation in <code>build()</code>.</em></p>
+<pre><code class="language-rust">#[derive(Debug)]
+struct ServerConfig {
+    host:        String,
+    port:        u16,
+    max_conns:   usize,
+    timeout_secs: u64,
+    tls:         bool,
+}
+
+#[derive(Default)]
+struct ServerConfigBuilder {
+    host:         Option&lt;String&gt;,
+    port:         Option&lt;u16&gt;,
+    max_conns:    usize,
+    timeout_secs: u64,
+    tls:          bool,
+}
+
+impl ServerConfigBuilder {
+    fn new() -> Self {
+        ServerConfigBuilder {
+            max_conns:    100,
+            timeout_secs: 30,
+            ..Default::default()
+        }
+    }
+
+    fn host(mut self, host: impl Into&lt;String&gt;) -> Self {
+        self.host = Some(host.into());
+        self
+    }
+
+    fn port(mut self, port: u16) -> Self {
+        self.port = Some(port);
+        self
+    }
+
+    fn max_conns(mut self, n: usize) -> Self {
+        self.max_conns = n;
+        self
+    }
+
+    fn timeout_secs(mut self, t: u64) -> Self {
+        self.timeout_secs = t;
+        self
+    }
+
+    fn tls(mut self, enabled: bool) -> Self {
+        self.tls = enabled;
+        self
+    }
+
+    fn build(self) -> Result&lt;ServerConfig, String&gt; {
+        let host = self.host.ok_or("host is required")?;
+        let port = self.port.ok_or("port is required")?;
+        Ok(ServerConfig {
+            host,
+            port,
+            max_conns:    self.max_conns,
+            timeout_secs: self.timeout_secs,
+            tls:          self.tls,
+        })
+    }
+}
+
+fn main() {
+    let config = ServerConfigBuilder::new()
+        .host("0.0.0.0")
+        .port(8443)
+        .max_conns(500)
+        .tls(true)
+        .build()
+        .expect("invalid config");
+
+    println!("{config:#?}");
+
+    // Missing required field -> Err
+    let bad = ServerConfigBuilder::new().build();
+    println!("{bad:?}"); // Err("host is required")
+}</code></pre>
+
+                        <h2>Struct Visibility and Module Encapsulation</h2>
+                        <p>In real projects, structs live in modules and visibility rules control what external code can see. The key insight is that a <code>pub</code> struct with private fields gives you a sealed type: external code can hold values of the type, pass them around, and call <code>pub</code> methods on them, but cannot construct them directly or access their internals. This gives you freedom to change the implementation without breaking callers, as long as the public interface remains compatible.</p>
+
+                        <p><em>A module with a pub struct whose fields are private, forcing callers to use the provided constructor and enforcing invariants at construction time.</em></p>
+<pre><code class="language-rust">mod geometry {
+    #[derive(Debug, Clone)]
+    pub struct Circle {
+        // Private field -- callers cannot access or set this directly.
+        radius: f64,
+    }
+
+    impl Circle {
+        // Only way to construct a Circle from outside the module.
+        pub fn new(radius: f64) -> Result&lt;Circle, String&gt; {
+            if radius &lt; 0.0 {
+                return Err(format!("invalid radius: {radius}"));
+            }
+            Ok(Circle { radius })
+        }
+
+        pub fn radius(&amp;self)        -> f64 { self.radius }
+        pub fn diameter(&amp;self)      -> f64 { self.radius * 2.0 }
+        pub fn area(&amp;self)          -> f64 { std::f64::consts::PI * self.radius * self.radius }
+        pub fn circumference(&amp;self) -> f64 { 2.0 * std::f64::consts::PI * self.radius }
+    }
+}
+
+fn main() {
+    let c = geometry::Circle::new(5.0).unwrap();
+    println!("r={}, area={:.2}", c.radius(), c.area());
+
+    // geometry::Circle { radius: 5.0 } // compile error: private field
+    // c.radius = 10.0;                 // compile error: private field
+
+    let bad = geometry::Circle::new(-1.0);
+    println!("{bad:?}"); // Err("invalid radius: -1")
+}</code></pre>
+
+                    </div>
+                </div>
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>Rust Series</h4>
+                        <a href="rust-installation-data-types.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Installation and Data Types</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-control-flow.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Control Flow &amp; Pattern Matching</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-ownership.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Ownership, Borrowing &amp; Lifetimes</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-functions-closures.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Functions, Closures &amp; Higher-Order Functions</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-structs-methods.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Structs, Methods &amp; Associated Functions</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-enums-option-result.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Enums &amp; Option / Result</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-error-handling.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Error Handling (thiserror &amp; anyhow)</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-rust.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script>
+        const toggle = document.querySelector('.nav-toggle');
+        const navLinks = document.querySelector('.nav-links');
+        toggle.addEventListener('click', () => {
+            navLinks.classList.toggle('active');
+            toggle.classList.toggle('active');
+        });
+    </script>
+
+</body>
+</html>

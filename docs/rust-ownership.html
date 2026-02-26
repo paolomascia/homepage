@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ownership, Borrowing &amp; Lifetimes in Rust &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="rust-tech-insights.html">Rust</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+            <button class="nav-toggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="rust-tech-insights.html" class="back-link">&larr; Back to Rust Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Feb 2026</span>
+                            <span class="post-reading">16 min read</span>
+                        </div>
+                        <h1>Ownership, Borrowing &amp; Lifetimes in Rust</h1>
+                        <div class="post-tags">
+                            <span>Rust</span>
+                            <span>Ownership</span>
+                            <span>Borrowing</span>
+                            <span>Lifetimes</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Ownership is Rust's most distinctive feature &mdash; and the one that trips up newcomers most often. It is not an optional pattern or a best practice: it is a set of rules checked by the compiler at compile time that guarantee memory safety and thread safety without a garbage collector. Once you internalize these rules, they stop feeling like restrictions and start feeling like documentation the compiler verifies for you.</p>
+
+                        <h2>The Memory Problem Rust Solves</h2>
+                        <p>In C and C++, the programmer manually manages memory: allocate with <code>malloc</code>/<code>new</code>, free with <code>free</code>/<code>delete</code>. Get it wrong and you get use-after-free bugs, double-frees, or memory leaks. Languages like Java, Python, and Go add a garbage collector to automate this, but GC introduces unpredictable pauses and prevents fine-grained control over when memory is released.</p>
+                        <p>Rust takes a third path: ownership rules and a borrow checker. Memory is managed deterministically &mdash; every allocation has exactly one owner, and the memory is freed the moment that owner goes out of scope. No GC, no manual <code>free</code>.</p>
+
+                        <h2>The Three Rules of Ownership</h2>
+                        <ol>
+                            <li>Each value in Rust has exactly one <strong>owner</strong>.</li>
+                            <li>There can only be <strong>one owner at a time</strong>.</li>
+                            <li>When the owner goes out of scope, the value is <strong>dropped</strong> (memory freed).</li>
+                        </ol>
+<pre><code class="language-rust">fn main() {
+    // s1 comes into scope and owns the String data on the heap
+    let s1 = String::from("hello");
+
+    // s1's scope ends here — the String is dropped automatically
+    // Rust calls the special `drop` function (like a destructor)
+} // ← s1 is dropped here</code></pre>
+
+                        <h2>Move Semantics</h2>
+                        <p>Assigning one variable to another <em>moves</em> ownership. After a move, the original variable is no longer valid. This prevents double-free errors.</p>
+<pre><code class="language-rust">fn main() {
+    let s1 = String::from("hello");
+    let s2 = s1;  // s1 is MOVED into s2
+
+    // println!("{s1}"); // compile error: value borrowed here after move
+
+    println!("{s2}"); // fine — s2 is the owner
+
+    // Integers and other Copy types are copied, not moved
+    // Stack-only data is cheap to copy so Rust does it automatically
+    let x = 5;
+    let y = x;  // x is copied (i32 implements the Copy trait)
+    println!("{x} {y}"); // both valid
+
+    // Types that implement Copy: i32, f64, bool, char, tuples of Copy types, arrays of Copy types
+    // Types that do NOT implement Copy: String, Vec, HashMap, Box, etc.
+}</code></pre>
+
+                        <h3>Move into Functions</h3>
+<pre><code class="language-rust">fn takes_ownership(s: String) {
+    println!("got: {s}");
+} // s is dropped here
+
+fn makes_copy(n: i32) {
+    println!("got: {n}");
+} // n goes out of scope, but i32 is Copy so nothing special happens
+
+fn main() {
+    let s = String::from("world");
+    takes_ownership(s);   // s is moved into the function
+    // println!("{s}");   // compile error — s was moved
+
+    let n = 42;
+    makes_copy(n);        // n is copied — still valid here
+    println!("{n}");      // fine
+
+    // Returning a value moves ownership back to the caller
+    fn gives_ownership() -> String {
+        String::from("returned")
+    }
+    let s2 = gives_ownership(); // s2 owns the returned String
+    println!("{s2}");
+}</code></pre>
+
+                        <h2>Borrowing and References</h2>
+                        <p>Passing a value to a function and then receiving it back to keep using it is tedious. Borrowing solves this: instead of transferring ownership, you pass a <strong>reference</strong>. A reference is like a pointer that the borrow checker guarantees is always valid &mdash; no dangling references, ever.</p>
+
+                        <h3>Immutable References</h3>
+<pre><code class="language-rust">fn calculate_length(s: &String) -> usize {
+    s.len()
+    // s goes out of scope but does NOT drop the String
+    // because it only borrowed it — it does not own it
+}
+
+fn main() {
+    let s1 = String::from("hello");
+    let len = calculate_length(&s1);  // pass a reference with &
+    println!("'{s1}' has length {len}"); // s1 is still valid!
+
+    // Multiple immutable references at the same time — allowed
+    let r1 = &s1;
+    let r2 = &s1;
+    println!("{r1} {r2}"); // fine
+}</code></pre>
+
+                        <h3>Mutable References</h3>
+<pre><code class="language-rust">fn append_world(s: &mut String) {
+    s.push_str(", world");
+}
+
+fn main() {
+    let mut s = String::from("hello");
+    append_world(&mut s);  // pass a mutable reference with &mut
+    println!("{s}"); // "hello, world"
+
+    // THE KEY RULE: at any given time you can have EITHER
+    //   • one mutable reference, OR
+    //   • any number of immutable references
+    // — but NOT both simultaneously.
+
+    let r1 = &mut s;
+    // let r2 = &mut s; // compile error: cannot borrow `s` as mutable more than once
+    println!("{r1}");
+
+    // References are scoped to their last use (Non-Lexical Lifetimes, Rust 2018+)
+    let r3 = &s;          // immutable borrow starts
+    let r4 = &s;          // another immutable borrow — allowed
+    println!("{r3} {r4}");
+    // r3 and r4 are last used above — their borrows END here
+
+    let r5 = &mut s;      // mutable borrow — now OK because r3 and r4 are done
+    println!("{r5}");
+}</code></pre>
+
+                        <h3>The Slice Type</h3>
+                        <p>A slice is a reference to a contiguous sequence of elements in a collection. It does not own its data.</p>
+<pre><code class="language-rust">fn first_word(s: &str) -> &str {
+    let bytes = s.as_bytes();
+    for (i, &byte) in bytes.iter().enumerate() {
+        if byte == b' ' {
+            return &s[0..i];
+        }
+    }
+    s  // whole string is one word
+}
+
+fn main() {
+    let s = String::from("hello world");
+
+    // &str slice of a String
+    let word = first_word(&s);
+    println!("{word}"); // "hello"
+
+    // The borrow checker ensures the slice remains valid
+    // If we tried to modify s here, the compiler would reject it
+    // because 'word' still holds an immutable borrow of s.
+
+    // Array slices
+    let arr = [1, 2, 3, 4, 5];
+    let slice: &[i32] = &arr[1..3]; // [2, 3]
+    println!("{slice:?}");
+}</code></pre>
+
+                        <h2>The <code>Clone</code> Trait: Explicit Deep Copies</h2>
+                        <p>When you genuinely need a copy of heap data (not just a reference), call <code>.clone()</code>. This makes the cost visible in the code.</p>
+<pre><code class="language-rust">fn main() {
+    let s1 = String::from("hello");
+    let s2 = s1.clone();  // deep copy — s1 is still valid
+
+    println!("s1={s1} s2={s2}");
+
+    // Cloning is explicit so you always know when heap allocation happens
+    let v1 = vec![1, 2, 3];
+    let v2 = v1.clone();
+    println!("{v1:?} {v2:?}"); // both valid
+}</code></pre>
+
+                        <h2>Lifetimes</h2>
+                        <p>Lifetimes are the borrow checker's way of tracking <em>how long a reference is valid</em>. Most of the time the compiler infers them (lifetime elision rules). You only need to annotate lifetimes explicitly when the compiler cannot figure out the relationship itself &mdash; most commonly when a function returns a reference derived from its parameters.</p>
+
+                        <h3>Why Lifetimes Exist: Dangling References</h3>
+<pre><code class="language-rust">// This would NOT compile — Rust prevents dangling references
+// fn dangle() -> &String {
+//     let s = String::from("hello");
+//     &s  // error: s is dropped at end of function, reference would dangle
+// }
+
+// The fix: return owned data
+fn no_dangle() -> String {
+    let s = String::from("hello");
+    s  // move ownership out — no problem
+}</code></pre>
+
+                        <h3>Lifetime Annotations</h3>
+                        <p>Lifetime annotations describe the relationships between the lifetimes of references. They do not change how long values live; they tell the compiler how multiple lifetimes relate to each other.</p>
+<pre><code class="language-rust">// Without annotation the compiler cannot know if the result
+// borrows from 'x' or from 'y' — both have potentially different lifetimes.
+// The annotation 'a says: "the returned reference lives at least as long
+// as the shorter-lived of x and y."
+fn longest<'a>(x: &'a str, y: &'a str) -> &'a str {
+    if x.len() > y.len() { x } else { y }
+}
+
+fn main() {
+    let s1 = String::from("long string");
+    let result;
+    {
+        let s2 = String::from("xyz");
+        result = longest(s1.as_str(), s2.as_str());
+        println!("longest: {result}"); // OK — result used while both alive
+    }
+    // println!("{result}"); // would be compile error if s2 is dropped
+}</code></pre>
+
+                        <h3>Lifetime Annotations in Structs</h3>
+                        <p>If a struct holds a reference, you must annotate the lifetime to tell the compiler that the struct cannot outlive the data it references.</p>
+<pre><code class="language-rust">// The struct cannot outlive the string slice it holds
+struct Excerpt<'a> {
+    text: &'a str,
+}
+
+impl<'a> Excerpt<'a> {
+    fn level(&self) -> i32 { 3 }
+
+    fn announce(&self, announcement: &str) -> &str {
+        println!("Attention: {announcement}");
+        self.text  // lifetime elision: returned ref has same lifetime as &self
+    }
+}
+
+fn main() {
+    let novel = String::from("Call me Ishmael. Some years ago...");
+    let first_sentence = novel.split('.').next().unwrap();
+    let excerpt = Excerpt { text: first_sentence };
+    println!("{}", excerpt.announce("new book!"));
+}</code></pre>
+
+                        <h3>The <code>'static</code> Lifetime</h3>
+                        <p><code>'static</code> means the reference lives for the entire duration of the program. String literals are <code>'static</code> because they are baked into the binary.</p>
+<pre><code class="language-rust">// &'static str: points into the read-only data segment of the binary
+let s: &'static str = "I live forever";
+
+// Functions returning &'static str (error messages, constant names, etc.)
+fn error_message(code: u32) -> &'static str {
+    match code {
+        404 => "Not Found",
+        500 => "Internal Server Error",
+        _   => "Unknown Error",
+    }
+}</code></pre>
+
+                        <h2>Smart Pointers</h2>
+                        <p>Smart pointers extend ownership semantics for scenarios where single ownership is too restrictive.</p>
+
+                        <h3><code>Box&lt;T&gt;</code> &mdash; Heap Allocation</h3>
+<pre><code class="language-rust">fn main() {
+    // Allocate an i32 on the heap instead of the stack
+    let b = Box::new(5);
+    println!("b = {b}");
+    // b is dropped at end of scope, heap memory freed
+
+    // Useful for: recursive types, trait objects, large values you want heap-allocated
+
+    // Recursive type — needs Box to break the infinite-size cycle
+    #[derive(Debug)]
+    enum List {
+        Cons(i32, Box<List>),
+        Nil,
+    }
+    let list = List::Cons(1, Box::new(List::Cons(2, Box::new(List::Nil))));
+    println!("{list:?}");
+}</code></pre>
+
+                        <h3><code>Rc&lt;T&gt;</code> &mdash; Reference Counting (Single-Threaded Shared Ownership)</h3>
+<pre><code class="language-rust">use std::rc::Rc;
+
+fn main() {
+    // Rc allows multiple owners — the value is dropped when the last Rc is dropped
+    let a = Rc::new(String::from("shared"));
+    let b = Rc::clone(&a);   // increments reference count, does NOT deep copy
+    let c = Rc::clone(&a);
+
+    println!("count = {}", Rc::strong_count(&a)); // 3
+    println!("{a} {b} {c}");
+
+    drop(b);
+    println!("after drop: count = {}", Rc::strong_count(&a)); // 2
+
+    // Rc is single-threaded only — use Arc for multi-threaded shared ownership
+}</code></pre>
+
+                        <h3><code>RefCell&lt;T&gt;</code> &mdash; Interior Mutability</h3>
+                        <p><code>RefCell</code> shifts borrow checking from compile time to runtime, allowing mutation through a shared reference. Panics at runtime if the rules are violated.</p>
+<pre><code class="language-rust">use std::cell::RefCell;
+
+fn main() {
+    // &mut through a shared reference — checked at runtime
+    let data = RefCell::new(vec![1, 2, 3]);
+
+    let mut borrow = data.borrow_mut();  // mutable borrow
+    borrow.push(4);
+    drop(borrow);  // must release before taking another borrow
+
+    println!("{:?}", data.borrow()); // [1, 2, 3, 4]
+
+    // Common pattern: Rc<RefCell<T>> — shared ownership + interior mutability
+    use std::rc::Rc;
+    let shared = Rc::new(RefCell::new(0));
+    let cloned = Rc::clone(&shared);
+
+    *shared.borrow_mut() += 10;
+    *cloned.borrow_mut() += 5;
+    println!("{}", shared.borrow()); // 15
+}</code></pre>
+
+                        <h2>Putting it All Together: A Practical Example</h2>
+<pre><code class="language-rust">// A simple cache that stores results of expensive computations
+use std::collections::HashMap;
+
+struct Cache {
+    values: HashMap<String, String>,
+}
+
+impl Cache {
+    fn new() -> Self {
+        Cache { values: HashMap::new() }
+    }
+
+    // Takes a &str key (borrows) and returns an Option<&str> (borrows from self)
+    fn get(&self, key: &str) -> Option<&str> {
+        self.values.get(key).map(|s| s.as_str())
+    }
+
+    // Takes ownership of both key and value — stored in the map
+    fn set(&mut self, key: String, value: String) {
+        self.values.insert(key, value);
+    }
+
+    // Returns owned String — caller manages its lifetime
+    fn get_or_compute(&mut self, key: &str, compute: impl Fn() -> String) -> String {
+        if let Some(cached) = self.values.get(key) {
+            return cached.clone();
+        }
+        let value = compute();
+        self.values.insert(key.to_string(), value.clone());
+        value
+    }
+}
+
+fn main() {
+    let mut cache = Cache::new();
+
+    cache.set("greeting".to_string(), "hello".to_string());
+
+    if let Some(val) = cache.get("greeting") {
+        println!("cached: {val}");
+    }
+
+    // get_or_compute: only calls the closure if not cached
+    let result = cache.get_or_compute("expensive", || {
+        println!("computing...");
+        "42".to_string()
+    });
+    println!("result: {result}");
+
+    // Second call hits the cache
+    let result2 = cache.get_or_compute("expensive", || {
+        println!("this won't print");
+        "other".to_string()
+    });
+    println!("result2: {result2}"); // still "42"
+}</code></pre>
+
+                    </div>
+                </div>
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>Rust Series</h4>
+                        <a href="rust-installation-data-types.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Installation and Data Types</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-control-flow.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Control Flow &amp; Pattern Matching</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-ownership.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Ownership, Borrowing &amp; Lifetimes</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-rust.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script>
+        const toggle = document.querySelector('.nav-toggle');
+        const navLinks = document.querySelector('.nav-links');
+        toggle.addEventListener('click', () => {
+            navLinks.classList.toggle('active');
+            toggle.classList.toggle('active');
+        });
+    </script>
+
+</body>
+</html>

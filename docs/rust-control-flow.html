@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control Flow &amp; Pattern Matching in Rust &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="rust-tech-insights.html">Rust</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+            <button class="nav-toggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="rust-tech-insights.html" class="back-link">&larr; Back to Rust Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Feb 2026</span>
+                            <span class="post-reading">12 min read</span>
+                        </div>
+                        <h1>Control Flow &amp; Pattern Matching in Rust</h1>
+                        <div class="post-tags">
+                            <span>Rust</span>
+                            <span>Control Flow</span>
+                            <span>Pattern Matching</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Rust's control flow constructs look familiar at first glance &mdash; <code>if</code>, <code>loop</code>, <code>while</code>, <code>for</code> &mdash; but they carry a twist: almost everything in Rust is an <em>expression</em> that can return a value. Add to that the <code>match</code> statement, one of the most powerful pattern-matching constructs in any mainstream language, and you have an expressive toolkit that eliminates entire categories of bugs.</p>
+
+                        <h2>if / else</h2>
+                        <p>The most important thing to know about <code>if</code> in Rust: it is an <strong>expression</strong>, not a statement. It evaluates to a value, which means you can use it on the right-hand side of a <code>let</code>.</p>
+<pre><code class="language-rust">fn main() {
+    let number = 7;
+
+    // Standard if/else if/else
+    if number < 0 {
+        println!("negative");
+    } else if number == 0 {
+        println!("zero");
+    } else {
+        println!("positive");
+    }
+
+    // if as an expression — both branches must return the same type
+    let description = if number % 2 == 0 { "even" } else { "odd" };
+    println!("{number} is {description}");
+
+    // Ternary-style (Rust has no ternary ? : operator — use if instead)
+    let abs = if number < 0 { -number } else { number };
+    println!("abs = {abs}");
+
+    // Conditions do not need parentheses (they are idiomatic without)
+    let x = 10;
+    let y = 20;
+    if x > 5 && y < 30 {
+        println!("both conditions met");
+    }
+}</code></pre>
+
+                        <h2>loop</h2>
+                        <p><code>loop</code> runs a block indefinitely until a <code>break</code>. Like <code>if</code>, it is an expression: <code>break</code> can carry a return value.</p>
+<pre><code class="language-rust">fn main() {
+    // Basic infinite loop
+    let mut counter = 0;
+    let result = loop {
+        counter += 1;
+        if counter == 10 {
+            break counter * 2;  // break with a value → result is 20
+        }
+    };
+    println!("result = {result}");
+
+    // Nested loops and loop labels
+    // Labels disambiguate which loop to break/continue
+    'outer: for i in 0..5 {
+        for j in 0..5 {
+            if i + j == 6 {
+                println!("breaking outer at i={i} j={j}");
+                break 'outer;
+            }
+        }
+    }
+}</code></pre>
+
+                        <h2>while</h2>
+<pre><code class="language-rust">fn main() {
+    let mut n = 1;
+    while n < 1024 {
+        n *= 2;
+    }
+    println!("{n}"); // 1024
+
+    // while let — keep looping while a pattern matches
+    let mut stack = vec![1, 2, 3, 4, 5];
+    while let Some(top) = stack.pop() {
+        print!("{top} ");
+    }
+    println!(); // 5 4 3 2 1
+}</code></pre>
+
+                        <h2>for and Iterators</h2>
+                        <p>The idiomatic way to iterate in Rust is always with <code>for</code> and iterators. Rust iterators are lazy: they produce values on demand, which means chaining them composes without intermediate allocations.</p>
+<pre><code class="language-rust">fn main() {
+    // Iterate over a range
+    for i in 0..5 {        // 0, 1, 2, 3, 4 (exclusive end)
+        print!("{i} ");
+    }
+    println!();
+
+    for i in 0..=5 {       // 0, 1, 2, 3, 4, 5 (inclusive end)
+        print!("{i} ");
+    }
+    println!();
+
+    // Iterate over a collection — iter() borrows each element
+    let fruits = vec!["apple", "banana", "cherry"];
+    for fruit in fruits.iter() {
+        println!("fruit: {fruit}");
+    }
+
+    // into_iter() consumes the collection (moves each element)
+    let numbers = vec![1, 2, 3];
+    for n in numbers.into_iter() {
+        println!("{n}");
+    }
+    // 'numbers' is moved — cannot use it here
+
+    // iter_mut() gives mutable references
+    let mut scores = vec![10, 20, 30];
+    for score in scores.iter_mut() {
+        *score += 5;
+    }
+    println!("{scores:?}"); // [15, 25, 35]
+
+    // enumerate() pairs each element with its index
+    let letters = ['a', 'b', 'c'];
+    for (i, ch) in letters.iter().enumerate() {
+        println!("{i}: {ch}");
+    }
+
+    // zip() combines two iterators element-by-element
+    let names  = vec!["Alice", "Bob", "Carol"];
+    let ages   = vec![30, 25, 35];
+    for (name, age) in names.iter().zip(ages.iter()) {
+        println!("{name} is {age}");
+    }
+}</code></pre>
+
+                        <h3>Iterator Adapters and Consumers</h3>
+                        <p>Iterators become most powerful when chained. Adapters (like <code>map</code>, <code>filter</code>) are lazy; consumers (like <code>collect</code>, <code>sum</code>, <code>for_each</code>) drive execution.</p>
+<pre><code class="language-rust">fn main() {
+    let numbers = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+    // map + filter + collect
+    let evens_doubled: Vec<i32> = numbers.iter()
+        .filter(|&&x| x % 2 == 0)
+        .map(|&x| x * 2)
+        .collect();
+    println!("{evens_doubled:?}"); // [4, 8, 12, 16, 20]
+
+    // sum and product
+    let total: i32 = numbers.iter().sum();
+    let product: i32 = (1..=5).product();
+    println!("sum={total} product={product}");
+
+    // find — returns Option<&T>
+    let first_big = numbers.iter().find(|&&x| x > 5);
+    println!("{first_big:?}"); // Some(6)
+
+    // any / all
+    let has_even = numbers.iter().any(|&x| x % 2 == 0);
+    let all_pos  = numbers.iter().all(|&x| x > 0);
+    println!("has_even={has_even} all_pos={all_pos}");
+
+    // count
+    let even_count = numbers.iter().filter(|&&x| x % 2 == 0).count();
+    println!("even count = {even_count}");
+
+    // flat_map — map then flatten one level
+    let words = vec!["hello world", "foo bar"];
+    let chars: Vec<&str> = words.iter()
+        .flat_map(|s| s.split_whitespace())
+        .collect();
+    println!("{chars:?}");
+
+    // take / skip
+    let first_three: Vec<i32> = (1..=10).take(3).collect();
+    let skip_two: Vec<i32>    = (1..=5).skip(2).collect();
+    println!("{first_three:?} {skip_two:?}");
+}</code></pre>
+
+                        <h2>match — Exhaustive Pattern Matching</h2>
+                        <p><code>match</code> is Rust's equivalent of <code>switch</code>, but far more powerful. Every possible value must be covered (the compiler enforces exhaustiveness), and each arm can destructure complex types, bind variables, and add guards.</p>
+
+                        <h3>Matching Scalars</h3>
+<pre><code class="language-rust">fn classify(n: i32) -> &'static str {
+    match n {
+        i32::MIN..=-1 => "negative",
+        0             => "zero",
+        1..=9         => "single digit",
+        10..=99       => "double digit",
+        _             => "large",   // _ is the catch-all wildcard
+    }
+}
+
+fn main() {
+    println!("{}", classify(-5));  // negative
+    println!("{}", classify(0));   // zero
+    println!("{}", classify(7));   // single digit
+    println!("{}", classify(42));  // double digit
+    println!("{}", classify(200)); // large
+
+    // Multiple patterns in one arm with |
+    let c = 'e';
+    match c {
+        'a' | 'e' | 'i' | 'o' | 'u' => println!("vowel"),
+        'a'..='z'                    => println!("consonant"),
+        _                            => println!("other"),
+    }
+}</code></pre>
+
+                        <h3>Matching Enums</h3>
+                        <p>This is where <code>match</code> really shines. Rust enums can carry data, and <code>match</code> can destructure that data in each arm.</p>
+<pre><code class="language-rust">#[derive(Debug)]
+enum Shape {
+    Circle(f64),              // radius
+    Rectangle(f64, f64),      // width, height
+    Triangle { base: f64, height: f64 }, // named fields
+}
+
+impl Shape {
+    fn area(&self) -> f64 {
+        match self {
+            Shape::Circle(r)                      => std::f64::consts::PI * r * r,
+            Shape::Rectangle(w, h)                => w * h,
+            Shape::Triangle { base, height }      => 0.5 * base * height,
+        }
+    }
+}
+
+fn main() {
+    let shapes = vec![
+        Shape::Circle(3.0),
+        Shape::Rectangle(4.0, 5.0),
+        Shape::Triangle { base: 6.0, height: 8.0 },
+    ];
+    for shape in &shapes {
+        println!("{shape:?} → area = {:.2}", shape.area());
+    }
+}</code></pre>
+
+                        <h3>Match Guards</h3>
+                        <p>A match guard adds an extra <code>if</code> condition to an arm:</p>
+<pre><code class="language-rust">fn describe(n: i32) -> &'static str {
+    match n {
+        x if x < 0      => "negative",
+        0                => "zero",
+        x if x % 2 == 0 => "positive even",
+        _                => "positive odd",
+    }
+}
+
+fn main() {
+    for n in [-3, 0, 4, 7] {
+        println!("{n:>3} → {}", describe(n));
+    }
+}</code></pre>
+
+                        <h3>Destructuring in match</h3>
+<pre><code class="language-rust">fn main() {
+    // Destructuring a tuple
+    let point = (3, -2);
+    match point {
+        (0, 0) => println!("origin"),
+        (x, 0) | (0, x) => println!("on axis at {x}"),
+        (x, y) if x == y => println!("on diagonal"),
+        (x, y)           => println!("({x}, {y})"),
+    }
+
+    // Destructuring a struct
+    struct Point { x: i32, y: i32 }
+    let p = Point { x: 5, y: 10 };
+    let Point { x, y } = p;
+    println!("x={x} y={y}");
+
+    // Binding with @ — capture and test simultaneously
+    let num = 15;
+    match num {
+        n @ 1..=12  => println!("month {n}"),
+        n @ 13..=19 => println!("teen {n}"),
+        n           => println!("other {n}"),
+    }
+}</code></pre>
+
+                        <h2>if let and while let</h2>
+                        <p><code>if let</code> is syntactic sugar for a <code>match</code> that only cares about one arm. Use it to avoid the boilerplate of the catch-all <code>_</code> arm when you only want to handle <code>Some</code> or a specific enum variant.</p>
+<pre><code class="language-rust">#[derive(Debug)]
+enum Coin { Penny, Nickel, Dime, Quarter(String) }
+
+fn main() {
+    let coin = Coin::Quarter("Alaska".to_string());
+
+    // Equivalent match
+    // match &coin {
+    //     Coin::Quarter(state) => println!("Quarter from {state}"),
+    //     _ => (),
+    // }
+
+    // Cleaner with if let
+    if let Coin::Quarter(state) = &coin {
+        println!("Quarter from {state}");
+    } else {
+        println!("Not a quarter");
+    }
+
+    // Chaining if let / else if let
+    let config: Option<i32> = Some(8);
+    if let Some(n) = config {
+        println!("configured with {n}");
+    } else {
+        println!("using default");
+    }
+
+    // let-else (Rust 1.65+): like if-let but diverges on mismatch
+    // Great for early-return / guard patterns
+    fn process(value: Option<i32>) {
+        let Some(n) = value else {
+            println!("no value, returning early");
+            return;
+        };
+        println!("processing {n}");
+    }
+    process(Some(42));
+    process(None);
+}</code></pre>
+
+                        <h2>The <code>?</code> Operator for Error Propagation</h2>
+                        <p>The question-mark operator <code>?</code> is control flow sugar for matching on <code>Result</code> and <code>Option</code>. If the value is <code>Err</code>/<code>None</code> it returns early from the current function; if it is <code>Ok</code>/<code>Some</code> it unwraps and continues.</p>
+<pre><code class="language-rust">use std::num::ParseIntError;
+
+fn parse_and_double(s: &str) -> Result<i32, ParseIntError> {
+    let n = s.trim().parse::<i32>()?;  // returns Err early if parse fails
+    Ok(n * 2)
+}
+
+fn main() {
+    match parse_and_double("21") {
+        Ok(n)  => println!("doubled: {n}"),      // 42
+        Err(e) => println!("error: {e}"),
+    }
+    match parse_and_double("abc") {
+        Ok(n)  => println!("doubled: {n}"),
+        Err(e) => println!("error: {e}"),         // invalid digit found in string
+    }
+}</code></pre>
+
+                        <h2>Functions as First-Class Values and Closures</h2>
+                        <p>Closures are anonymous functions that capture their environment. They are used extensively with iterators and as callbacks.</p>
+<pre><code class="language-rust">fn apply<F: Fn(i32) -> i32>(f: F, x: i32) -> i32 {
+    f(x)
+}
+
+fn main() {
+    // Closure syntax: |params| body
+    let double = |x| x * 2;
+    let add_ten = |x: i32| -> i32 { x + 10 };
+
+    println!("{}", apply(double, 5));   // 10
+    println!("{}", apply(add_ten, 5));  // 15
+
+    // Capturing environment by reference
+    let threshold = 5;
+    let is_big = |n: i32| n > threshold;  // borrows threshold
+    println!("{}", is_big(10)); // true
+
+    // Capturing by move (forced with move keyword)
+    let name = String::from("Alice");
+    let greet = move || println!("Hello, {name}!");  // name is moved in
+    greet();
+    // println!("{name}"); // compile error — name was moved
+
+    // Returning closures from functions (must box them)
+    fn make_adder(n: i32) -> Box<dyn Fn(i32) -> i32> {
+        Box::new(move |x| x + n)
+    }
+    let add5 = make_adder(5);
+    println!("{}", add5(10)); // 15
+}</code></pre>
+
+                    </div>
+                </div>
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>Rust Series</h4>
+                        <a href="rust-installation-data-types.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Installation and Data Types</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-control-flow.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Control Flow &amp; Pattern Matching</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-ownership.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Ownership, Borrowing &amp; Lifetimes</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-rust.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script>
+        const toggle = document.querySelector('.nav-toggle');
+        const navLinks = document.querySelector('.nav-links');
+        toggle.addEventListener('click', () => {
+            navLinks.classList.toggle('active');
+            toggle.classList.toggle('active');
+        });
+    </script>
+
+</body>
+</html>

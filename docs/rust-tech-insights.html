@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rust Tech Insights &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="rust-tech-insights.html">Rust</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+            <button class="nav-toggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <section class="writing" style="padding-top: 140px;">
+        <div class="container">
+            <a href="index.html" class="back-link" style="display: inline-block; font-size: 14px; color: var(--text-muted); margin-bottom: 32px; transition: color 0.2s;">&larr; Back to Home</a>
+            <h2 class="section-title">Rust Tech Insights</h2>
+            <p class="section-subtitle">Deep dives into Rust &mdash; from ownership and the borrow checker to systems programming, concurrency without data races, and WebAssembly.</p>
+
+            <!-- Rust Fundamentals -->
+            <h3 style="font-size: 18px; font-weight: 700; color: var(--text); margin-top: 48px; margin-bottom: 24px; text-transform: uppercase; letter-spacing: 2px; font-family: var(--mono);">Rust Fundamentals</h3>
+            <div class="posts-grid">
+
+                <a href="rust-installation-data-types.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Feb 2026</span>
+                        <span class="post-reading">14 min read</span>
+                    </div>
+                    <h3>Rust Installation and Data Types</h3>
+                    <p>Getting started with Rust &mdash; rustup, Cargo, Hello World, scalar types (integers, floats, bool, char), tuples, arrays, String vs &amp;str, and the Option type.</p>
+                    <div class="post-tags">
+                        <span>Rust</span>
+                        <span>Installation</span>
+                        <span>Data Types</span>
+                    </div>
+                </a>
+
+                <a href="rust-control-flow.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Feb 2026</span>
+                        <span class="post-reading">12 min read</span>
+                    </div>
+                    <h3>Control Flow &amp; Pattern Matching</h3>
+                    <p>if/else as expressions, loop/while/for, powerful exhaustive match with guards and destructuring, if let, while let, the ? operator, and closures.</p>
+                    <div class="post-tags">
+                        <span>Rust</span>
+                        <span>Control Flow</span>
+                        <span>Pattern Matching</span>
+                    </div>
+                </a>
+
+                <a href="rust-ownership.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Feb 2026</span>
+                        <span class="post-reading">16 min read</span>
+                    </div>
+                    <h3>Ownership, Borrowing &amp; Lifetimes</h3>
+                    <p>Rust's defining feature &mdash; move semantics, the borrow checker, immutable and mutable references, slices, lifetime annotations, Box, Rc, and RefCell.</p>
+                    <div class="post-tags">
+                        <span>Rust</span>
+                        <span>Ownership</span>
+                        <span>Lifetimes</span>
+                    </div>
+                </a>
+
+                <a href="rust-functions-closures.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Feb 2026</span>
+                        <span class="post-reading">14 min read</span>
+                    </div>
+                    <h3>Functions, Closures &amp; Higher-Order Functions</h3>
+                    <p>fn syntax and implicit returns, multiple return values, closures and environment capture, Fn/FnMut/FnOnce traits, iterator adapters, and the move keyword for threads.</p>
+                    <div class="post-tags">
+                        <span>Rust</span>
+                        <span>Functions</span>
+                        <span>Closures</span>
+                    </div>
+                </a>
+
+                <a href="rust-structs-methods.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Feb 2026</span>
+                        <span class="post-reading">15 min read</span>
+                    </div>
+                    <h3>Structs, Methods &amp; Associated Functions</h3>
+                    <p>Named-field and tuple structs, impl blocks, &amp;self / &amp;mut self / self receivers, associated constructors, derived traits, generics, operator overloading, and the builder pattern.</p>
+                    <div class="post-tags">
+                        <span>Rust</span>
+                        <span>Structs</span>
+                        <span>Methods</span>
+                    </div>
+                </a>
+
+                <a href="rust-enums-option-result.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Feb 2026</span>
+                        <span class="post-reading">14 min read</span>
+                    </div>
+                    <h3>Enums, Option &amp; Result</h3>
+                    <p>Algebraic data types with data-carrying variants, exhaustive pattern matching, Option for nullable values, Result for recoverable errors, and the ? operator.</p>
+                    <div class="post-tags">
+                        <span>Rust</span>
+                        <span>Enums</span>
+                        <span>Option</span>
+                        <span>Result</span>
+                    </div>
+                </a>
+
+                <a href="rust-error-handling.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Feb 2026</span>
+                        <span class="post-reading">16 min read</span>
+                    </div>
+                    <h3>Error Handling with thiserror &amp; anyhow</h3>
+                    <p>Manual error types vs derive macros, the thiserror crate for typed library errors, anyhow for ergonomic application propagation, error chains, context, and mixing both approaches.</p>
+                    <div class="post-tags">
+                        <span>Rust</span>
+                        <span>Error Handling</span>
+                        <span>thiserror</span>
+                        <span>anyhow</span>
+                    </div>
+                </a>
+
+            </div>
+
+            <!-- Traits & Generics -->
+            <h3 style="font-size: 18px; font-weight: 700; color: var(--text); margin-top: 48px; margin-bottom: 24px; text-transform: uppercase; letter-spacing: 2px; font-family: var(--mono);">Traits &amp; Generics</h3>
+            <div class="posts-grid">
+
+                <a href="rust-traits.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Feb 2026</span>
+                        <span class="post-reading">16 min read</span>
+                    </div>
+                    <h3>Traits: Definition, Implementation &amp; Default Methods</h3>
+                    <p>Defining trait contracts, default methods, trait bounds, associated types, supertraits, blanket implementations, and the newtype pattern for working around the orphan rule.</p>
+                    <div class="post-tags">
+                        <span>Rust</span>
+                        <span>Traits</span>
+                        <span>Generics</span>
+                    </div>
+                </a>
+
+                <a href="rust-trait-objects.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Feb 2026</span>
+                        <span class="post-reading">14 min read</span>
+                    </div>
+                    <h3>Trait Objects &amp; Dynamic Dispatch</h3>
+                    <p>Static vs dynamic dispatch, fat pointers, vtables, object safety rules, Box&lt;dyn Trait&gt;, returning trait objects, lifetime bounds, and an impl Trait vs dyn Trait decision guide.</p>
+                    <div class="post-tags">
+                        <span>Rust</span>
+                        <span>Trait Objects</span>
+                        <span>dyn Trait</span>
+                    </div>
+                </a>
+
+                <a href="rust-generics.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Feb 2026</span>
+                        <span class="post-reading">15 min read</span>
+                    </div>
+                    <h3>Generics: Bounds, Where Clauses &amp; Monomorphization</h3>
+                    <p>Generic functions and structs, trait bounds, where clauses, conditional impl blocks, monomorphization, const generics for fixed-size arrays, and phantom types for compile-time units.</p>
+                    <div class="post-tags">
+                        <span>Rust</span>
+                        <span>Generics</span>
+                        <span>Const Generics</span>
+                    </div>
+                </a>
+
+                <a href="rust-lifetimes-advanced.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Feb 2026</span>
+                        <span class="post-reading">15 min read</span>
+                    </div>
+                    <h3>Advanced Lifetimes &amp; Higher-Rank Trait Bounds</h3>
+                    <p>Elision rules, lifetime annotations in structs, subtyping, the 'static lifetime, Higher-Rank Trait Bounds (for&lt;'a&gt;), variance, and lifetime bounds on trait objects.</p>
+                    <div class="post-tags">
+                        <span>Rust</span>
+                        <span>Lifetimes</span>
+                        <span>HRTB</span>
+                    </div>
+                </a>
+
+            </div>
+
+            <!-- Collections & Iterators -->
+            <h3 style="font-size: 18px; font-weight: 700; color: var(--text); margin-top: 48px; margin-bottom: 24px; text-transform: uppercase; letter-spacing: 2px; font-family: var(--mono);">Collections &amp; Iterators</h3>
+            <div class="posts-grid">
+
+                <a href="rust-collections.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Feb 2026</span>
+                        <span class="post-reading">17 min read</span>
+                    </div>
+                    <h3>Vec, HashMap, HashSet &amp; BTreeMap</h3>
+                    <p>Growable arrays, hash maps with the Entry API, set operations, ordered BTreeMap with range queries, VecDeque for double-ended queues, and BinaryHeap for priority queues.</p>
+                    <div class="post-tags">
+                        <span>Rust</span>
+                        <span>Collections</span>
+                        <span>HashMap</span>
+                    </div>
+                </a>
+
+                <a href="rust-iterators-advanced.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Feb 2026</span>
+                        <span class="post-reading">16 min read</span>
+                    </div>
+                    <h3>Advanced Iterators</h3>
+                    <p>Iterator fusion and lazy evaluation, chain, zip, flat_map, peekable lookahead, scan for stateful transformation, cycle, repeat, successors, partition, and pipeline design.</p>
+                    <div class="post-tags">
+                        <span>Rust</span>
+                        <span>Iterators</span>
+                        <span>Lazy Evaluation</span>
+                    </div>
+                </a>
+
+                <a href="rust-custom-iterators.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Feb 2026</span>
+                        <span class="post-reading">14 min read</span>
+                    </div>
+                    <h3>Custom Iterators &amp; IntoIterator</h3>
+                    <p>Implementing Iterator from scratch, DoubleEndedIterator for .rev(), IntoIterator for for-loop support, custom adapter structs, ExactSizeIterator, size_hint, and lazy vs eager collection.</p>
+                    <div class="post-tags">
+                        <span>Rust</span>
+                        <span>Iterator</span>
+                        <span>IntoIterator</span>
+                    </div>
+                </a>
+
+                <a href="rust-strings.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Feb 2026</span>
+                        <span class="post-reading">15 min read</span>
+                    </div>
+                    <h3>Strings: String, &amp;str, OsString &amp; Encoding</h3>
+                    <p>Ownership model of String vs &amp;str, UTF-8 and character boundaries, string methods, efficient building with write!, OsString and PathBuf for filesystem work, and Cow&lt;str&gt; for zero-copy normalization.</p>
+                    <div class="post-tags">
+                        <span>Rust</span>
+                        <span>Strings</span>
+                        <span>UTF-8</span>
+                    </div>
+                </a>
+
+            </div>
+
+        </div>
+    </section>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script>
+        const toggle = document.querySelector('.nav-toggle');
+        const navLinks = document.querySelector('.nav-links');
+        toggle.addEventListener('click', () => {
+            navLinks.classList.toggle('active');
+            toggle.classList.toggle('active');
+        });
+    </script>
+
+</body>
+</html>

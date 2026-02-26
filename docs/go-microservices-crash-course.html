@@ -1,0 +1,2899 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Go 4 Microservices Crash Course &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+    <style>
+        /* Manual-specific overrides */
+        .manual-toc {
+            position: sticky;
+            top: 80px;
+            max-height: calc(100vh - 100px);
+            overflow-y: auto;
+            padding: 1.5rem;
+            background: var(--surface, #1a1a2e);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px;
+            font-size: 0.82rem;
+            scrollbar-width: thin;
+        }
+        .manual-toc h4 {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--accent, #7c3aed);
+            margin-bottom: 0.8rem;
+        }
+        .manual-toc ol {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .manual-toc > ol > li { margin-bottom: 0.3rem; }
+        .manual-toc a {
+            color: rgba(255,255,255,0.65);
+            text-decoration: none;
+            line-height: 1.5;
+            transition: color 0.2s;
+        }
+        .manual-toc a:hover { color: #fff; }
+        .manual-toc .part-label {
+            font-weight: 700;
+            color: rgba(255,255,255,0.85);
+            display: block;
+            margin-top: 0.8rem;
+            margin-bottom: 0.2rem;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .manual-toc .toc-sub {
+            padding-left: 0.8rem;
+            border-left: 2px solid rgba(255,255,255,0.07);
+            margin-top: 0.2rem;
+        }
+        .manual-toc .toc-sub li { margin-bottom: 0.15rem; }
+        .manual-section {
+            border-top: 2px solid rgba(255,255,255,0.06);
+            padding-top: 2.5rem;
+            margin-top: 3rem;
+        }
+        .manual-section:first-child { border-top: none; padding-top: 0; margin-top: 0; }
+        .part-header {
+            display: inline-block;
+            background: linear-gradient(135deg, #7c3aed, #4f46e5);
+            color: #fff;
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            padding: 0.3em 0.8em;
+            border-radius: 4px;
+            margin-bottom: 0.5rem;
+        }
+        .callout {
+            background: rgba(124,58,237,0.08);
+            border-left: 3px solid #7c3aed;
+            padding: 1rem 1.25rem;
+            border-radius: 0 8px 8px 0;
+            margin: 1.5rem 0;
+            font-size: 0.92rem;
+        }
+        .callout.tip { border-color: #10b981; background: rgba(16,185,129,0.07); }
+        .callout.warn { border-color: #f59e0b; background: rgba(245,158,11,0.07); }
+        .callout strong { font-weight: 700; }
+        .checklist { list-style: none; padding-left: 0; }
+        .checklist li::before { content: "✓ "; color: #10b981; font-weight: 700; }
+        /* layout fix: use sidebar for toc */
+        .manual-layout { display: grid; grid-template-columns: 260px 1fr; gap: 3rem; align-items: start; }
+        @media (max-width: 900px) { .manual-layout { grid-template-columns: 1fr; } .manual-toc { display: none; } }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <!-- Header -->
+            <header class="article-header" style="max-width:800px;margin:0 auto 3rem;">
+                <a href="golang-tech-insights.html" class="back-link">&larr; Back to Go Tech Insights</a>
+                <div class="post-meta">
+                    <span class="post-date">Feb 2026</span>
+                    <span class="post-reading">~3 hr read</span>
+                </div>
+                <h1>Go 4 Microservices Crash Course</h1>
+                <div class="post-tags">
+                    <span>Go</span><span>Microservices</span><span>REST</span><span>Kafka</span><span>Docker</span><span>JWT</span><span>Consul</span>
+                </div>
+                <p class="lead">Go was designed at Google to solve the real-world problems of large-scale distributed systems: slow compilation, poor concurrency support, and bloated runtimes. The result is a language that feels almost deceptively simple on the surface, yet scales effortlessly to handle millions of concurrent requests. This manual is your end-to-end companion for mastering Go in the context of microservices.</p>
+                <p class="lead" style="margin-top: 1rem;">We begin from the ground up &mdash; installing the toolchain, understanding Go's static type system, and grasping the idiomatic patterns that make Go code clean and maintainable. From there we move into the language's crown jewel: <strong>goroutines and channels</strong>, lightweight concurrency primitives that let you write highly parallel code without the complexity of threads or callbacks. You will learn not only the basics but also advanced patterns like fan-in/fan-out pipelines, worker pools, and context-driven cancellation.</p>
+                <p class="lead" style="margin-top: 1rem;">The middle sections tackle the day-to-day concerns of production services: <strong>structured logging</strong> with Go 1.21's <code>log/slog</code>, <strong>application configuration</strong> via flags, environment variables, and Viper, <strong>HTTP servers</strong> with routing middleware and graceful shutdown, and <strong>REST API clients</strong> with retry logic and exponential backoff. We then cover data persistence through both raw SQL with <code>database/sql</code> and the GORM ORM, including connection pooling, transactions, and relationship mapping.</p>
+                <p class="lead" style="margin-top: 1rem;">The final part focuses squarely on microservices concerns: securing endpoints with <strong>JWT access and refresh tokens</strong> backed by bcrypt-hashed passwords; decoupling services with <strong>RabbitMQ</strong> (AMQP, dead-letter queues, publisher confirms) and <strong>Apache Kafka</strong> (consumer groups, offset management, exactly-once semantics); enabling dynamic <strong>service discovery</strong> through HashiCorp Consul with health checks and client-side load balancing; protecting sensitive data with <strong>AES-256-GCM symmetric encryption</strong> and HMAC integrity verification; and finally packaging everything into minimal Docker images via multi-stage builds and deploying to Kubernetes. By the end, you will have a complete, battle-tested toolkit for building, securing, and operating Go microservices in production.</p>
+            </header>
+
+            <div class="manual-layout">
+                <!-- Table of Contents -->
+                <nav class="manual-toc">
+                    <h4>Table of Contents</h4>
+                    <ol>
+                        <li><span class="part-label">Part 1 &mdash; Language Fundamentals</span>
+                            <ol class="toc-sub">
+                                <li><a href="#s1">1. Installation &amp; Hello World</a></li>
+                                <li><a href="#s2">2. Data Types &amp; Variables</a></li>
+                                <li><a href="#s3">3. Control Flow</a></li>
+                                <li><a href="#s4">4. Functions &amp; Packages</a></li>
+                                <li><a href="#s5">5. OOP: Structs, Methods &amp; Interfaces</a></li>
+                                <li><a href="#s6">6. Error Handling</a></li>
+                            </ol>
+                        </li>
+                        <li><span class="part-label">Part 2 &mdash; I/O &amp; Data</span>
+                            <ol class="toc-sub">
+                                <li><a href="#s7">7. File Handling</a></li>
+                                <li><a href="#s8">8. Working with JSON</a></li>
+                                <li><a href="#s9">9. Application Configuration</a></li>
+                            </ol>
+                        </li>
+                        <li><span class="part-label">Part 3 &mdash; Concurrency</span>
+                            <ol class="toc-sub">
+                                <li><a href="#s10">10. Goroutines &amp; Channels</a></li>
+                                <li><a href="#s11">11. Advanced Concurrency Patterns</a></li>
+                                <li><a href="#s12">12. Periodic Tasks &amp; Scheduling</a></li>
+                            </ol>
+                        </li>
+                        <li><span class="part-label">Part 4 &mdash; HTTP &amp; APIs</span>
+                            <ol class="toc-sub">
+                                <li><a href="#s13">13. HTTP Server</a></li>
+                                <li><a href="#s14">14. REST API Client</a></li>
+                                <li><a href="#s15">15. Application Logging</a></li>
+                            </ol>
+                        </li>
+                        <li><span class="part-label">Part 5 &mdash; Data Storage</span>
+                            <ol class="toc-sub">
+                                <li><a href="#s16">16. SQL with MySQL</a></li>
+                                <li><a href="#s17">17. ORM with GORM</a></li>
+                            </ol>
+                        </li>
+                        <li><span class="part-label">Part 6 &mdash; Microservices</span>
+                            <ol class="toc-sub">
+                                <li><a href="#s18">18. JWT Authentication</a></li>
+                                <li><a href="#s19">19. Messaging: RabbitMQ &amp; Kafka</a></li>
+                                <li><a href="#s20">20. Service Registry &amp; Discovery</a></li>
+                                <li><a href="#s21">21. Symmetric Cryptography</a></li>
+                                <li><a href="#s22">22. Cross-Compiling &amp; Docker</a></li>
+                            </ol>
+                        </li>
+                    </ol>
+                </nav>
+
+                <!-- Main Content -->
+                <div class="article-main">
+                    <div class="article-body">
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PART 1 — LANGUAGE FUNDAMENTALS
+═══════════════════════════════════════════════════════════════ -->
+<div class="part-header">Part 1 &mdash; Language Fundamentals</div>
+
+<!-- ─── Section 1 ─── -->
+<div class="manual-section" id="s1">
+<h2>1. Installation &amp; Hello World</h2>
+<p>Go is a compiled, statically-typed language designed for simplicity, high performance, and excellent concurrency. It compiles to a single binary with no runtime dependencies, making it ideal for microservices and containerized workloads.</p>
+
+<h3>Download &amp; Install</h3>
+<ol>
+    <li>Download from <code>https://golang.org/dl/</code> and choose the appropriate installer for your OS.</li>
+    <li><strong>Windows:</strong> run the <code>.msi</code> installer &mdash; it sets up <code>PATH</code> automatically.</li>
+    <li><strong>Linux/macOS:</strong> extract the archive and add Go to your shell profile:
+        <pre><code class="language-bash">tar -C /usr/local -xzf go1.22.linux-amd64.tar.gz
+echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
+source ~/.bashrc</code></pre>
+    </li>
+    <li>Verify: <code>go version</code></li>
+</ol>
+
+<h3>Your First Go Program</h3>
+<pre><code class="language-go">package main
+
+import "fmt"
+
+func main() {
+    fmt.Println("Hello, World!")
+}</code></pre>
+
+<p>Run it without compiling first: <code>go run hello.go</code></p>
+<p>Build a binary: <code>go build -o hello hello.go &amp;&amp; ./hello</code></p>
+
+<h3>Go Modules</h3>
+<p>Every modern Go project is a <em>module</em>. Create one with:</p>
+<pre><code class="language-bash">mkdir myapp &amp;&amp; cd myapp
+go mod init example.com/myapp  # creates go.mod
+go get github.com/some/package  # adds dependencies, creates go.sum</code></pre>
+
+<div class="callout tip"><strong>Tip:</strong> <code>go.mod</code> declares the module path and dependency versions. <code>go.sum</code> contains cryptographic checksums for reproducible builds. Both must be committed to version control.</div>
+</div>
+
+<!-- ─── Section 2 ─── -->
+<div class="manual-section" id="s2">
+<h2>2. Data Types &amp; Variables</h2>
+
+<h3>Primitive Types</h3>
+<table>
+    <thead><tr><th>Type</th><th>Size</th><th>Example</th></tr></thead>
+    <tbody>
+        <tr><td><code>bool</code></td><td>1 byte</td><td><code>var ok bool = true</code></td></tr>
+        <tr><td><code>int / int8 / int16 / int32 / int64</code></td><td>platform / fixed</td><td><code>var n int = 42</code></td></tr>
+        <tr><td><code>uint / uint8 / uint16 / uint32 / uint64</code></td><td>unsigned</td><td><code>var u uint = 100</code></td></tr>
+        <tr><td><code>float32 / float64</code></td><td>4 / 8 bytes</td><td><code>var f float64 = 3.14</code></td></tr>
+        <tr><td><code>complex64 / complex128</code></td><td>8 / 16 bytes</td><td><code>var c complex128 = 1 + 2i</code></td></tr>
+        <tr><td><code>string</code></td><td>variable</td><td><code>var s string = "hello"</code></td></tr>
+        <tr><td><code>byte</code></td><td>alias for uint8</td><td><code>var b byte = 'A'</code></td></tr>
+        <tr><td><code>rune</code></td><td>alias for int32</td><td><code>var r rune = '€'</code></td></tr>
+    </tbody>
+</table>
+
+<h3>Variable Declaration Styles</h3>
+<pre><code class="language-go">// Explicit type
+var x int = 10
+var name string = "Alice"
+
+// Type inference (long form)
+var age = 30
+
+// Short declaration (inside functions only)
+city := "Rome"
+a, b, c := 1, 2, 3
+
+// Multiple declaration
+var (
+    host = "localhost"
+    port = 8080
+    debug = false
+)
+
+// Constants
+const Pi = 3.14159
+const (
+    StatusOK  = 200
+    StatusErr = 500
+)</code></pre>
+
+<div class="callout warn"><strong>Important:</strong> All declared variables <em>must</em> be used; unused variables are a compile error in Go. This keeps code clean by design.</div>
+
+<h3>Composite Types</h3>
+<pre><code class="language-go">// Array (fixed length)
+var nums [5]int
+nums := [...]int{1, 2, 3, 4, 5}
+
+// Slice (dynamic)
+s := []string{"a", "b", "c"}
+s = append(s, "d")
+sub := s[1:3]       // ["b", "c"]
+
+// Map (key-value)
+m := make(map[string]int)
+m["apples"] = 3
+val, exists := m["oranges"]   // exists is false
+
+// Struct
+type Point struct {
+    X, Y float64
+}
+p := Point{X: 1.5, Y: 2.0}
+fmt.Println(p.X)</code></pre>
+
+<h3>Pointers</h3>
+<pre><code class="language-go">x := 42
+ptr := &amp;x       // ptr holds the address of x
+fmt.Println(*ptr)  // dereference: prints 42
+*ptr = 100         // modifies x through the pointer
+fmt.Println(x)     // 100
+
+// Useful for modifying values inside functions
+func double(n *int) { *n *= 2 }
+double(&amp;x)</code></pre>
+
+<h3>Strings</h3>
+<pre><code class="language-go">import "strings"
+
+s := "Hello, Microservices!"
+fmt.Println(len(s))                        // byte length
+fmt.Println(strings.Contains(s, "Micro"))  // true
+fmt.Println(strings.ToUpper(s))
+fmt.Println(strings.Replace(s, "Hello", "Hi", 1))
+parts := strings.Split("a,b,c", ",")       // ["a","b","c"]
+fmt.Println(strings.Join(parts, " | "))    // "a | b | c"
+
+// String formatting
+name, port := "api", 8080
+addr := fmt.Sprintf("%s:%d", name, port)   // "api:8080"</code></pre>
+</div>
+
+<!-- ─── Section 3 ─── -->
+<div class="manual-section" id="s3">
+<h2>3. Control Flow</h2>
+
+<h3>If / Else If / Else</h3>
+<pre><code class="language-go">x := 42
+
+if x &gt; 100 {
+    fmt.Println("large")
+} else if x &gt; 10 {
+    fmt.Println("medium")
+} else {
+    fmt.Println("small")
+}
+
+// If with init statement (scopes val to the if block)
+if val, err := strconv.Atoi("123"); err == nil {
+    fmt.Println("Parsed:", val)
+}</code></pre>
+
+<h3>For Loops</h3>
+<p>Go has a single <code>for</code> keyword that replaces <code>while</code>, <code>do-while</code>, and <code>for</code> from other languages.</p>
+<pre><code class="language-go">// Classic C-style
+for i := 0; i &lt; 5; i++ {
+    fmt.Println(i)
+}
+
+// While-style
+i := 0
+for i &lt; 5 {
+    i++
+}
+
+// Infinite loop
+for {
+    // do work
+    break  // exit when done
+}
+
+// Range over slice
+fruits := []string{"apple", "banana", "cherry"}
+for idx, fruit := range fruits {
+    fmt.Printf("%d: %s\n", idx, fruit)
+}
+
+// Range over map
+scores := map[string]int{"Alice": 90, "Bob": 75}
+for name, score := range scores {
+    fmt.Printf("%s scored %d\n", name, score)
+}
+
+// Break and continue
+for i := 1; i &lt;= 10; i++ {
+    if i == 5 { continue }   // skip 5
+    if i == 8 { break }      // stop at 8
+    fmt.Println(i)
+}</code></pre>
+
+<h3>Switch</h3>
+<pre><code class="language-go">day := "Monday"
+switch day {
+case "Monday", "Tuesday", "Wednesday", "Thursday", "Friday":
+    fmt.Println("Weekday")
+case "Saturday", "Sunday":
+    fmt.Println("Weekend")
+default:
+    fmt.Println("Unknown")
+}
+
+// Switch without expression (acts like if-else)
+score := 85
+switch {
+case score >= 90:
+    fmt.Println("A")
+case score >= 80:
+    fmt.Println("B")
+default:
+    fmt.Println("C or below")
+}
+
+// Type switch (common with interfaces)
+func describe(i interface{}) {
+    switch v := i.(type) {
+    case int:
+        fmt.Printf("Integer: %d\n", v)
+    case string:
+        fmt.Printf("String: %s\n", v)
+    default:
+        fmt.Printf("Unknown type: %T\n", v)
+    }
+}</code></pre>
+
+<h3>Defer</h3>
+<p><code>defer</code> schedules a function call to run when the surrounding function returns. Defers stack (LIFO) and are commonly used for cleanup.</p>
+<pre><code class="language-go">func processFile(path string) error {
+    f, err := os.Open(path)
+    if err != nil { return err }
+    defer f.Close()  // always runs, even if we return early with an error
+
+    // process file...
+    return nil
+}</code></pre>
+</div>
+
+<!-- ─── Section 4 ─── -->
+<div class="manual-section" id="s4">
+<h2>4. Functions &amp; Packages</h2>
+
+<h3>Function Signatures</h3>
+<pre><code class="language-go">// Basic function
+func greet(name string) string {
+    return "Hello, " + name
+}
+
+// Multiple parameters of the same type
+func add(a, b int) int {
+    return a + b
+}
+
+// Multiple return values (idiomatic Go)
+func divide(a, b float64) (float64, error) {
+    if b == 0 {
+        return 0, errors.New("division by zero")
+    }
+    return a / b, nil
+}
+
+result, err := divide(10, 3)
+if err != nil {
+    log.Fatal(err)
+}
+
+// Named return values
+func minMax(nums []int) (min, max int) {
+    min, max = nums[0], nums[0]
+    for _, n := range nums[1:] {
+        if n &lt; min { min = n }
+        if n &gt; max { max = n }
+    }
+    return  // naked return
+}
+
+// Variadic functions
+func sum(nums ...int) int {
+    total := 0
+    for _, n := range nums { total += n }
+    return total
+}
+fmt.Println(sum(1, 2, 3, 4))   // 10
+fmt.Println(sum(nums...))       // spread a slice</code></pre>
+
+<h3>First-Class Functions</h3>
+<pre><code class="language-go">// Function as variable
+double := func(n int) int { return n * 2 }
+fmt.Println(double(5))   // 10
+
+// Function as parameter (higher-order functions)
+func apply(nums []int, fn func(int) int) []int {
+    out := make([]int, len(nums))
+    for i, n := range nums {
+        out[i] = fn(n)
+    }
+    return out
+}
+result := apply([]int{1, 2, 3}, double)  // [2, 4, 6]
+
+// Closures capture surrounding scope
+func counter() func() int {
+    n := 0
+    return func() int {
+        n++
+        return n
+    }
+}
+c := counter()
+fmt.Println(c(), c(), c())  // 1 2 3</code></pre>
+
+<h3>Package Visibility</h3>
+<pre><code class="language-go">package myservice
+
+// Exported (capital first letter) — accessible from other packages
+func ProcessOrder(id string) error { /* ... */ }
+var MaxRetries = 3
+
+// Unexported (lowercase) — package-private
+func validateID(id string) bool { /* ... */ }
+var internalCache = map[string]bool{}</code></pre>
+
+<div class="callout tip"><strong>Tip:</strong> In Go, capitalization <em>is</em> the access control mechanism &mdash; there is no <code>public</code>/<code>private</code> keyword. This rule applies uniformly to functions, types, variables, and struct fields.</div>
+
+<h3>The init Function</h3>
+<pre><code class="language-go">package main
+
+var config *Config
+
+func init() {
+    // Runs automatically before main(), once per package.
+    // Use sparingly; prefer explicit initialization.
+    config = loadConfig()
+}
+
+func main() {
+    // config is already set
+}</code></pre>
+</div>
+
+<!-- ─── Section 5 ─── -->
+<div class="manual-section" id="s5">
+<h2>5. OOP: Structs, Methods &amp; Interfaces</h2>
+<p>Go doesn't have classes or inheritance, but it achieves object-oriented design through <strong>structs</strong> (data), <strong>methods</strong> (behavior), <strong>interfaces</strong> (contracts), and <strong>embedding</strong> (composition).</p>
+
+<h3>Structs &amp; Methods</h3>
+<pre><code class="language-go">type Rectangle struct {
+    Width  float64
+    Height float64
+}
+
+// Value receiver — operates on a copy
+func (r Rectangle) Area() float64 {
+    return r.Width * r.Height
+}
+
+// Pointer receiver — can modify the struct
+func (r *Rectangle) Scale(factor float64) {
+    r.Width *= factor
+    r.Height *= factor
+}
+
+rect := Rectangle{Width: 10, Height: 5}
+fmt.Println(rect.Area())   // 50
+rect.Scale(2)
+fmt.Println(rect.Area())   // 200</code></pre>
+
+<h3>Embedding (Composition over Inheritance)</h3>
+<pre><code class="language-go">type Person struct {
+    Name string
+    Age  int
+}
+
+func (p Person) Introduce() string {
+    return fmt.Sprintf("I'm %s, age %d", p.Name, p.Age)
+}
+
+type Employee struct {
+    Person               // embedded — promotes all fields and methods
+    CompanyID string
+    Role      string
+}
+
+emp := Employee{
+    Person:    Person{Name: "Alice", Age: 30},
+    CompanyID: "CORP-001",
+    Role:      "Engineer",
+}
+fmt.Println(emp.Name)        // promoted field
+fmt.Println(emp.Introduce()) // promoted method</code></pre>
+
+<h3>Interfaces</h3>
+<p>An interface is a set of method signatures. Any type that implements all the methods satisfies the interface <em>implicitly</em> &mdash; no explicit declaration needed.</p>
+<pre><code class="language-go">type Storer interface {
+    Save(key, value string) error
+    Load(key string) (string, error)
+    Delete(key string) error
+}
+
+// In-memory implementation
+type MemStore struct {
+    data map[string]string
+}
+
+func NewMemStore() *MemStore {
+    return &amp;MemStore{data: make(map[string]string)}
+}
+
+func (m *MemStore) Save(key, value string) error {
+    m.data[key] = value
+    return nil
+}
+
+func (m *MemStore) Load(key string) (string, error) {
+    v, ok := m.data[key]
+    if !ok { return "", fmt.Errorf("key not found: %s", key) }
+    return v, nil
+}
+
+func (m *MemStore) Delete(key string) error {
+    delete(m.data, key)
+    return nil
+}
+
+// Function accepts any Storer — easy to test with mocks
+func processItem(s Storer, key, val string) {
+    if err := s.Save(key, val); err != nil {
+        log.Fatal(err)
+    }
+}</code></pre>
+
+<h3>The Empty Interface &amp; Type Assertions</h3>
+<pre><code class="language-go">// any (alias for interface{}) accepts any value
+func printAnything(v any) {
+    fmt.Printf("value=%v type=%T\n", v, v)
+}
+
+// Type assertion
+var i any = "hello"
+s, ok := i.(string)   // safe assertion
+if ok {
+    fmt.Println("string length:", len(s))
+}</code></pre>
+
+<h3>Constructor Patterns</h3>
+<pre><code class="language-go">type Server struct {
+    host    string
+    port    int
+    timeout time.Duration
+}
+
+func NewServer(host string, port int) *Server {
+    return &amp;Server{
+        host:    host,
+        port:    port,
+        timeout: 30 * time.Second,
+    }
+}
+
+func (s *Server) WithTimeout(d time.Duration) *Server {
+    s.timeout = d
+    return s   // fluent builder pattern
+}</code></pre>
+</div>
+
+<!-- ─── Section 6 ─── -->
+<div class="manual-section" id="s6">
+<h2>6. Error Handling</h2>
+<p>Go uses explicit error return values instead of exceptions. Every function that can fail should return an <code>error</code> as its last return value. This forces callers to handle failures immediately.</p>
+
+<h3>The error Interface</h3>
+<pre><code class="language-go">type error interface {
+    Error() string
+}
+
+// Create simple errors
+err := errors.New("something went wrong")
+err = fmt.Errorf("user %d not found", userID)
+
+// Pattern: return (value, error)
+func getUser(id int) (*User, error) {
+    if id &lt;= 0 {
+        return nil, fmt.Errorf("invalid user id: %d", id)
+    }
+    return &amp;User{ID: id}, nil
+}
+
+user, err := getUser(0)
+if err != nil {
+    log.Printf("error: %v", err)
+    return
+}
+fmt.Println(user.ID)</code></pre>
+
+<h3>Wrapping Errors (Go 1.13+)</h3>
+<p>Use <code>%w</code> in <code>fmt.Errorf</code> to wrap errors — this preserves the original error for inspection with <code>errors.Is</code> and <code>errors.As</code>.</p>
+<pre><code class="language-go">var ErrNotFound = errors.New("not found")
+
+func findItem(id string) (*Item, error) {
+    item, ok := store[id]
+    if !ok {
+        return nil, fmt.Errorf("findItem(%s): %w", id, ErrNotFound)
+    }
+    return item, nil
+}
+
+// Caller can test for specific errors
+item, err := findItem("xyz")
+if errors.Is(err, ErrNotFound) {
+    // respond with 404
+} else if err != nil {
+    // unexpected error — log and 500
+}</code></pre>
+
+<h3>Custom Error Types</h3>
+<pre><code class="language-go">type ValidationError struct {
+    Field   string
+    Message string
+}
+
+func (e *ValidationError) Error() string {
+    return fmt.Sprintf("validation failed on field '%s': %s", e.Field, e.Message)
+}
+
+func validateEmail(email string) error {
+    if !strings.Contains(email, "@") {
+        return &amp;ValidationError{Field: "email", Message: "must contain @"}
+    }
+    return nil
+}
+
+err := validateEmail("notanemail")
+var ve *ValidationError
+if errors.As(err, &amp;ve) {
+    fmt.Println("Field:", ve.Field)
+}</code></pre>
+
+<h3>Panic &amp; Recover</h3>
+<p>Use <code>panic</code> only for truly unrecoverable programmer errors. Use <code>recover</code> in deferred functions to contain panics (e.g., in HTTP middleware).</p>
+<pre><code class="language-go">func safeHandler(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        defer func() {
+            if rec := recover(); rec != nil {
+                log.Printf("panic recovered: %v\n%s", rec, debug.Stack())
+                http.Error(w, "internal server error", http.StatusInternalServerError)
+            }
+        }()
+        next.ServeHTTP(w, r)
+    })
+}</code></pre>
+
+<h3>Best Practices</h3>
+<ul class="checklist">
+    <li>Check errors immediately; return early on failure (&ldquo;fail fast&rdquo;).</li>
+    <li>Wrap errors with context using <code>fmt.Errorf("op: %w", err)</code>.</li>
+    <li>Define sentinel errors (<code>var ErrXxx = errors.New(...)</code>) for reusable comparisons.</li>
+    <li>Use <code>errors.Is</code> to check error identity; <code>errors.As</code> to extract type.</li>
+    <li>Log once at the boundary &mdash; don't propagate the same error log up the call stack.</li>
+</ul>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PART 2 — I/O & DATA
+═══════════════════════════════════════════════════════════════ -->
+<div class="part-header" style="margin-top:3rem;">Part 2 &mdash; I/O &amp; Data</div>
+
+<!-- ─── Section 7 ─── -->
+<div class="manual-section" id="s7">
+<h2>7. File Handling</h2>
+<p>Go's standard library provides everything needed for file I/O through the <code>os</code>, <code>io</code>, and <code>bufio</code> packages.</p>
+
+<h3>Writing Files</h3>
+<pre><code class="language-go">package main
+
+import (
+    "bufio"
+    "os"
+)
+
+func main() {
+    // Create (or truncate) and write
+    f, err := os.Create("data.txt")
+    if err != nil { panic(err) }
+    defer f.Close()
+
+    // Direct write
+    f.WriteString("line 1\n")
+
+    // Buffered write (more efficient for many small writes)
+    w := bufio.NewWriter(f)
+    w.WriteString("line 2\n")
+    w.WriteString("line 3\n")
+    w.Flush()  // must flush!
+
+    // WriteFile convenience (creates + writes + closes)
+    data := []byte("all at once\n")
+    os.WriteFile("output.txt", data, 0644)
+}</code></pre>
+
+<h3>Reading Files</h3>
+<pre><code class="language-go">// Read entire file (small files only)
+data, err := os.ReadFile("data.txt")
+if err != nil { panic(err) }
+fmt.Println(string(data))
+
+// Line-by-line (large files, efficient)
+f, _ := os.Open("data.txt")
+defer f.Close()
+
+scanner := bufio.NewScanner(f)
+for scanner.Scan() {
+    line := scanner.Text()
+    fmt.Println(line)
+}
+if err := scanner.Err(); err != nil {
+    log.Fatal(err)
+}</code></pre>
+
+<h3>Appending to Files</h3>
+<pre><code class="language-go">f, err := os.OpenFile("log.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+if err != nil { panic(err) }
+defer f.Close()
+fmt.Fprintln(f, "new log entry")</code></pre>
+
+<h3>File Management</h3>
+<pre><code class="language-go">os.Rename("old.txt", "new.txt")
+os.Remove("new.txt")
+os.MkdirAll("a/b/c", 0755)  // create nested directories
+
+// Check if file exists
+_, err := os.Stat("config.yaml")
+if os.IsNotExist(err) {
+    fmt.Println("file does not exist")
+}</code></pre>
+
+<h3>Best Practices</h3>
+<ul class="checklist">
+    <li>Always <code>defer file.Close()</code> immediately after a successful <code>Open</code> or <code>Create</code>.</li>
+    <li>Use <code>bufio.Scanner</code> for large text files to avoid loading everything into memory.</li>
+    <li>Prefer <code>os.ReadFile</code> / <code>os.WriteFile</code> for small, complete file operations.</li>
+    <li>Always check errors on <code>scanner.Err()</code> after a range loop.</li>
+</ul>
+</div>
+
+<!-- ─── Section 8 ─── -->
+<div class="manual-section" id="s8">
+<h2>8. Working with JSON</h2>
+<p>JSON is the lingua franca of microservices. Go's <code>encoding/json</code> package handles all common use cases natively.</p>
+
+<h3>Encoding (Struct → JSON)</h3>
+<pre><code class="language-go">package main
+
+import (
+    "encoding/json"
+    "fmt"
+)
+
+type User struct {
+    ID       int    `json:"id"`
+    Name     string `json:"name"`
+    Email    string `json:"email,omitempty"`  // omit if empty
+    Password string `json:"-"`                // never include in JSON
+}
+
+func main() {
+    u := User{ID: 1, Name: "Alice", Email: "alice@example.com", Password: "secret"}
+
+    // Compact JSON
+    data, _ := json.Marshal(u)
+    fmt.Println(string(data))
+    // {"id":1,"name":"Alice","email":"alice@example.com"}
+
+    // Pretty-printed JSON
+    pretty, _ := json.MarshalIndent(u, "", "  ")
+    fmt.Println(string(pretty))
+}</code></pre>
+
+<h3>Decoding (JSON → Struct)</h3>
+<pre><code class="language-go">jsonStr := `{"id":2,"name":"Bob","email":"bob@example.com"}`
+var u User
+if err := json.Unmarshal([]byte(jsonStr), &amp;u); err != nil {
+    log.Fatal(err)
+}
+fmt.Printf("User: %+v\n", u)</code></pre>
+
+<h3>HTTP Encode/Decode</h3>
+<pre><code class="language-go">// In an HTTP handler
+func createUserHandler(w http.ResponseWriter, r *http.Request) {
+    var user User
+    if err := json.NewDecoder(r.Body).Decode(&amp;user); err != nil {
+        http.Error(w, "invalid JSON", http.StatusBadRequest)
+        return
+    }
+    // process...
+    w.Header().Set("Content-Type", "application/json")
+    w.WriteHeader(http.StatusCreated)
+    json.NewEncoder(w).Encode(user)
+}</code></pre>
+
+<h3>Dynamic / Unknown Structure</h3>
+<pre><code class="language-go">// Unmarshal into a map when structure is unknown
+raw := `{"event":"login","user_id":42,"metadata":{"ip":"1.2.3.4"}}`
+var data map[string]any
+_ = json.Unmarshal([]byte(raw), &amp;data)
+fmt.Println("event:", data["event"])
+
+// Streaming large JSON arrays
+decoder := json.NewDecoder(file)
+decoder.Token()  // consume opening '['
+for decoder.More() {
+    var record Record
+    decoder.Decode(&amp;record)
+    process(record)
+}</code></pre>
+
+<h3>Nested Structures</h3>
+<pre><code class="language-go">type Address struct {
+    Street string `json:"street"`
+    City   string `json:"city"`
+}
+
+type Profile struct {
+    User    User    `json:"user"`
+    Address Address `json:"address"`
+    Tags    []string `json:"tags"`
+}
+
+p := Profile{
+    User:    User{ID: 1, Name: "Alice"},
+    Address: Address{Street: "Via Roma 1", City: "Milan"},
+    Tags:    []string{"admin", "beta-tester"},
+}
+data, _ := json.MarshalIndent(p, "", "  ")
+fmt.Println(string(data))</code></pre>
+</div>
+
+<!-- ─── Section 9 ─── -->
+<div class="manual-section" id="s9">
+<h2>9. Application Configuration</h2>
+<p>Modern 12-Factor apps accept configuration from multiple sources. The canonical precedence is: <strong>Flags &gt; Environment Variables &gt; Config File &gt; Defaults</strong>.</p>
+
+<h3>Command-Line Flags</h3>
+<pre><code class="language-go">import "flag"
+
+var (
+    port    = flag.Int("port", 8080, "HTTP port to listen on")
+    host    = flag.String("host", "0.0.0.0", "Bind address")
+    verbose = flag.Bool("verbose", false, "Enable verbose logging")
+)
+
+func main() {
+    flag.Parse()
+    fmt.Printf("Starting on %s:%d\n", *host, *port)
+}</code></pre>
+
+<h3>Environment Variables</h3>
+<pre><code class="language-go">import "os"
+
+dbURL := os.Getenv("DATABASE_URL")
+if dbURL == "" {
+    dbURL = "postgres://localhost:5432/app"  // default
+}
+
+// os.LookupEnv distinguishes "not set" from "empty"
+jwtSecret, ok := os.LookupEnv("JWT_SECRET")
+if !ok {
+    log.Fatal("JWT_SECRET must be set")
+}</code></pre>
+
+<h3>Viper — Config Files + Env + Flags Combined</h3>
+<pre><code class="language-bash">go get github.com/spf13/viper</code></pre>
+<p>Example <code>config.yaml</code>:</p>
+<pre><code class="language-yaml">server:
+  host: "0.0.0.0"
+  port: 8080
+log:
+  level: "info"
+database:
+  url: "postgres://user:pass@localhost:5432/app?sslmode=disable"</code></pre>
+
+<pre><code class="language-go">package main
+
+import (
+    "log"
+    "strings"
+    "github.com/spf13/viper"
+)
+
+type Config struct {
+    Server   struct { Host string; Port int }
+    Log      struct { Level string; JSON bool }
+    Database struct { URL string }
+}
+
+func loadConfig() Config {
+    // Defaults
+    viper.SetDefault("server.host", "0.0.0.0")
+    viper.SetDefault("server.port", 8080)
+    viper.SetDefault("log.level", "info")
+
+    // File
+    viper.SetConfigName("config")
+    viper.SetConfigType("yaml")
+    viper.AddConfigPath(".")
+    _ = viper.ReadInConfig()
+
+    // Env vars with APP_ prefix (APP_SERVER_PORT overrides server.port)
+    viper.SetEnvPrefix("APP")
+    viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+    viper.AutomaticEnv()
+
+    var cfg Config
+    if err := viper.Unmarshal(&amp;cfg); err != nil {
+        log.Fatalf("config unmarshal: %v", err)
+    }
+    return cfg
+}</code></pre>
+
+<h3>Configuration Validation</h3>
+<pre><code class="language-go">func validate(cfg Config) error {
+    if cfg.Server.Port &lt;= 0 || cfg.Server.Port &gt; 65535 {
+        return fmt.Errorf("server.port out of range: %d", cfg.Server.Port)
+    }
+    if cfg.Database.URL == "" {
+        return fmt.Errorf("database.url is required")
+    }
+    return nil
+}
+
+cfg := loadConfig()
+if err := validate(cfg); err != nil {
+    log.Fatalf("invalid config: %v", err)
+}</code></pre>
+
+<h3>Kubernetes ConfigMap &amp; Secrets</h3>
+<pre><code class="language-yaml">apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+data:
+  APP_LOG_LEVEL: "info"
+  APP_SERVER_PORT: "8080"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secrets
+type: Opaque
+stringData:
+  DATABASE_URL: "postgres://user:pass@db:5432/app?sslmode=disable"
+  JWT_SECRET: "supersecret"</code></pre>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PART 3 — CONCURRENCY
+═══════════════════════════════════════════════════════════════ -->
+<div class="part-header" style="margin-top:3rem;">Part 3 &mdash; Concurrency</div>
+
+<!-- ─── Section 10 ─── -->
+<div class="manual-section" id="s10">
+<h2>10. Goroutines &amp; Channels</h2>
+<p>Go's concurrency model is built on two primitives: <strong>goroutines</strong> (lightweight threads managed by the Go runtime) and <strong>channels</strong> (typed, synchronized communication pipes). The mantra is: <em>"Don't communicate by sharing memory; share memory by communicating."</em></p>
+
+<h3>Goroutines</h3>
+<pre><code class="language-go">// Launch a goroutine with the 'go' keyword
+go func() {
+    fmt.Println("running concurrently")
+}()
+
+// Use sync.WaitGroup to wait for goroutines to finish
+var wg sync.WaitGroup
+
+for i := 0; i &lt; 5; i++ {
+    wg.Add(1)
+    go func(id int) {
+        defer wg.Done()
+        fmt.Printf("worker %d done\n", id)
+    }(i)
+}
+
+wg.Wait()  // block until all workers finish</code></pre>
+
+<h3>Channels</h3>
+<pre><code class="language-go">// Unbuffered channel — sender blocks until receiver is ready
+ch := make(chan string)
+
+go func() {
+    ch &lt;- "hello"   // send
+}()
+
+msg := &lt;-ch          // receive
+fmt.Println(msg)
+
+// Buffered channel — sender only blocks when buffer is full
+buffered := make(chan int, 5)
+buffered &lt;- 1   // doesn't block
+buffered &lt;- 2
+v := &lt;-buffered // 1</code></pre>
+
+<h3>Channel Direction &amp; Closing</h3>
+<pre><code class="language-go">// Directional channels enforce communication contracts
+func producer(out chan&lt;- int) {  // send-only
+    for i := 0; i &lt; 3; i++ {
+        out &lt;- i
+    }
+    close(out)  // signal: no more values
+}
+
+func consumer(in &lt;-chan int) {   // receive-only
+    for v := range in {           // loops until channel is closed
+        fmt.Println("got:", v)
+    }
+}
+
+ch := make(chan int)
+go producer(ch)
+consumer(ch)</code></pre>
+
+<div class="callout warn"><strong>Important:</strong> Only the <em>sender</em> should close a channel. Closing a channel from the receiving side or closing it twice causes a panic.</div>
+
+<h3>Select Statement</h3>
+<pre><code class="language-go">// select waits on multiple channels simultaneously
+func fanIn(ch1, ch2 &lt;-chan string) &lt;-chan string {
+    merged := make(chan string)
+    go func() {
+        for {
+            select {
+            case v := &lt;-ch1:
+                merged &lt;- v
+            case v := &lt;-ch2:
+                merged &lt;- v
+            }
+        }
+    }()
+    return merged
+}
+
+// Timeout pattern
+select {
+case result := &lt;-resultCh:
+    fmt.Println("got:", result)
+case &lt;-time.After(3 * time.Second):
+    fmt.Println("timed out")
+}
+
+// Non-blocking receive with default
+select {
+case msg := &lt;-ch:
+    process(msg)
+default:
+    // nothing available right now
+}</code></pre>
+
+<h3>Context for Cancellation</h3>
+<pre><code class="language-go">import "context"
+
+func slowOperation(ctx context.Context) error {
+    select {
+    case &lt;-time.After(5 * time.Second):
+        return nil
+    case &lt;-ctx.Done():
+        return ctx.Err()
+    }
+}
+
+// Cancel after timeout
+ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+defer cancel()
+
+if err := slowOperation(ctx); err != nil {
+    log.Println("cancelled:", err)
+}
+
+// Manual cancellation
+ctx, cancel = context.WithCancel(context.Background())
+go func() {
+    time.Sleep(1 * time.Second)
+    cancel()  // trigger cancellation
+}()
+</code></pre>
+</div>
+
+<!-- ─── Section 11 ─── -->
+<div class="manual-section" id="s11">
+<h2>11. Advanced Concurrency Patterns</h2>
+
+<h3>Worker Pool (Fan-Out / Fan-In)</h3>
+<p>Distribute work across a fixed number of goroutines to control concurrency and resource usage.</p>
+<pre><code class="language-go">package main
+
+import (
+    "fmt"
+    "sync"
+)
+
+func worker(id int, jobs &lt;-chan int, results chan&lt;- int, wg *sync.WaitGroup) {
+    defer wg.Done()
+    for j := range jobs {
+        results &lt;- j * j  // simulate CPU work
+    }
+}
+
+func main() {
+    const numWorkers = 4
+    jobs    := make(chan int, 100)
+    results := make(chan int, 100)
+    var wg sync.WaitGroup
+
+    // Start workers
+    for w := 0; w &lt; numWorkers; w++ {
+        wg.Add(1)
+        go worker(w, jobs, results, &amp;wg)
+    }
+
+    // Send jobs
+    for i := 1; i &lt;= 20; i++ {
+        jobs &lt;- i
+    }
+    close(jobs)
+
+    // Close results when all workers finish
+    go func() {
+        wg.Wait()
+        close(results)
+    }()
+
+    // Collect results
+    for r := range results {
+        fmt.Println(r)
+    }
+}</code></pre>
+
+<h3>Pipeline Pattern</h3>
+<pre><code class="language-go">func generate(nums ...int) &lt;-chan int {
+    out := make(chan int)
+    go func() {
+        for _, n := range nums { out &lt;- n }
+        close(out)
+    }()
+    return out
+}
+
+func square(in &lt;-chan int) &lt;-chan int {
+    out := make(chan int)
+    go func() {
+        for n := range in { out &lt;- n * n }
+        close(out)
+    }()
+    return out
+}
+
+func filter(in &lt;-chan int, pred func(int) bool) &lt;-chan int {
+    out := make(chan int)
+    go func() {
+        for n := range in {
+            if pred(n) { out &lt;- n }
+        }
+        close(out)
+    }()
+    return out
+}
+
+// Chain stages
+nums := generate(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+squares := square(nums)
+evens := filter(squares, func(n int) bool { return n%2 == 0 })
+for v := range evens {
+    fmt.Println(v)  // 4, 16, 36, 64, 100
+}</code></pre>
+
+<h3>Mutex for Shared State</h3>
+<pre><code class="language-go">import "sync"
+
+type SafeCounter struct {
+    mu    sync.Mutex
+    count int
+}
+
+func (c *SafeCounter) Increment() {
+    c.mu.Lock()
+    defer c.mu.Unlock()
+    c.count++
+}
+
+func (c *SafeCounter) Value() int {
+    c.mu.RLock()  // use RWMutex for read-heavy workloads
+    defer c.mu.RUnlock()
+    return c.count
+}
+
+// sync.Once — run initialization exactly once (thread-safe singleton)
+var (
+    once     sync.Once
+    instance *MyService
+)
+
+func GetInstance() *MyService {
+    once.Do(func() {
+        instance = &amp;MyService{}
+    })
+    return instance
+}</code></pre>
+
+<h3>Preventing Goroutine Leaks</h3>
+<div class="callout warn"><strong>Warning:</strong> Goroutines that are blocked forever (e.g., reading from a channel that nobody writes to) constitute a <em>goroutine leak</em>. Always provide a way for goroutines to exit.</div>
+<pre><code class="language-go">func startWorker(ctx context.Context) {
+    go func() {
+        ticker := time.NewTicker(1 * time.Second)
+        defer ticker.Stop()
+        for {
+            select {
+            case &lt;-ctx.Done():
+                fmt.Println("worker stopping")
+                return   // exits when context is cancelled
+            case &lt;-ticker.C:
+                doWork()
+            }
+        }
+    }()
+}
+
+ctx, cancel := context.WithCancel(context.Background())
+startWorker(ctx)
+// ... later
+cancel()  // signals the worker to stop</code></pre>
+</div>
+
+<!-- ─── Section 12 ─── -->
+<div class="manual-section" id="s12">
+<h2>12. Periodic Tasks &amp; Scheduling</h2>
+
+<h3>time.Ticker — Repeating Intervals</h3>
+<pre><code class="language-go">ticker := time.NewTicker(5 * time.Second)
+defer ticker.Stop()  // always stop to prevent goroutine leak
+
+ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+defer cancel()
+
+for {
+    select {
+    case &lt;-ctx.Done():
+        fmt.Println("shutting down")
+        return
+    case t := &lt;-ticker.C:
+        fmt.Println("tick at", t.Format(time.RFC3339))
+        runPeriodicJob()
+    }
+}</code></pre>
+
+<h3>Non-Overlapping Jobs</h3>
+<pre><code class="language-go">busy := make(chan struct{}, 1)  // capacity 1 = mutex-like behavior
+
+for range ticker.C {
+    select {
+    case busy &lt;- struct{}{}:   // acquired lock
+        go func() {
+            defer func() { &lt;-busy }()  // release lock
+            longRunningJob()
+        }()
+    default:
+        log.Println("previous run still in progress, skipping")
+    }
+}</code></pre>
+
+<h3>GoCron — Cron-like Scheduling</h3>
+<pre><code class="language-bash">go get github.com/go-co-op/gocron</code></pre>
+<pre><code class="language-go">loc, _ := time.LoadLocation("Europe/Rome")
+s := gocron.NewScheduler(loc)
+s.SingletonMode()  // prevent overlapping runs globally
+
+// Every 10 seconds
+s.Every(10).Seconds().Do(func() {
+    fmt.Println("running every 10s")
+})
+
+// Every day at 09:30
+s.Every(1).Day().At("09:30").Do(func() {
+    sendDailyReport()
+})
+
+// Cron expression (standard 5-field)
+s.Cron("0 2 * * *").Do(func() {
+    runNightlyCleanup()
+})
+
+s.StartAsync()
+
+// Graceful shutdown
+ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+defer stop()
+&lt;-ctx.Done()
+s.Stop()  // waits for running jobs to complete</code></pre>
+
+<h3>Cron Expression Reference</h3>
+<table>
+    <thead><tr><th>Expression</th><th>Meaning</th></tr></thead>
+    <tbody>
+        <tr><td><code>* * * * *</code></td><td>Every minute</td></tr>
+        <tr><td><code>0 * * * *</code></td><td>Every hour at minute 0</td></tr>
+        <tr><td><code>0 2 * * *</code></td><td>Every day at 02:00</td></tr>
+        <tr><td><code>0 9 * * 1</code></td><td>Every Monday at 09:00</td></tr>
+        <tr><td><code>*/15 * * * *</code></td><td>Every 15 minutes</td></tr>
+        <tr><td><code>0 0 1 * *</code></td><td>First day of every month at midnight</td></tr>
+    </tbody>
+</table>
+
+<h3>Production Checklist</h3>
+<ul class="checklist">
+    <li>Use context + signal handling for graceful shutdown on SIGTERM.</li>
+    <li>Prevent job overlap (singleton mode or buffered channel lock).</li>
+    <li>Add jitter to spread load when running multiple replicas.</li>
+    <li>Log start/end time and duration of each run.</li>
+    <li>Use a fixed timezone for human-readable schedules (DST!).</li>
+    <li>For distributed systems, use leader election to prevent duplicate runs.</li>
+</ul>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PART 4 — HTTP & APIS
+═══════════════════════════════════════════════════════════════ -->
+<div class="part-header" style="margin-top:3rem;">Part 4 &mdash; HTTP &amp; APIs</div>
+
+<!-- ─── Section 13 ─── -->
+<div class="manual-section" id="s13">
+<h2>13. HTTP Server</h2>
+<p>Go's <code>net/http</code> package provides a production-grade HTTP server out of the box. Each incoming request is handled in a separate goroutine automatically.</p>
+
+<h3>Minimal HTTP Server</h3>
+<pre><code class="language-go">package main
+
+import (
+    "encoding/json"
+    "log"
+    "net/http"
+    "time"
+)
+
+func main() {
+    mux := http.NewServeMux()
+
+    mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+        w.WriteHeader(http.StatusOK)
+        w.Write([]byte("OK"))
+    })
+
+    mux.HandleFunc("/hello", func(w http.ResponseWriter, r *http.Request) {
+        w.Header().Set("Content-Type", "application/json")
+        json.NewEncoder(w).Encode(map[string]string{"message": "Hello, World!"})
+    })
+
+    srv := &amp;http.Server{
+        Addr:         ":8080",
+        Handler:      mux,
+        ReadTimeout:  5 * time.Second,
+        WriteTimeout: 10 * time.Second,
+        IdleTimeout:  120 * time.Second,
+    }
+
+    log.Printf("Listening on %s", srv.Addr)
+    if err := srv.ListenAndServe(); err != nil &amp;&amp; err != http.ErrServerClosed {
+        log.Fatal(err)
+    }
+}</code></pre>
+
+<h3>Full CRUD REST API with Gorilla Mux</h3>
+<pre><code class="language-bash">go get -u github.com/gorilla/mux</code></pre>
+<pre><code class="language-go">package main
+
+import (
+    "encoding/json"
+    "log"
+    "net/http"
+    "sync"
+    "time"
+
+    "github.com/gorilla/mux"
+)
+
+type Book struct {
+    ID     string  `json:"id"`
+    Title  string  `json:"title"`
+    Author string  `json:"author"`
+    Price  float64 `json:"price"`
+}
+
+var (
+    books   = make(map[string]Book)
+    booksMu sync.RWMutex
+)
+
+func main() {
+    r := mux.NewRouter()
+    r.HandleFunc("/books", createBook).Methods(http.MethodPost)
+    r.HandleFunc("/books", listBooks).Methods(http.MethodGet)
+    r.HandleFunc("/books/{id}", getBook).Methods(http.MethodGet)
+    r.HandleFunc("/books/{id}", updateBook).Methods(http.MethodPut)
+    r.HandleFunc("/books/{id}", deleteBook).Methods(http.MethodDelete)
+
+    srv := &amp;http.Server{
+        Addr: ":8080", Handler: r,
+        ReadTimeout: 5 * time.Second, WriteTimeout: 10 * time.Second,
+    }
+    log.Fatal(srv.ListenAndServe())
+}
+
+func respond(w http.ResponseWriter, code int, v any) {
+    w.Header().Set("Content-Type", "application/json")
+    w.WriteHeader(code)
+    json.NewEncoder(w).Encode(v)
+}
+
+func createBook(w http.ResponseWriter, r *http.Request) {
+    var b Book
+    if err := json.NewDecoder(r.Body).Decode(&amp;b); err != nil {
+        http.Error(w, err.Error(), http.StatusBadRequest); return
+    }
+    booksMu.Lock()
+    books[b.ID] = b
+    booksMu.Unlock()
+    respond(w, http.StatusCreated, b)
+}
+
+func listBooks(w http.ResponseWriter, r *http.Request) {
+    booksMu.RLock()
+    list := make([]Book, 0, len(books))
+    for _, b := range books { list = append(list, b) }
+    booksMu.RUnlock()
+    respond(w, http.StatusOK, list)
+}
+
+func getBook(w http.ResponseWriter, r *http.Request) {
+    id := mux.Vars(r)["id"]
+    booksMu.RLock()
+    b, ok := books[id]
+    booksMu.RUnlock()
+    if !ok { http.Error(w, "not found", http.StatusNotFound); return }
+    respond(w, http.StatusOK, b)
+}
+
+func updateBook(w http.ResponseWriter, r *http.Request) {
+    id := mux.Vars(r)["id"]
+    var b Book
+    json.NewDecoder(r.Body).Decode(&amp;b)
+    b.ID = id
+    booksMu.Lock()
+    books[id] = b
+    booksMu.Unlock()
+    respond(w, http.StatusOK, b)
+}
+
+func deleteBook(w http.ResponseWriter, r *http.Request) {
+    id := mux.Vars(r)["id"]
+    booksMu.Lock()
+    delete(books, id)
+    booksMu.Unlock()
+    w.WriteHeader(http.StatusNoContent)
+}</code></pre>
+
+<h3>Graceful Shutdown</h3>
+<pre><code class="language-go">srv := &amp;http.Server{Addr: ":8080", Handler: mux}
+
+go func() {
+    if err := srv.ListenAndServe(); err != nil &amp;&amp; err != http.ErrServerClosed {
+        log.Fatal(err)
+    }
+}()
+
+quit := make(chan os.Signal, 1)
+signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+&lt;-quit  // block until signal
+
+ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+defer cancel()
+
+if err := srv.Shutdown(ctx); err != nil {
+    log.Fatal("forced shutdown:", err)
+}
+log.Println("server shut down gracefully")</code></pre>
+
+<h3>HTTPS / TLS</h3>
+<pre><code class="language-bash"># Generate a self-signed certificate for development
+openssl req -x509 -newkey rsa:4096 -keyout server.key -out server.crt -days 365 -nodes</code></pre>
+<pre><code class="language-go">log.Fatal(http.ListenAndServeTLS(":8443", "server.crt", "server.key", mux))</code></pre>
+
+<h3>Middleware</h3>
+<pre><code class="language-go">// Middleware wraps http.Handler with additional logic
+type Middleware func(http.Handler) http.Handler
+
+func Chain(h http.Handler, middlewares ...Middleware) http.Handler {
+    for i := len(middlewares) - 1; i >= 0; i-- {
+        h = middlewares[i](h)
+    }
+    return h
+}
+
+func RequestLogger(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        start := time.Now()
+        next.ServeHTTP(w, r)
+        log.Printf("%s %s %v", r.Method, r.URL.Path, time.Since(start))
+    })
+}
+
+func CORS(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        w.Header().Set("Access-Control-Allow-Origin", "*")
+        w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+        if r.Method == http.MethodOptions {
+            w.WriteHeader(http.StatusNoContent); return
+        }
+        next.ServeHTTP(w, r)
+    })
+}
+
+// Apply chain
+handler := Chain(mux, RequestLogger, CORS, safeHandler)</code></pre>
+</div>
+
+<!-- ─── Section 14 ─── -->
+<div class="manual-section" id="s14">
+<h2>14. REST API Client</h2>
+<p>Go's <code>net/http</code> includes a complete HTTP client. Always reuse a single <code>http.Client</code> instance across requests to benefit from connection pooling.</p>
+
+<h3>GET Request</h3>
+<pre><code class="language-go">client := &amp;http.Client{Timeout: 10 * time.Second}
+
+resp, err := client.Get("https://api.example.com/users")
+if err != nil { return err }
+defer resp.Body.Close()
+
+if resp.StatusCode != http.StatusOK {
+    return fmt.Errorf("unexpected status: %d", resp.StatusCode)
+}
+
+var users []User
+json.NewDecoder(resp.Body).Decode(&amp;users)</code></pre>
+
+<h3>POST Request with JSON Body</h3>
+<pre><code class="language-go">func createUser(client *http.Client, baseURL string, user User) (*User, error) {
+    body, _ := json.Marshal(user)
+
+    req, err := http.NewRequestWithContext(
+        context.Background(),
+        http.MethodPost,
+        baseURL+"/users",
+        bytes.NewReader(body),
+    )
+    if err != nil { return nil, err }
+    req.Header.Set("Content-Type", "application/json")
+
+    resp, err := client.Do(req)
+    if err != nil { return nil, err }
+    defer resp.Body.Close()
+
+    if resp.StatusCode != http.StatusCreated {
+        return nil, fmt.Errorf("create user failed: %d", resp.StatusCode)
+    }
+
+    var created User
+    json.NewDecoder(resp.Body).Decode(&amp;created)
+    return &amp;created, nil
+}</code></pre>
+
+<h3>Authentication Methods</h3>
+<pre><code class="language-go">// Bearer token (OAuth2, JWT)
+req.Header.Set("Authorization", "Bearer "+accessToken)
+
+// Basic auth
+req.SetBasicAuth("username", "password")
+
+// API key as header
+req.Header.Set("X-API-Key", apiKey)
+
+// API key as query parameter
+q := req.URL.Query()
+q.Add("api_key", apiKey)
+req.URL.RawQuery = q.Encode()</code></pre>
+
+<h3>Retry with Exponential Backoff</h3>
+<pre><code class="language-go">func doWithRetry(client *http.Client, req *http.Request, maxAttempts int) (*http.Response, error) {
+    var lastErr error
+    delay := 500 * time.Millisecond
+
+    for attempt := 0; attempt &lt; maxAttempts; attempt++ {
+        // Clone request body on each attempt
+        resp, err := client.Do(req)
+        if err == nil &amp;&amp; resp.StatusCode &lt; 500 {
+            return resp, nil
+        }
+        if err != nil { lastErr = err } else { lastErr = fmt.Errorf("server error: %d", resp.StatusCode) }
+
+        time.Sleep(delay)
+        delay *= 2
+        if delay &gt; 30*time.Second { delay = 30 * time.Second }
+    }
+    return nil, fmt.Errorf("after %d attempts: %w", maxAttempts, lastErr)
+}</code></pre>
+</div>
+
+<!-- ─── Section 15 ─── -->
+<div class="manual-section" id="s15">
+<h2>15. Application Logging</h2>
+<p>Structured logging is essential for production observability. Go 1.21+ ships with <code>log/slog</code> which supports log levels, structured fields, and pluggable backends.</p>
+
+<h3>log/slog (Go 1.21+) — Recommended</h3>
+<pre><code class="language-go">import "log/slog"
+
+// Text handler (development)
+logger := slog.New(slog.NewTextHandler(os.Stdout, &amp;slog.HandlerOptions{
+    Level: slog.LevelDebug,
+}))
+
+// JSON handler (production — machine-parseable)
+jsonLogger := slog.New(slog.NewJSONHandler(os.Stdout, &amp;slog.HandlerOptions{
+    Level:     slog.LevelInfo,
+    AddSource: true,
+}))
+slog.SetDefault(jsonLogger)
+
+// Usage
+slog.Info("server starting", "addr", ":8080", "version", "1.2.3")
+slog.Warn("high memory usage", "used_mb", 900, "limit_mb", 1024)
+slog.Error("database error", "err", err, "query", "SELECT ...")
+
+// Structured group
+logger.With("request_id", "abc-123").Info("request processed", "status", 200)</code></pre>
+
+<h3>HTTP Logging Middleware</h3>
+<pre><code class="language-go">type statusRecorder struct {
+    http.ResponseWriter
+    status int
+}
+
+func (r *statusRecorder) WriteHeader(code int) {
+    r.status = code
+    r.ResponseWriter.WriteHeader(code)
+}
+
+func LoggingMiddleware(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        start := time.Now()
+        rid := r.Header.Get("X-Request-ID")
+        if rid == "" { rid = uuid.NewString() }
+        w.Header().Set("X-Request-ID", rid)
+
+        rec := &amp;statusRecorder{ResponseWriter: w, status: 200}
+        next.ServeHTTP(rec, r)
+
+        slog.Info("http_request",
+            "request_id", rid,
+            "method", r.Method,
+            "path", r.URL.Path,
+            "status", rec.status,
+            "duration_ms", time.Since(start).Milliseconds(),
+        )
+    })
+}</code></pre>
+
+<h3>File Logging with Rotation</h3>
+<pre><code class="language-bash">go get gopkg.in/natefinch/lumberjack.v2</code></pre>
+<pre><code class="language-go">rotating := &amp;lumberjack.Logger{
+    Filename:   "./logs/app.jsonl",
+    MaxSize:    100,   // MB
+    MaxBackups: 7,
+    MaxAge:     14,    // days
+    Compress:   true,
+}
+out := io.MultiWriter(os.Stdout, rotating)
+slog.SetDefault(slog.New(slog.NewJSONHandler(out, &amp;slog.HandlerOptions{
+    Level: slog.LevelInfo,
+})))</code></pre>
+
+<h3>Log Level Configuration</h3>
+<pre><code class="language-go">func setupLogger(levelStr string, jsonFormat bool) *slog.Logger {
+    var level slog.Level
+    switch strings.ToLower(levelStr) {
+    case "debug": level = slog.LevelDebug
+    case "warn":  level = slog.LevelWarn
+    case "error": level = slog.LevelError
+    default:      level = slog.LevelInfo
+    }
+    opts := &amp;slog.HandlerOptions{Level: level, AddSource: true}
+    if jsonFormat {
+        return slog.New(slog.NewJSONHandler(os.Stdout, opts))
+    }
+    return slog.New(slog.NewTextHandler(os.Stdout, opts))
+}</code></pre>
+
+<h3>Production Checklist</h3>
+<ul class="checklist">
+    <li>Use structured logging (<code>log/slog</code>) with JSON format in production.</li>
+    <li>Set log level via environment variable (default: <code>info</code>).</li>
+    <li>Include correlation IDs (<code>request_id</code>, <code>user_id</code>) in every log entry.</li>
+    <li>Add HTTP logging and panic recovery middleware.</li>
+    <li>Never log sensitive data (passwords, tokens, PII).</li>
+    <li>Ship logs to a central store (ELK, Cloud Logging, DataDog) via agents.</li>
+</ul>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PART 5 — DATA STORAGE
+═══════════════════════════════════════════════════════════════ -->
+<div class="part-header" style="margin-top:3rem;">Part 5 &mdash; Data Storage</div>
+
+<!-- ─── Section 16 ─── -->
+<div class="manual-section" id="s16">
+<h2>16. SQL with MySQL</h2>
+<p>Go's <code>database/sql</code> package provides a connection pool and driver interface. Import a driver (like <code>go-sql-driver/mysql</code>) for the actual implementation.</p>
+
+<h3>Setup</h3>
+<pre><code class="language-bash">go get github.com/go-sql-driver/mysql</code></pre>
+
+<h3>Connecting with a Connection Pool</h3>
+<pre><code class="language-go">package main
+
+import (
+    "context"
+    "database/sql"
+    "log"
+    "time"
+
+    _ "github.com/go-sql-driver/mysql"  // blank import registers the driver
+)
+
+func newDB() *sql.DB {
+    dsn := "user:pass@tcp(127.0.0.1:3306)/mydb?parseTime=true&amp;charset=utf8mb4&amp;loc=Local"
+    db, err := sql.Open("mysql", dsn)
+    if err != nil { log.Fatal(err) }
+
+    // Connection pool tuning
+    db.SetMaxOpenConns(25)
+    db.SetMaxIdleConns(10)
+    db.SetConnMaxLifetime(30 * time.Minute)
+    db.SetConnMaxIdleTime(5 * time.Minute)
+
+    ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+    defer cancel()
+    if err := db.PingContext(ctx); err != nil {
+        log.Fatal("db ping failed:", err)
+    }
+    return db
+}</code></pre>
+
+<h3>Schema Example</h3>
+<pre><code class="language-sql">CREATE TABLE IF NOT EXISTS users (
+    id         INT AUTO_INCREMENT PRIMARY KEY,
+    email      VARCHAR(255) UNIQUE NOT NULL,
+    name       VARCHAR(100) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;</code></pre>
+
+<h3>Full CRUD Example</h3>
+<pre><code class="language-go">type User struct {
+    ID        int       `json:"id"`
+    Email     string    `json:"email"`
+    Name      string    `json:"name"`
+    CreatedAt time.Time `json:"created_at"`
+}
+
+// Create
+func createUser(ctx context.Context, db *sql.DB, u User) (int64, error) {
+    res, err := db.ExecContext(ctx,
+        "INSERT INTO users (email, name) VALUES (?, ?)",
+        u.Email, u.Name)
+    if err != nil { return 0, err }
+    return res.LastInsertId()
+}
+
+// Read all
+func listUsers(ctx context.Context, db *sql.DB) ([]User, error) {
+    rows, err := db.QueryContext(ctx,
+        "SELECT id, email, name, created_at FROM users ORDER BY id")
+    if err != nil { return nil, err }
+    defer rows.Close()
+
+    var users []User
+    for rows.Next() {
+        var u User
+        if err := rows.Scan(&amp;u.ID, &amp;u.Email, &amp;u.Name, &amp;u.CreatedAt); err != nil {
+            return nil, err
+        }
+        users = append(users, u)
+    }
+    return users, rows.Err()
+}
+
+// Read one
+func getUserByID(ctx context.Context, db *sql.DB, id int) (*User, error) {
+    var u User
+    err := db.QueryRowContext(ctx,
+        "SELECT id, email, name, created_at FROM users WHERE id = ?", id,
+    ).Scan(&amp;u.ID, &amp;u.Email, &amp;u.Name, &amp;u.CreatedAt)
+    if err == sql.ErrNoRows { return nil, nil }
+    return &amp;u, err
+}
+
+// Update
+func updateUser(ctx context.Context, db *sql.DB, u User) error {
+    _, err := db.ExecContext(ctx,
+        "UPDATE users SET email=?, name=? WHERE id=?",
+        u.Email, u.Name, u.ID)
+    return err
+}
+
+// Delete
+func deleteUser(ctx context.Context, db *sql.DB, id int) error {
+    _, err := db.ExecContext(ctx, "DELETE FROM users WHERE id=?", id)
+    return err
+}</code></pre>
+
+<h3>Transactions</h3>
+<pre><code class="language-go">func transferBalance(ctx context.Context, db *sql.DB, fromID, toID int, amount float64) error {
+    tx, err := db.BeginTx(ctx, &amp;sql.TxOptions{Isolation: sql.LevelSerializable})
+    if err != nil { return err }
+
+    defer func() {
+        if err != nil { tx.Rollback() }
+    }()
+
+    if _, err = tx.ExecContext(ctx,
+        "UPDATE accounts SET balance = balance - ? WHERE id = ?", amount, fromID); err != nil {
+        return err
+    }
+    if _, err = tx.ExecContext(ctx,
+        "UPDATE accounts SET balance = balance + ? WHERE id = ?", amount, toID); err != nil {
+        return err
+    }
+
+    return tx.Commit()
+}</code></pre>
+
+<div class="callout warn"><strong>Security:</strong> Always use parameterized queries with <code>?</code> placeholders. <em>Never</em> concatenate user input directly into SQL strings — this prevents SQL injection attacks.</div>
+
+<h3>Best Practices</h3>
+<ul class="checklist">
+    <li>Always use <code>QueryContext</code> / <code>ExecContext</code> with a timeout context.</li>
+    <li>Close <code>rows</code> with <code>defer rows.Close()</code> immediately after <code>QueryContext</code>.</li>
+    <li>Check <code>rows.Err()</code> after iterating to catch streaming errors.</li>
+    <li>Tune connection pool settings based on your workload and DB's <code>max_connections</code>.</li>
+    <li>Use <code>parseTime=true</code> in DSN to scan <code>DATETIME</code> columns into <code>time.Time</code>.</li>
+    <li>Manage schema migrations with <code>golang-migrate</code> or <code>goose</code>.</li>
+</ul>
+</div>
+
+<!-- ─── Section 17 ─── -->
+<div class="manual-section" id="s17">
+<h2>17. ORM with GORM</h2>
+<p>GORM is Go's most popular ORM. It reduces boilerplate for common operations while still letting you drop down to raw SQL when needed.</p>
+
+<h3>Setup</h3>
+<pre><code class="language-bash">go get gorm.io/gorm
+go get gorm.io/driver/sqlite    # or mysql, postgres, sqlserver</code></pre>
+
+<h3>Connecting &amp; Auto Migration</h3>
+<pre><code class="language-go">import (
+    "gorm.io/driver/sqlite"
+    "gorm.io/gorm"
+    "gorm.io/gorm/logger"
+)
+
+type User struct {
+    gorm.Model          // adds ID, CreatedAt, UpdatedAt, DeletedAt
+    Name  string        `gorm:"not null"`
+    Email string        `gorm:"uniqueIndex;not null"`
+    Role  string        `gorm:"default:user"`
+}
+
+db, err := gorm.Open(sqlite.Open("app.db"), &amp;gorm.Config{
+    Logger: logger.Default.LogMode(logger.Info),
+})
+if err != nil { panic("failed to connect") }
+
+db.AutoMigrate(&amp;User{})  // creates/updates the table</code></pre>
+
+<h3>CRUD Operations</h3>
+<pre><code class="language-go">// Create
+user := User{Name: "Alice", Email: "alice@example.com"}
+result := db.Create(&amp;user)
+if result.Error != nil { /* handle */ }
+fmt.Println("Created ID:", user.ID)
+
+// Read — find by primary key
+var u User
+db.First(&amp;u, 1)
+
+// Read — find by condition
+db.Where("email = ?", "alice@example.com").First(&amp;u)
+
+// Read — find all matching
+var admins []User
+db.Where("role = ?", "admin").Find(&amp;admins)
+
+// Read — with pagination
+var page []User
+db.Limit(20).Offset(40).Find(&amp;page)
+
+// Update single field
+db.Model(&amp;u).Update("Role", "admin")
+
+// Update multiple fields
+db.Model(&amp;u).Updates(User{Name: "Alice Smith", Role: "superadmin"})
+
+// Delete (soft-delete with gorm.Model, sets deleted_at)
+db.Delete(&amp;u)
+
+// Hard delete
+db.Unscoped().Delete(&amp;u)</code></pre>
+
+<h3>Relationships</h3>
+<pre><code class="language-go">// One-to-many
+type Order struct {
+    gorm.Model
+    CustomerID uint
+    Product    string
+    Amount     float64
+}
+
+type Customer struct {
+    gorm.Model
+    Name   string
+    Orders []Order  // has-many
+}
+
+// Create with associations
+customer := Customer{
+    Name: "Bob",
+    Orders: []Order{
+        {Product: "Laptop", Amount: 1200},
+        {Product: "Mouse",  Amount: 25},
+    },
+}
+db.Create(&amp;customer)
+
+// Eager load associations
+var c Customer
+db.Preload("Orders").First(&amp;c, customer.ID)
+fmt.Println(c.Orders)
+
+// Many-to-many
+type Tag struct {
+    gorm.Model
+    Name  string
+    Posts []Post `gorm:"many2many:post_tags;"`
+}</code></pre>
+
+<h3>Transactions</h3>
+<pre><code class="language-go">err := db.Transaction(func(tx *gorm.DB) error {
+    if err := tx.Create(&amp;User{Name: "User A"}).Error; err != nil {
+        return err  // automatic rollback
+    }
+    if err := tx.Create(&amp;User{Name: "User B"}).Error; err != nil {
+        return err
+    }
+    return nil  // automatic commit
+})</code></pre>
+
+<h3>Hooks</h3>
+<pre><code class="language-go">func (u *User) BeforeCreate(tx *gorm.DB) error {
+    u.Email = strings.ToLower(u.Email)  // normalize email
+    return nil
+}
+
+func (u *User) AfterCreate(tx *gorm.DB) error {
+    log.Printf("new user created: %d %s", u.ID, u.Name)
+    return nil
+}</code></pre>
+
+<h3>Context &amp; Timeout</h3>
+<pre><code class="language-go">ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+defer cancel()
+
+var users []User
+db.WithContext(ctx).Where("role = ?", "admin").Find(&amp;users)</code></pre>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PART 6 — MICROSERVICES
+═══════════════════════════════════════════════════════════════ -->
+<div class="part-header" style="margin-top:3rem;">Part 6 &mdash; Microservices</div>
+
+<!-- ─── Section 18 ─── -->
+<div class="manual-section" id="s18">
+<h2>18. JWT Authentication</h2>
+<p>JSON Web Tokens (JWTs) are the standard mechanism for stateless authentication in microservices. The server signs a token containing user claims; clients include it in subsequent requests.</p>
+
+<h3>Setup</h3>
+<pre><code class="language-bash">go get github.com/golang-jwt/jwt/v5
+go get golang.org/x/crypto/bcrypt
+go get github.com/gorilla/mux</code></pre>
+
+<h3>Token Generation &amp; Validation</h3>
+<pre><code class="language-go">package auth
+
+import (
+    "errors"
+    "fmt"
+    "time"
+
+    "github.com/golang-jwt/jwt/v5"
+)
+
+var (
+    accessSecret  = []byte(os.Getenv("JWT_ACCESS_SECRET"))
+    refreshSecret = []byte(os.Getenv("JWT_REFRESH_SECRET"))
+    accessTTL     = 15 * time.Minute
+    refreshTTL    = 7 * 24 * time.Hour
+)
+
+type Claims struct {
+    UserID   int    `json:"user_id"`
+    Username string `json:"username"`
+    Role     string `json:"role"`
+    jwt.RegisteredClaims
+}
+
+func IssueAccessToken(userID int, username, role string) (string, error) {
+    now := time.Now()
+    claims := &amp;Claims{
+        UserID: userID, Username: username, Role: role,
+        RegisteredClaims: jwt.RegisteredClaims{
+            Issuer:    "my-service",
+            Subject:   fmt.Sprintf("%d", userID),
+            ExpiresAt: jwt.NewNumericDate(now.Add(accessTTL)),
+            IssuedAt:  jwt.NewNumericDate(now),
+        },
+    }
+    return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(accessSecret)
+}
+
+func ParseAccessToken(tokenStr string) (*Claims, error) {
+    claims := &amp;Claims{}
+    token, err := jwt.ParseWithClaims(tokenStr, claims,
+        func(t *jwt.Token) (any, error) {
+            if t.Method != jwt.SigningMethodHS256 {
+                return nil, fmt.Errorf("unexpected alg: %s", t.Header["alg"])
+            }
+            return accessSecret, nil
+        },
+        jwt.WithValidMethods([]string{"HS256"}),
+    )
+    if err != nil || !token.Valid {
+        return nil, errors.New("invalid token")
+    }
+    return claims, nil
+}</code></pre>
+
+<h3>Password Hashing</h3>
+<pre><code class="language-go">import "golang.org/x/crypto/bcrypt"
+
+// Hash on registration
+func HashPassword(plain string) (string, error) {
+    h, err := bcrypt.GenerateFromPassword([]byte(plain), bcrypt.DefaultCost)
+    return string(h), err
+}
+
+// Verify on login
+func CheckPassword(plain, hashed string) bool {
+    return bcrypt.CompareHashAndPassword([]byte(hashed), []byte(plain)) == nil
+}</code></pre>
+
+<h3>Authentication Middleware</h3>
+<pre><code class="language-go">type contextKey string
+const userClaimsKey contextKey = "user"
+
+func AuthMiddleware(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        var tokenStr string
+
+        // 1. Try cookie
+        if c, err := r.Cookie("access_token"); err == nil {
+            tokenStr = c.Value
+        }
+        // 2. Try Authorization header
+        if tokenStr == "" {
+            auth := r.Header.Get("Authorization")
+            if strings.HasPrefix(auth, "Bearer ") {
+                tokenStr = strings.TrimPrefix(auth, "Bearer ")
+            }
+        }
+
+        if tokenStr == "" {
+            http.Error(w, "unauthorized", http.StatusUnauthorized); return
+        }
+
+        claims, err := auth.ParseAccessToken(tokenStr)
+        if err != nil {
+            http.Error(w, "unauthorized", http.StatusUnauthorized); return
+        }
+
+        ctx := context.WithValue(r.Context(), userClaimsKey, claims)
+        next.ServeHTTP(w, r.WithContext(ctx))
+    })
+}
+
+// Helpers for handlers
+func UserFromContext(r *http.Request) (*auth.Claims, bool) {
+    c, ok := r.Context().Value(userClaimsKey).(*auth.Claims)
+    return c, ok
+}</code></pre>
+
+<h3>Login &amp; Refresh Flow</h3>
+<pre><code class="language-go">func signIn(w http.ResponseWriter, r *http.Request) {
+    var creds struct {
+        Username string `json:"username"`
+        Password string `json:"password"`
+    }
+    json.NewDecoder(r.Body).Decode(&amp;creds)
+
+    user, err := db.FindByUsername(creds.Username)
+    if err != nil || !auth.CheckPassword(creds.Password, user.PasswordHash) {
+        http.Error(w, "invalid credentials", http.StatusUnauthorized); return
+    }
+
+    accessToken, _ := auth.IssueAccessToken(user.ID, user.Username, user.Role)
+    refreshToken, _ := auth.IssueRefreshToken(user.ID, user.Username)
+
+    // Secure HttpOnly cookies
+    http.SetCookie(w, &amp;http.Cookie{
+        Name:     "access_token",
+        Value:    accessToken,
+        HttpOnly: true, Secure: true,
+        SameSite: http.SameSiteLaxMode,
+        Expires:  time.Now().Add(15 * time.Minute),
+    })
+
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}</code></pre>
+
+<h3>Security Best Practices</h3>
+<ul class="checklist">
+    <li>Store JWT secrets in environment variables / secret managers — never in code.</li>
+    <li>Use HttpOnly + Secure + SameSite=Lax cookies to prevent XSS and CSRF.</li>
+    <li>Set short expiry for access tokens (5–15 min) and longer for refresh tokens (7–30 days).</li>
+    <li>Validate all claims: issuer, expiry, not-before, signing method.</li>
+    <li>Rate-limit the sign-in endpoint to prevent brute-force attacks.</li>
+    <li>For multi-service setups, use RS256 (asymmetric) so verifiers don't need the signing key.</li>
+</ul>
+</div>
+
+<!-- ─── Section 19 ─── -->
+<div class="manual-section" id="s19">
+<h2>19. Messaging: RabbitMQ &amp; Kafka</h2>
+<p>Message queues decouple producers from consumers, smooth traffic spikes, and provide resilience through retries and dead-letter queues.</p>
+
+<h3>RabbitMQ — Production Consumer</h3>
+<pre><code class="language-bash">go get github.com/streadway/amqp</code></pre>
+<pre><code class="language-go">package main
+
+import (
+    "context"
+    "log"
+    "time"
+
+    "github.com/streadway/amqp"
+)
+
+func main() {
+    ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+    defer stop()
+
+    for {
+        if err := runRabbit(ctx, "amqp://guest:guest@localhost:5672/"); err != nil {
+            log.Printf("rabbit error: %v (reconnecting in 5s)", err)
+            select {
+            case &lt;-ctx.Done(): return
+            case &lt;-time.After(5 * time.Second):
+            }
+        } else { return }
+    }
+}
+
+func runRabbit(ctx context.Context, url string) error {
+    conn, err := amqp.Dial(url)
+    if err != nil { return err }
+    defer conn.Close()
+
+    ch, err := conn.Channel()
+    if err != nil { return err }
+    defer ch.Close()
+
+    // Declare durable queue with dead-letter exchange
+    ch.ExchangeDeclare("events.dlx", "fanout", true, false, false, false, nil)
+    ch.QueueDeclare("events.dlq", true, false, false, false, nil)
+    ch.QueueBind("events.dlq", "", "events.dlx", false, nil)
+
+    q, _ := ch.QueueDeclare("events", true, false, false, false,
+        amqp.Table{"x-dead-letter-exchange": "events.dlx"})
+
+    ch.Qos(10, 0, false)  // prefetch 10 messages
+
+    deliveries, _ := ch.Consume(q.Name, "", false, false, false, false, nil)
+
+    for {
+        select {
+        case &lt;-ctx.Done(): return nil
+        case d, ok := &lt;-deliveries:
+            if !ok { return fmt.Errorf("channel closed") }
+            if err := handleMessage(d.Body); err != nil {
+                d.Nack(false, false)  // send to DLQ
+                continue
+            }
+            d.Ack(false)  // acknowledge success
+        }
+    }
+}
+
+func handleMessage(body []byte) error {
+    log.Printf("processing: %s", string(body))
+    return nil
+}</code></pre>
+
+<h3>RabbitMQ — Publisher with Confirms</h3>
+<pre><code class="language-go">ch.Confirm(false)
+acks := ch.NotifyPublish(make(chan amqp.Confirmation, 1))
+
+ch.Publish("events", "order.created", false, false, amqp.Publishing{
+    DeliveryMode: amqp.Persistent,       // survive broker restart
+    ContentType:  "application/json",
+    Body:         []byte(`{"order_id":42}`),
+})
+
+conf := &lt;-acks
+if !conf.Ack {
+    log.Println("message not confirmed, retry needed")
+}</code></pre>
+
+<h3>Apache Kafka — Consumer with kafka-go</h3>
+<pre><code class="language-bash">go get github.com/segmentio/kafka-go</code></pre>
+<pre><code class="language-go">package main
+
+import (
+    "context"
+    "log"
+    "os/signal"
+    "syscall"
+    "time"
+
+    "github.com/segmentio/kafka-go"
+)
+
+func main() {
+    ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+    defer stop()
+
+    reader := kafka.NewReader(kafka.ReaderConfig{
+        Brokers:        []string{"localhost:9092"},
+        GroupID:        "order-processor",
+        Topic:          "orders",
+        MinBytes:       10e3,
+        MaxBytes:       10e6,
+        CommitInterval: 0,  // manual commit after processing
+        StartOffset:    kafka.FirstOffset,
+        HeartbeatInterval: 3 * time.Second,
+        SessionTimeout:    30 * time.Second,
+    })
+    defer reader.Close()
+
+    for {
+        msg, err := reader.FetchMessage(ctx)
+        if err != nil {
+            if err == context.Canceled { break }
+            log.Printf("fetch error: %v", err); continue
+        }
+
+        if err := processOrder(msg.Value); err != nil {
+            log.Printf("processing error: %v (key=%s, offset=%d)", err, msg.Key, msg.Offset)
+            // Don't commit: message will be redelivered
+            continue
+        }
+
+        // Commit offset only after successful processing
+        reader.CommitMessages(ctx, msg)
+    }
+}
+
+func processOrder(data []byte) error {
+    log.Printf("order received: %s", data)
+    return nil
+}</code></pre>
+
+<h3>Kafka — Producer</h3>
+<pre><code class="language-go">writer := &amp;kafka.Writer{
+    Addr:         kafka.TCP("localhost:9092"),
+    Topic:        "orders",
+    Balancer:     &amp;kafka.LeastBytes{},
+    RequiredAcks: kafka.RequireAll,  // wait for all replicas
+}
+defer writer.Close()
+
+err := writer.WriteMessages(context.Background(),
+    kafka.Message{
+        Key:   []byte("order-42"),
+        Value: []byte(`{"id":42,"product":"laptop","amount":1200}`),
+    },
+)
+if err != nil { log.Fatal(err) }</code></pre>
+
+<h3>Delivery Semantics</h3>
+<table>
+    <thead><tr><th>Semantic</th><th>Description</th><th>Use When</th></tr></thead>
+    <tbody>
+        <tr><td>At-most-once</td><td>Fire and forget, may lose messages</td><td>Metrics, non-critical events</td></tr>
+        <tr><td>At-least-once</td><td>Manual ack/commit, may duplicate</td><td>Most business events (design idempotency)</td></tr>
+        <tr><td>Exactly-once</td><td>Transactional; complex to implement</td><td>Financial transactions (rare)</td></tr>
+    </tbody>
+</table>
+
+<h3>Docker Quickstart</h3>
+<pre><code class="language-bash"># RabbitMQ
+docker run -d --name rabbit -p 5672:5672 -p 15672:15672 rabbitmq:3-management
+
+# Kafka (docker-compose.yaml)
+version: "3.8"
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    environment: { ZOOKEEPER_CLIENT_PORT: 2181 }
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    ports: ["9092:9092"]
+    environment:
+      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    depends_on: [zookeeper]</code></pre>
+</div>
+
+<!-- ─── Section 20 ─── -->
+<div class="manual-section" id="s20">
+<h2>20. Service Registry &amp; Discovery</h2>
+<p>In microservice architectures, services must locate each other dynamically. HashiCorp <strong>Consul</strong> provides a battle-tested service catalog with health checks, DNS resolution, and K/V store.</p>
+
+<h3>Setup</h3>
+<pre><code class="language-bash">go get github.com/hashicorp/consul/api
+
+# Consul in dev mode (Docker)
+docker run --name=consul -p 8500:8500 -p 8600:8600/udp \
+  hashicorp/consul:latest agent -dev -ui -client=0.0.0.0</code></pre>
+
+<h3>Self-Registration on Startup</h3>
+<pre><code class="language-go">package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+    "net/http"
+    "os"
+    "os/signal"
+    "syscall"
+    "time"
+
+    "github.com/hashicorp/consul/api"
+    "github.com/gorilla/mux"
+)
+
+func main() {
+    serviceID   := "order-service-1"
+    serviceName := "order-service"
+    host        := "127.0.0.1"
+    port        := 8080
+
+    // Connect to Consul
+    client, err := api.NewClient(api.DefaultConfig())
+    if err != nil { log.Fatal(err) }
+
+    // Register with an HTTP health check
+    reg := &amp;api.AgentServiceRegistration{
+        ID:      serviceID,
+        Name:    serviceName,
+        Address: host,
+        Port:    port,
+        Tags:    []string{"v1", "api"},
+        Check: &amp;api.AgentServiceCheck{
+            HTTP:     fmt.Sprintf("http://%s:%d/health", host, port),
+            Interval: "10s",
+            Timeout:  "2s",
+            DeregisterCriticalServiceAfter: "1m",
+        },
+    }
+    if err := client.Agent().ServiceRegister(reg); err != nil {
+        log.Fatal("register:", err)
+    }
+    log.Printf("registered %s at %s:%d", serviceName, host, port)
+
+    // HTTP server
+    r := mux.NewRouter()
+    r.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
+        w.WriteHeader(200); w.Write([]byte("OK"))
+    })
+    r.HandleFunc("/orders", listOrders).Methods(http.MethodGet)
+
+    srv := &amp;http.Server{
+        Addr: fmt.Sprintf("%s:%d", host, port), Handler: r,
+        ReadTimeout: 5 * time.Second, WriteTimeout: 10 * time.Second,
+    }
+
+    go func() {
+        if err := srv.ListenAndServe(); err != nil &amp;&amp; err != http.ErrServerClosed {
+            log.Fatal(err)
+        }
+    }()
+
+    // Wait for OS signal
+    sigCh := make(chan os.Signal, 1)
+    signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+    &lt;-sigCh
+
+    // Deregister from Consul before shutting down
+    client.Agent().ServiceDeregister(serviceID)
+
+    ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+    defer cancel()
+    srv.Shutdown(ctx)
+    log.Println("graceful shutdown complete")
+}
+
+func listOrders(w http.ResponseWriter, r *http.Request) {
+    w.Header().Set("Content-Type", "application/json")
+    w.Write([]byte(`[{"id":1,"product":"laptop"}]`))
+}</code></pre>
+
+<h3>Service Discovery Client</h3>
+<pre><code class="language-go">type Resolver struct {
+    name   string
+    client *api.Client
+    mu     sync.RWMutex
+    eps    []string
+}
+
+func NewResolver(name, consulAddr string) *Resolver {
+    cfg := api.DefaultConfig()
+    if consulAddr != "" { cfg.Address = consulAddr }
+    c, _ := api.NewClient(cfg)
+    r := &amp;Resolver{name: name, client: c}
+    r.refresh()
+    go r.watch(10 * time.Second)
+    return r
+}
+
+func (r *Resolver) refresh() {
+    entries, _, _ := r.client.Health().Service(r.name, "", true, nil)
+    r.mu.Lock()
+    r.eps = nil
+    for _, e := range entries {
+        r.eps = append(r.eps, fmt.Sprintf("http://%s:%d", e.Service.Address, e.Service.Port))
+    }
+    r.mu.Unlock()
+}
+
+func (r *Resolver) watch(d time.Duration) {
+    t := time.NewTicker(d)
+    defer t.Stop()
+    for range t.C { r.refresh() }
+}
+
+func (r *Resolver) Pick() (string, bool) {
+    r.mu.RLock()
+    defer r.mu.RUnlock()
+    if len(r.eps) == 0 { return "", false }
+    return r.eps[rand.Intn(len(r.eps))], true  // random load balancing
+}
+
+// Usage
+resolver := NewResolver("order-service", "")
+if addr, ok := resolver.Pick(); ok {
+    resp, err := http.Get(addr + "/orders")
+    // ...
+}</code></pre>
+
+<h3>Health Endpoints Best Practices</h3>
+<pre><code class="language-go">// Liveness — is the process alive?
+http.HandleFunc("/health/live", func(w http.ResponseWriter, r *http.Request) {
+    w.WriteHeader(200)
+})
+
+// Readiness — can it serve traffic? (check dependencies)
+http.HandleFunc("/health/ready", func(w http.ResponseWriter, r *http.Request) {
+    ctx, cancel := context.WithTimeout(r.Context(), 200*time.Millisecond)
+    defer cancel()
+
+    if err := db.PingContext(ctx); err != nil {
+        http.Error(w, "db not ready", http.StatusServiceUnavailable)
+        return
+    }
+    w.WriteHeader(200)
+})</code></pre>
+</div>
+
+<!-- ─── Section 21 ─── -->
+<div class="manual-section" id="s21">
+<h2>21. Symmetric Cryptography</h2>
+<p>Go's standard library provides robust cryptographic primitives. For symmetric encryption, use <strong>AES-GCM</strong> — an AEAD (Authenticated Encryption with Associated Data) mode that provides both confidentiality and integrity.</p>
+
+<div class="callout warn"><strong>Warning:</strong> Never use ECB, CFB, or CBC without an HMAC — they lack integrity protection. Avoid DES/3DES entirely. Prefer AES-GCM or XChaCha20-Poly1305 (from <code>golang.org/x/crypto</code>).</div>
+
+<h3>AES-256-GCM Encryption</h3>
+<pre><code class="language-go">package crypto
+
+import (
+    "crypto/aes"
+    "crypto/cipher"
+    "crypto/rand"
+    "encoding/base64"
+    "errors"
+    "io"
+)
+
+// Encrypt encrypts plaintext with AES-256-GCM.
+// Returns base64(nonce || ciphertext+tag).
+func Encrypt(key, plaintext []byte) (string, error) {
+    block, err := aes.NewCipher(key) // key must be 16, 24, or 32 bytes
+    if err != nil { return "", err }
+
+    gcm, err := cipher.NewGCM(block)
+    if err != nil { return "", err }
+
+    nonce := make([]byte, gcm.NonceSize())
+    if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+        return "", err
+    }
+
+    ciphertext := gcm.Seal(nil, nonce, plaintext, nil)
+    out := append(nonce, ciphertext...)
+    return base64.StdEncoding.EncodeToString(out), nil
+}
+
+// Decrypt decrypts the output of Encrypt.
+func Decrypt(key []byte, encoded string) ([]byte, error) {
+    raw, err := base64.StdEncoding.DecodeString(encoded)
+    if err != nil { return nil, err }
+
+    block, err := aes.NewCipher(key)
+    if err != nil { return nil, err }
+
+    gcm, err := cipher.NewGCM(block)
+    if err != nil { return nil, err }
+
+    if len(raw) &lt; gcm.NonceSize() {
+        return nil, errors.New("ciphertext too short")
+    }
+
+    nonce, ciphertext := raw[:gcm.NonceSize()], raw[gcm.NonceSize():]
+    return gcm.Open(nil, nonce, ciphertext, nil)
+}</code></pre>
+
+<h3>Key Derivation from Passphrase (PBKDF2)</h3>
+<pre><code class="language-go">import (
+    "crypto/sha256"
+    "golang.org/x/crypto/pbkdf2"
+)
+
+func DeriveKey(passphrase, salt []byte) []byte {
+    return pbkdf2.Key(passphrase, salt, 600_000, 32, sha256.New)
+}
+
+// Usage
+salt := make([]byte, 16)
+rand.Read(salt)
+key := DeriveKey([]byte("my passphrase"), salt)
+
+// Encrypt sensitive data
+ciphertext, err := crypto.Encrypt(key, []byte("sensitive data"))</code></pre>
+
+<h3>Secure Random</h3>
+<pre><code class="language-go">import "crypto/rand"
+
+// Generate cryptographically secure random bytes
+key := make([]byte, 32)
+if _, err := rand.Read(key); err != nil {
+    panic(err)
+}
+
+// Generate a secure random token (URL-safe)
+func generateToken(n int) (string, error) {
+    b := make([]byte, n)
+    if _, err := rand.Read(b); err != nil { return "", err }
+    return base64.URLEncoding.EncodeToString(b), nil
+}</code></pre>
+
+<h3>HMAC for Message Integrity</h3>
+<pre><code class="language-go">import (
+    "crypto/hmac"
+    "crypto/sha256"
+    "encoding/hex"
+)
+
+func Sign(key, message []byte) string {
+    mac := hmac.New(sha256.New, key)
+    mac.Write(message)
+    return hex.EncodeToString(mac.Sum(nil))
+}
+
+func Verify(key, message []byte, sig string) bool {
+    expected := Sign(key, message)
+    return hmac.Equal([]byte(expected), []byte(sig))
+}</code></pre>
+</div>
+
+<!-- ─── Section 22 ─── -->
+<div class="manual-section" id="s22">
+<h2>22. Cross-Compiling &amp; Docker</h2>
+<p>One of Go's superpowers is effortless cross-compilation. You can build a Linux binary from Windows or macOS with a single environment variable change.</p>
+
+<h3>Cross-Compilation</h3>
+<pre><code class="language-bash"># Linux AMD64 (most servers, EC2, GKE)
+GOOS=linux GOARCH=amd64 go build -o app-linux-amd64 ./cmd/app
+
+# Linux ARM64 (Raspberry Pi, AWS Graviton, Apple Silicon VMs)
+GOOS=linux GOARCH=arm64 go build -o app-linux-arm64 ./cmd/app
+
+# macOS Apple Silicon
+GOOS=darwin GOARCH=arm64 go build -o app-macos-arm64 ./cmd/app
+
+# Windows
+GOOS=windows GOARCH=amd64 go build -o app-windows-amd64.exe ./cmd/app</code></pre>
+
+<h3>Static Binary (No External Dependencies)</h3>
+<pre><code class="language-bash">CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+  go build -trimpath -ldflags "-s -w" -o app ./cmd/app
+
+# -s -w          strip debug symbols and DWARF info (smaller binary)
+# -trimpath      remove local paths from binary (reproducible, secure)
+# CGO_ENABLED=0  pure Go, no C dependencies</code></pre>
+
+<h3>Version Embedding</h3>
+<pre><code class="language-go">// cmd/app/main.go
+package main
+
+var (
+    version = "dev"
+    commit  = "none"
+    date    = "unknown"
+)
+
+func main() {
+    log.Printf("app version=%s commit=%s built=%s", version, commit, date)
+    // ...
+}</code></pre>
+<pre><code class="language-bash">go build \
+  -ldflags "-X main.version=1.2.3 \
+             -X main.commit=$(git rev-parse --short HEAD) \
+             -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
+             -s -w" \
+  -o app ./cmd/app</code></pre>
+
+<h3>Docker Multi-Stage Build</h3>
+<pre><code class="language-bash"># Dockerfile
+FROM golang:1.22-alpine AS builder
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build -trimpath -ldflags "-s -w" -o /app/server ./cmd/app
+
+# Final stage — minimal image (~5 MB)
+FROM scratch
+COPY --from=builder /app/server /server
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+EXPOSE 8080
+ENTRYPOINT ["/server"]</code></pre>
+
+<pre><code class="language-bash"># Build and run
+docker build -t my-app:1.0 .
+docker run -p 8080:8080 -e DATABASE_URL=postgres://... my-app:1.0</code></pre>
+
+<h3>Multi-Architecture Images (BuildKit)</h3>
+<pre><code class="language-bash">docker buildx build \
+  --platform linux/amd64,linux/arm64 \
+  -t my-app:1.0 \
+  --push .</code></pre>
+
+<h3>Build Tags for Platform-Specific Code</h3>
+<pre><code class="language-go">//go:build linux
+
+package platform
+
+func DefaultSocketPath() string {
+    return "/var/run/app.sock"
+}</code></pre>
+
+<h3>Docker Compose for Local Development</h3>
+<pre><code class="language-yaml">version: "3.8"
+services:
+  app:
+    build: .
+    ports: ["8080:8080"]
+    environment:
+      DATABASE_URL: postgres://user:pass@db:5432/app?sslmode=disable
+      JWT_SECRET: dev-secret
+    depends_on: [db, redis]
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: pass
+      POSTGRES_DB: app
+    volumes: [pgdata:/var/lib/postgresql/data]
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+
+volumes:
+  pgdata:</code></pre>
+
+<h3>Kubernetes Deployment</h3>
+<pre><code class="language-yaml">apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app
+spec:
+  replicas: 3
+  selector:
+    matchLabels: { app: my-app }
+  template:
+    metadata:
+      labels: { app: my-app }
+    spec:
+      containers:
+        - name: app
+          image: my-app:1.0
+          ports: [{ containerPort: 8080 }]
+          envFrom: [{ secretRef: { name: app-secrets } }]
+          env:
+            - { name: APP_LOG_LEVEL, valueFrom: { configMapKeyRef: { name: app-config, key: APP_LOG_LEVEL } } }
+          readinessProbe:
+            httpGet: { path: /health/ready, port: 8080 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health/live, port: 8080 }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests: { cpu: "100m", memory: "64Mi" }
+            limits:   { cpu: "500m", memory: "256Mi" }</code></pre>
+</div>
+
+<!-- Closing -->
+<div class="manual-section" style="background:rgba(124,58,237,0.06);border-radius:12px;padding:2rem;margin-top:3rem;">
+    <h2>What's Next?</h2>
+    <p>This crash course has covered Go from the ground up through production microservices. To continue your journey:</p>
+    <ul>
+        <li><strong>Testing:</strong> Write unit tests with <code>testing</code> package, table-driven tests, and integration tests with <code>httptest</code>.</li>
+        <li><strong>gRPC:</strong> Build high-performance internal APIs with Protocol Buffers and <code>google.golang.org/grpc</code>.</li>
+        <li><strong>OpenTelemetry:</strong> Add distributed tracing and metrics to your services with the Go SDK.</li>
+        <li><strong>Memory Management:</strong> Understand Go's GC, escape analysis, and how to avoid allocations in hot paths.</li>
+        <li><strong>Generics:</strong> Build reusable, type-safe data structures using Go 1.18+ generics.</li>
+        <li><strong>Performance Profiling:</strong> Use <code>pprof</code> to identify CPU and memory bottlenecks.</li>
+    </ul>
+</div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2026 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-yaml.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-sql.min.js"></script>
+    <script>
+        // Smooth scroll for ToC links
+        document.querySelectorAll('.manual-toc a[href^="#"]').forEach(a => {
+            a.addEventListener('click', e => {
+                e.preventDefault();
+                const target = document.querySelector(a.getAttribute('href'));
+                if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+        });
+
+        // Highlight active ToC link on scroll
+        const sections = document.querySelectorAll('.manual-section[id]');
+        const tocLinks = document.querySelectorAll('.manual-toc a');
+
+        const observer = new IntersectionObserver(entries => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    tocLinks.forEach(l => l.style.color = '');
+                    const active = document.querySelector(`.manual-toc a[href="#${entry.target.id}"]`);
+                    if (active) active.style.color = '#a78bfa';
+                }
+            });
+        }, { threshold: 0.3, rootMargin: '-60px 0px -60% 0px' });
+
+        sections.forEach(s => observer.observe(s));
+    </script>
+</body>
+</html>

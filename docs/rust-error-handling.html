@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Error Handling with thiserror &amp; anyhow in Rust &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="rust-tech-insights.html">Rust</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+            <button class="nav-toggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="rust-tech-insights.html" class="back-link">&larr; Back to Rust Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Feb 2026</span>
+                            <span class="post-reading">16 min read</span>
+                        </div>
+                        <h1>Error Handling with thiserror &amp; anyhow in Rust</h1>
+                        <div class="post-tags">
+                            <span>Rust</span>
+                            <span>Error Handling</span>
+                            <span>thiserror</span>
+                            <span>anyhow</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Rust has no exceptions. Instead, functions that can fail return <code>Result&lt;T, E&gt;</code> &mdash; a value you must inspect before you can use the success path. This makes failures visible, explicit, and impossible to silently ignore. The standard library provides the foundation; the <code>thiserror</code> and <code>anyhow</code> crates build on top of it to cover the two dominant error-handling patterns: defining rich, typed errors for libraries, and propagating heterogeneous errors ergonomically in applications.</p>
+
+                        <h2>The Standard Library Foundation</h2>
+                        <p>Before reaching for external crates, it is worth understanding exactly what the standard library provides. The <code>std::error::Error</code> trait is the universal marker for error types. It has a blanket implementation requirement that the type also implement <code>Debug</code> and <code>Display</code> &mdash; the first for machine-readable output (logs, debug builds), the second for human-readable messages. It optionally provides a <code>source()</code> method to expose the underlying cause, enabling error chain traversal.</p>
+                        <p>The <code>?</code> operator is the key piece of syntactic sugar. When applied to a <code>Result&lt;T, E&gt;</code> inside a function that returns <code>Result&lt;T2, E2&gt;</code>, it either unwraps the <code>Ok</code> value or returns early with the error, converting it from <code>E</code> to <code>E2</code> using the <code>From</code> trait. This means that as long as you implement <code>From&lt;E&gt; for E2</code> (or the crates you use do it for you), the <code>?</code> operator becomes a one-character propagator that handles the entire unwrap-or-return-error-with-conversion dance.</p>
+
+                        <h3>Manual Error Types (stdlib only)</h3>
+                        <p>To understand what <code>thiserror</code> is saving you from, it helps to see what implementing an error type manually looks like. You need to implement <code>Debug</code> (usually derived), <code>Display</code> (manually formatted), and <code>std::error::Error</code> (optionally with <code>source()</code>). For each variant that wraps another error, you also implement <code>From</code> to enable <code>?</code> propagation. This is entirely mechanical boilerplate &mdash; which is exactly why the crate exists.</p>
+
+                        <p><em>A hand-written error enum with two variants covering a parse error and an I/O error, showing all the trait implementations needed to use it with <code>?</code>.</em></p>
+<pre><code class="language-rust">use std::fmt;
+use std::num::ParseIntError;
+
+#[derive(Debug)]
+enum AppError {
+    Parse(ParseIntError),
+    NegativeNumber(i32),
+}
+
+impl fmt::Display for AppError {
+    fn fmt(&amp;self, f: &amp;mut fmt::Formatter&lt;'_&gt;) -> fmt::Result {
+        match self {
+            AppError::Parse(e) => write!(f, "parse error: {e}"),
+            AppError::NegativeNumber(n) => write!(f, "expected positive, got {n}"),
+        }
+    }
+}
+
+impl std::error::Error for AppError {
+    fn source(&amp;self) -> Option&lt;&amp;(dyn std::error::Error + 'static)&gt; {
+        match self {
+            AppError::Parse(e) => Some(e),
+            _ => None,
+        }
+    }
+}
+
+// `From` makes `?` work when calling functions that return ParseIntError.
+impl From&lt;ParseIntError&gt; for AppError {
+    fn from(e: ParseIntError) -> Self {
+        AppError::Parse(e)
+    }
+}
+
+fn parse_positive(s: &amp;str) -> Result&lt;u32, AppError&gt; {
+    let n: i32 = s.trim().parse()?; // `?` converts ParseIntError -> AppError via From
+    if n &lt; 0 {
+        return Err(AppError::NegativeNumber(n));
+    }
+    Ok(n as u32)
+}
+
+fn main() {
+    println!("{:?}", parse_positive("42"));   // Ok(42)
+    println!("{:?}", parse_positive("-5"));   // Err(NegativeNumber(-5))
+    println!("{:?}", parse_positive("abc"));  // Err(Parse(...))
+}</code></pre>
+
+                        <h2>thiserror: Typed Errors for Libraries</h2>
+                        <p><code>thiserror</code> is a derive macro that generates all that boilerplate for you. Instead of manually implementing <code>Display</code>, <code>Error</code>, and <code>From</code>, you annotate your enum variants with <code>#[error("...")]</code> attributes and derive <code>thiserror::Error</code>. The result is identical to the manual version but far more concise and less prone to drift (the display string lives right next to the variant it describes).</p>
+                        <p>The <code>#[error("...")]</code> attribute accepts format strings where <code>{field_name}</code> expands to a field value and <code>{0}</code> expands to the first unnamed field. The <code>#[from]</code> attribute automatically generates the <code>From</code> impl, enabling <code>?</code> propagation. The <code>#[source]</code> attribute marks a field as the underlying cause exposed by <code>Error::source()</code>.</p>
+                        <p><code>thiserror</code> is the right tool when you are writing a <strong>library</strong> or any code whose error type is part of the public API. Your callers need to be able to match on the variants, inspect the fields, and make decisions based on the kind of error. A typed enum gives them the full picture; a boxed trait object or an opaque string does not.</p>
+
+                        <h3>Basic thiserror Usage</h3>
+                        <p><em>The same <code>AppError</code> rewritten with <code>thiserror</code>, eliminating all manual trait implementations while preserving identical behaviour.</em></p>
+<pre><code class="language-rust">// Cargo.toml:
+// [dependencies]
+// thiserror = "1"
+
+use thiserror::Error;
+use std::num::ParseIntError;
+
+#[derive(Debug, Error)]
+enum AppError {
+    #[error("parse error: {0}")]
+    Parse(#[from] ParseIntError),
+
+    #[error("expected positive number, got {0}")]
+    NegativeNumber(i32),
+
+    #[error("value {value} is out of range [{min}, {max}]")]
+    OutOfRange { value: i32, min: i32, max: i32 },
+}
+
+fn parse_in_range(s: &amp;str, min: i32, max: i32) -> Result&lt;i32, AppError&gt; {
+    let n: i32 = s.trim().parse()?; // ? uses From&lt;ParseIntError&gt; auto-generated by #[from]
+    if n &lt; min || n > max {
+        return Err(AppError::OutOfRange { value: n, min, max });
+    }
+    Ok(n)
+}
+
+fn main() {
+    println!("{:?}", parse_in_range("42", 0, 100));    // Ok(42)
+    println!("{}",   parse_in_range("150", 0, 100).unwrap_err()); // value 150 is out of range [0, 100]
+    println!("{}",   parse_in_range("abc", 0, 100).unwrap_err()); // parse error: ...
+}</code></pre>
+
+                        <h3>Error Chains and Sources</h3>
+                        <p>Real applications compose errors: a high-level operation like "load config file" fails because of a low-level I/O error. <code>thiserror</code> preserves this chain. The <code>#[source]</code> attribute marks which field holds the underlying cause; <code>#[from]</code> implies <code>#[source]</code> automatically. You can traverse the chain at runtime with <code>Error::source()</code>, or format the entire chain with a loop.</p>
+
+                        <p><em>A layered error hierarchy: a low-level <code>IoError</code>, a mid-level <code>ConfigError</code> that wraps it, and a top-level <code>StartupError</code> that wraps <code>ConfigError</code> &mdash; all linked via <code>#[from]</code>/<code>#[source]</code>.</em></p>
+<pre><code class="language-rust">use thiserror::Error;
+use std::io;
+
+#[derive(Debug, Error)]
+enum ConfigError {
+    #[error("cannot read config file '{path}': {source}")]
+    Io {
+        path: String,
+        #[source]
+        source: io::Error,
+    },
+    #[error("missing required key: {0}")]
+    MissingKey(String),
+    #[error("invalid value for '{key}': {message}")]
+    InvalidValue { key: String, message: String },
+}
+
+#[derive(Debug, Error)]
+enum StartupError {
+    #[error("configuration failed")]
+    Config(#[from] ConfigError),
+    #[error("database connection failed: {0}")]
+    Database(String),
+}
+
+fn load_config(path: &amp;str) -> Result&lt;String, ConfigError&gt; {
+    // Simulate a missing file
+    Err(ConfigError::Io {
+        path: path.to_string(),
+        source: io::Error::new(io::ErrorKind::NotFound, "no such file"),
+    })
+}
+
+fn start_app() -> Result&lt;(), StartupError&gt; {
+    let _config = load_config("/etc/app/config.toml")?; // ? converts ConfigError -> StartupError
+    Ok(())
+}
+
+fn main() {
+    match start_app() {
+        Ok(_) => println!("started"),
+        Err(e) => {
+            println!("error: {e}");
+            // Traverse the error chain
+            let mut source = e.source();
+            while let Some(cause) = source {
+                println!("  caused by: {cause}");
+                source = cause.source();
+            }
+        }
+    }
+}</code></pre>
+
+                        <h2>anyhow: Ergonomic Error Propagation in Applications</h2>
+                        <p><code>anyhow</code> takes the opposite approach to <code>thiserror</code>. Rather than defining precise error types, it provides a single <code>anyhow::Error</code> type that can hold <em>any</em> error implementing <code>std::error::Error</code>, along with a <code>Result&lt;T&gt;</code> type alias (<code>anyhow::Result&lt;T&gt;</code> = <code>Result&lt;T, anyhow::Error&gt;</code>). The <code>?</code> operator converts any compatible error into <code>anyhow::Error</code> automatically. No <code>From</code> implementations, no error enums, no boilerplate.</p>
+                        <p>This makes <code>anyhow</code> the right tool for <strong>application code</strong>: CLI tools, server handlers, scripts, integration tests, and anywhere that calls into multiple libraries each with their own error types. You need to propagate those errors up to some top-level handler that will log them or display them to the user &mdash; you do not need to match on them. <code>anyhow</code> makes that propagation completely frictionless.</p>
+                        <p>The golden rule: use <code>thiserror</code> in library code where callers need to inspect errors; use <code>anyhow</code> in application code where you just need to propagate and display them.</p>
+
+                        <h3>Basic anyhow Usage</h3>
+                        <p><em>Three functions that return different error types, all propagated through a single <code>anyhow::Result</code> return type with no adapter code.</em></p>
+<pre><code class="language-rust">// Cargo.toml:
+// [dependencies]
+// anyhow = "1"
+
+use anyhow::{Result, Context, bail, ensure, anyhow};
+use std::fs;
+
+fn read_number_from_file(path: &amp;str) -> Result&lt;i32&gt; {
+    // fs::read_to_string returns io::Error; `?` converts it to anyhow::Error
+    let contents = fs::read_to_string(path)
+        .with_context(|| format!("failed to read '{path}'"))?;
+
+    // str::parse returns ParseIntError; same conversion, no From impl needed
+    let n: i32 = contents.trim().parse()
+        .with_context(|| format!("'{path}' does not contain a valid integer"))?;
+
+    Ok(n)
+}
+
+fn validate_port(port: i32) -> Result&lt;u16&gt; {
+    // `ensure!` is like assert but returns an Err instead of panicking
+    ensure!(port > 0 &amp;&amp; port &lt;= 65535, "port {port} is out of valid range [1, 65535]");
+    Ok(port as u16)
+}
+
+fn create_error_example() -> Result&lt;()&gt; {
+    // `bail!` is a shorthand for `return Err(anyhow!(...))`
+    bail!("something went unexpectedly wrong");
+}
+
+fn main() -> Result&lt;()&gt; {
+    match read_number_from_file("port.txt") {
+        Ok(n)  => println!("port from file: {n}"),
+        Err(e) => println!("could not read port: {e:#}"), // {:#} prints full chain
+    }
+
+    match validate_port(99999) {
+        Ok(p)  => println!("port: {p}"),
+        Err(e) => println!("invalid: {e}"),
+    }
+
+    Ok(())
+}</code></pre>
+
+                        <h3>Context and Error Messages</h3>
+                        <p><code>anyhow</code>'s killer feature is <code>.context()</code> and <code>.with_context()</code>. These methods wrap an error with an additional message, creating a chain that reads naturally from high-level to low-level cause. The difference between the two: <code>.context("msg")</code> always evaluates the string; <code>.with_context(|| format!("..."))</code> is lazy and only evaluates the closure when an error actually occurs. Use <code>with_context</code> when the message involves expensive formatting or allocations.</p>
+                        <p>When displaying an <code>anyhow::Error</code>, use <code>{:#}</code> (alternate format) to print the full error chain separated by ": ", or use <code>{:?}</code> to get a debug representation that includes backtraces when <code>RUST_BACKTRACE=1</code> is set.</p>
+
+                        <p><em>A multi-step pipeline where each step adds contextual information with <code>with_context</code>, building up a rich error chain visible in the final message.</em></p>
+<pre><code class="language-rust">use anyhow::{Result, Context};
+
+fn parse_config_value(raw: &amp;str) -> Result&lt;u32&gt; {
+    raw.trim()
+        .parse::&lt;u32&gt;()
+        .context("expected an unsigned integer")
+}
+
+fn load_config_line(line: &amp;str) -> Result&lt;(String, u32)&gt; {
+    let parts: Vec&lt;&amp;str&gt; = line.splitn(2, '=').collect();
+    if parts.len() != 2 {
+        anyhow::bail!("expected 'key=value', got: {line:?}");
+    }
+    let key = parts[0].trim().to_string();
+    let val = parse_config_value(parts[1])
+        .with_context(|| format!("in key '{key}'"))?;
+    Ok((key, val))
+}
+
+fn process_config(input: &amp;str) -> Result&lt;Vec&lt;(String, u32)&gt;&gt; {
+    input.lines()
+         .filter(|l| !l.trim().is_empty())
+         .map(|line| {
+             load_config_line(line)
+                 .with_context(|| format!("while parsing line: {line:?}"))
+         })
+         .collect()
+}
+
+fn main() {
+    let good = "timeout = 30\nmax_retries = 5";
+    let bad  = "timeout = 30\nmax_retries = abc";
+
+    match process_config(good) {
+        Ok(pairs) => println!("{pairs:?}"),
+        Err(e) => println!("error: {e:#}"),
+    }
+
+    match process_config(bad) {
+        Ok(pairs) => println!("{pairs:?}"),
+        Err(e) => {
+            println!("error: {e:#}");
+            // prints: while parsing line: "max_retries = abc": in key 'max_retries': expected an unsigned integer: invalid digit found in string
+        }
+    }
+}</code></pre>
+
+                        <h3>Mixing thiserror and anyhow</h3>
+                        <p>In a real project you will often use both: <code>thiserror</code> in the library layers that define domain-specific error types, and <code>anyhow</code> in the application layer that glues everything together. The transition is seamless because any type implementing <code>std::error::Error</code> &mdash; including <code>thiserror</code>-derived types &mdash; converts automatically into <code>anyhow::Error</code> via <code>?</code>.</p>
+
+                        <p><em>A library module using <code>thiserror</code> for typed errors consumed by an application layer using <code>anyhow</code> for frictionless propagation.</em></p>
+<pre><code class="language-rust">// ---- library layer (uses thiserror) ----
+mod db {
+    use thiserror::Error;
+
+    #[derive(Debug, Error)]
+    pub enum DbError {
+        #[error("connection refused: {0}")]
+        ConnectionRefused(String),
+        #[error("query failed: {0}")]
+        QueryFailed(String),
+        #[error("record not found: id={0}")]
+        NotFound(u64),
+    }
+
+    pub fn find_user(id: u64) -> Result&lt;String, DbError&gt; {
+        if id == 0 {
+            return Err(DbError::NotFound(id));
+        }
+        Ok(format!("user_{id}"))
+    }
+}
+
+// ---- application layer (uses anyhow) ----
+use anyhow::{Result, Context};
+
+fn get_user_name(id: u64) -> Result&lt;String&gt; {
+    // DbError automatically converts to anyhow::Error via ?
+    let name = db::find_user(id)
+        .with_context(|| format!("failed to look up user {id}"))?;
+    Ok(name)
+}
+
+fn main() -> Result&lt;()&gt; {
+    println!("{}", get_user_name(42)?);
+
+    match get_user_name(0) {
+        Ok(name) => println!("{name}"),
+        Err(e) => println!("error: {e:#}"),
+    }
+
+    // Application code can still downcast to the original error type when needed
+    match db::find_user(0) {
+        Err(db::DbError::NotFound(id)) => println!("no user with id {id}"),
+        Err(e) => println!("other db error: {e}"),
+        Ok(u)  => println!("{u}"),
+    }
+
+    Ok(())
+}</code></pre>
+
+                        <h2>Error Handling Patterns</h2>
+
+                        <h3>Converting and Mapping Errors</h3>
+                        <p>Sometimes you need to convert one error type to another without <code>From</code> being defined, or you want to transform an error value before propagating it. <code>Result::map_err</code> applies a function to the error variant, leaving the <code>Ok</code> variant untouched. This is useful for wrapping third-party errors into your own error type without implementing <code>From</code>, or for adding runtime context to an existing error value.</p>
+
+                        <p><em>Using <code>map_err</code> and <code>ok_or_else</code> to convert and enrich errors inline without implementing <code>From</code>.</em></p>
+<pre><code class="language-rust">use std::num::ParseIntError;
+
+#[derive(Debug)]
+struct AppError(String);
+
+fn parse_positive_id(s: &amp;str) -> Result&lt;u32, AppError&gt; {
+    // map_err converts ParseIntError into AppError inline
+    let n: i64 = s.trim()
+        .parse()
+        .map_err(|e: ParseIntError| AppError(format!("bad id '{s}': {e}")))?;
+
+    // ok_or_else converts Option to Result
+    u32::try_from(n)
+        .ok()
+        .filter(|&amp;v| v > 0)
+        .ok_or_else(|| AppError(format!("id must be positive, got {n}")))
+}
+
+fn main() {
+    println!("{:?}", parse_positive_id("42"));   // Ok(42)
+    println!("{:?}", parse_positive_id("0"));    // Err(AppError("id must be positive, got 0"))
+    println!("{:?}", parse_positive_id("abc"));  // Err(AppError("bad id 'abc': ..."))
+}</code></pre>
+
+                        <h3>Collecting Results</h3>
+                        <p>A common pattern is processing a collection of inputs where each operation can fail, and you want either all the successes or the first failure. The <code>Iterator::collect</code> method supports collecting into <code>Result&lt;Vec&lt;T&gt;, E&gt;</code> directly &mdash; it short-circuits on the first <code>Err</code> and returns it, or returns <code>Ok(Vec&lt;T&gt;)</code> if all elements succeeded. If you want to collect all results instead of short-circuiting, use <code>partition</code> or a manual fold.</p>
+
+                        <p><em>Two patterns: short-circuit collect into <code>Result&lt;Vec&lt;T&gt;&gt;</code>, and partition-based collection that gathers all errors without stopping early.</em></p>
+<pre><code class="language-rust">fn parse_numbers(inputs: &amp;[&amp;str]) -> Result&lt;Vec&lt;i32&gt;, String&gt; {
+    inputs.iter()
+        .map(|s| s.trim().parse::&lt;i32&gt;()
+             .map_err(|e| format!("cannot parse '{s}': {e}")))
+        .collect() // stops at first Err
+}
+
+fn parse_all_numbers(inputs: &amp;[&amp;str]) -> (Vec&lt;i32&gt;, Vec&lt;String&gt;) {
+    let (oks, errs): (Vec&lt;_&gt;, Vec&lt;_&gt;) = inputs.iter()
+        .map(|s| s.trim().parse::&lt;i32&gt;()
+             .map_err(|e| format!("cannot parse '{s}': {e}")))
+        .partition(Result::is_ok);
+
+    let values: Vec&lt;i32&gt;   = oks.into_iter().map(Result::unwrap).collect();
+    let errors: Vec&lt;String&gt; = errs.into_iter().map(Result::unwrap_err).collect();
+    (values, errors)
+}
+
+fn main() {
+    println!("{:?}", parse_numbers(&amp;["1", "2", "3"]));      // Ok([1, 2, 3])
+    println!("{:?}", parse_numbers(&amp;["1", "x", "3"]));      // Err("cannot parse 'x': ...")
+
+    let (vals, errs) = parse_all_numbers(&amp;["1", "x", "3", "y"]);
+    println!("ok: {vals:?}, errors: {errs:?}");
+    // ok: [1, 3], errors: ["cannot parse 'x': ...", "cannot parse 'y': ..."]
+}</code></pre>
+
+                        <h3>When to Panic vs. Return an Error</h3>
+                        <p>Rust gives you two mechanisms for signalling failure: <code>panic!</code> (for bugs and violated invariants) and <code>Result</code>/<code>Option</code> (for expected, recoverable failures). The decision of which to use is a design choice about the nature of the failure:</p>
+                        <ul>
+                            <li><strong>Return <code>Result</code></strong> when the failure is expected and the caller can reasonably recover: file not found, network timeout, malformed user input, API rate limit. These are not bugs; they are part of normal operation.</li>
+                            <li><strong>Use <code>panic!</code></strong> when the failure represents a programming error that should never occur in correct code: a violated precondition, an index out of bounds that should be unreachable given prior validation, or an impossible enum variant. Panics signal bugs, not runtime conditions.</li>
+                            <li><strong>Use <code>unwrap()</code> / <code>expect()</code></strong> sparingly, in tests and prototypes only. In production code, prefer <code>?</code> or explicit <code>match</code>. The one exception: <code>expect("invariant X should hold because Y")</code> is acceptable when you have a logical proof that the <code>Option</code>/<code>Result</code> cannot be <code>None</code>/<code>Err</code> at that point, and you want a clear message if your reasoning was wrong.</li>
+                        </ul>
+
+                        <p><em>A function pair illustrating correct placement of <code>panic</code> vs <code>Result</code>: panicking on violated invariants, returning <code>Result</code> for expected runtime failures.</em></p>
+<pre><code class="language-rust">use anyhow::{Result, Context, ensure};
+
+/// Panics if `data` is empty -- this is a programmer error; callers must validate.
+fn median(data: &amp;[f64]) -> f64 {
+    assert!(!data.is_empty(), "median() called with empty slice -- this is a bug");
+    let mut sorted = data.to_vec();
+    sorted.sort_by(f64::total_cmp);
+    let mid = sorted.len() / 2;
+    if sorted.len() % 2 == 0 {
+        (sorted[mid - 1] + sorted[mid]) / 2.0
+    } else {
+        sorted[mid]
+    }
+}
+
+/// Returns Err for expected failures: bad format, out of range input.
+fn parse_sample_list(s: &amp;str) -> Result&lt;Vec&lt;f64&gt;&gt; {
+    ensure!(!s.trim().is_empty(), "input is empty");
+    s.split(',')
+        .map(|tok| tok.trim().parse::&lt;f64&gt;()
+             .with_context(|| format!("invalid token: {tok:?}")))
+        .collect()
+}
+
+fn main() {
+    match parse_sample_list("1.5, 2.5, 3.0, 4.0") {
+        Ok(data) => println!("median: {}", median(&amp;data)),
+        Err(e)   => println!("error: {e:#}"),
+    }
+
+    match parse_sample_list("1.5, two, 3.0") {
+        Ok(data) => println!("median: {}", median(&amp;data)),
+        Err(e)   => println!("error: {e:#}"),
+        // error: invalid token: "two": invalid float literal
+    }
+}</code></pre>
+
+                    </div>
+                </div>
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>Rust Series</h4>
+                        <a href="rust-installation-data-types.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Installation and Data Types</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-control-flow.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Control Flow &amp; Pattern Matching</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-ownership.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Ownership, Borrowing &amp; Lifetimes</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-functions-closures.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Functions, Closures &amp; Higher-Order Functions</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-structs-methods.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Structs, Methods &amp; Associated Functions</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-enums-option-result.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Enums &amp; Option / Result</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-error-handling.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Error Handling (thiserror &amp; anyhow)</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-rust.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script>
+        const toggle = document.querySelector('.nav-toggle');
+        const navLinks = document.querySelector('.nav-links');
+        toggle.addEventListener('click', () => {
+            navLinks.classList.toggle('active');
+            toggle.classList.toggle('active');
+        });
+    </script>
+
+</body>
+</html>

@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Strings: String, &amp;str, OsString &amp; Encoding in Rust &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="rust-tech-insights.html">Rust</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+            <button class="nav-toggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="rust-tech-insights.html" class="back-link">&larr; Back to Rust Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Feb 2026</span>
+                            <span class="post-reading">15 min read</span>
+                        </div>
+                        <h1>Strings: String, &amp;str, OsString &amp; Encoding</h1>
+                        <div class="post-tags">
+                            <span>Rust</span>
+                            <span>Strings</span>
+                            <span>UTF-8</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Rust has several string types, each serving a distinct purpose. The split between <code>String</code> and <code>&amp;str</code> reflects ownership; the existence of <code>OsString</code>, <code>CString</code>, and <code>PathBuf</code> reflects the reality that not all strings in the world are UTF-8. Understanding why these types exist, when to use each, and how to convert between them is essential for writing Rust that interacts with the filesystem, the OS, or native libraries.</p>
+
+                        <h2>String vs &amp;str</h2>
+                        <p><code>String</code> is a heap-allocated, owned, growable sequence of UTF-8 bytes. It is the equivalent of <code>std::string</code> in C++ or <code>StringBuilder</code> in Java. <code>&amp;str</code> is a borrowed reference to a UTF-8 string slice: a pointer and a length. It does not own the data; it is a view into memory owned by someone else &mdash; a <code>String</code>, a string literal baked into the binary, or any contiguous UTF-8 byte sequence.</p>
+                        <p>The key rule: use <code>&amp;str</code> in function parameters (it accepts both string literals and references to <code>String</code>s via coercion), and use <code>String</code> when you need to own, build, or return string data.</p>
+
+                        <h3>The Ownership Model</h3>
+                        <p><em>Construction, coercion, cloning, and the distinction between owned and borrowed strings.</em></p>
+<pre><code class="language-rust">fn greet(name: &amp;str) {
+    println!("Hello, {name}!");
+}
+
+fn make_greeting(name: &amp;str) -> String {
+    format!("Hello, {name}!")
+}
+
+fn main() {
+    // String literal: &amp;'static str, embedded in binary
+    let lit: &amp;str = "hello world";
+
+    // String: heap-allocated, owned
+    let owned: String = String::from("hello world");
+    let also: String = "hello".to_string();
+    let concat: String = "hello".to_owned() + " world";
+
+    // &amp;String coerces to &amp;str automatically (Deref coercion)
+    greet("literal");     // &amp;'static str
+    greet(&amp;owned);        // &amp;String -> &amp;str via Deref
+
+    // &amp;str to String: always requires allocation
+    let s: String = lit.to_string();
+    let s2: String = lit.to_owned();
+    let s3: String = String::from(lit);
+
+    // String to &amp;str: zero-cost borrow
+    let slice: &amp;str = &amp;owned;
+    let partial: &amp;str = &amp;owned[0..5]; // "hello"
+
+    println!("{}", make_greeting("Ferris"));
+    println!("partial: {partial}");
+
+    // Capacity and length (in bytes, not chars)
+    let mut s = String::with_capacity(50);
+    s.push_str("hello");
+    s.push(' ');
+    s.push_str("world");
+    println!("len={}, cap={}", s.len(), s.capacity());
+}</code></pre>
+
+                        <h2>UTF-8 and Character Boundaries</h2>
+                        <p>Rust strings are guaranteed to be valid UTF-8. This means you cannot index a string with a byte offset that falls in the middle of a multibyte character &mdash; doing so would panic. The safe alternatives are: iterate over <code>.chars()</code> (Unicode scalar values), iterate over <code>.bytes()</code> (raw bytes), or use the <code>.char_indices()</code> iterator to get both byte offsets and chars simultaneously.</p>
+                        <p>A <code>char</code> in Rust is a Unicode scalar value, encoded in 1-4 bytes as UTF-8. The length of a string in bytes (<code>.len()</code>) differs from its length in characters (<code>.chars().count()</code>) whenever multibyte characters are present. Never assume <code>s.len() == s.chars().count()</code>.</p>
+
+                        <p><em>Byte lengths vs character counts, safe slicing, char iteration, and handling multibyte characters correctly.</em></p>
+<pre><code class="language-rust">fn main() {
+    let ascii   = "hello";
+    let emoji   = "🦀 Ferris";
+    let unicode = "日本語";
+
+    // .len() is BYTE length, not character count
+    println!("ascii   bytes={}, chars={}", ascii.len(), ascii.chars().count());   // 5, 5
+    println!("emoji   bytes={}, chars={}", emoji.len(), emoji.chars().count());   // 11, 8
+    println!("unicode bytes={}, chars={}", unicode.len(), unicode.chars().count()); // 9, 3
+
+    // Safe iteration by char
+    for (i, c) in emoji.char_indices() {
+        println!("  byte_offset={i}, char={c:?}");
+    }
+
+    // Safe slicing: byte offsets must be on char boundaries
+    let s = "héllo";
+    // s[0..1] would panic: 'é' is 2 bytes
+    // Safe: use char_indices to find boundaries
+    let first_two: String = s.chars().take(2).collect();
+    println!("first two chars: {first_two}"); // hé
+
+    // Check if offset is a char boundary
+    println!("is boundary at 1: {}", s.is_char_boundary(1)); // false
+    println!("is boundary at 2: {}", s.is_char_boundary(2)); // true (after 'é')
+
+    // Split at char boundary safely
+    let (head, tail) = s.split_at(2); // 'h' + 'é' = 3 bytes... wait
+    // Actually 'h'=1 byte, 'é'=2 bytes, so boundary at 3 for "hé"
+    let (head, tail) = s.split_at(3);
+    println!("head={head:?}, tail={tail:?}");
+
+    // Bytes iterator
+    let bytes: Vec&lt;u8&gt; = "hello".bytes().collect();
+    println!("{bytes:?}"); // [104, 101, 108, 108, 111]
+}</code></pre>
+
+                        <h2>String Methods</h2>
+                        <p>The standard library provides a rich set of methods on <code>&amp;str</code> and <code>String</code>. The most important patterns are searching, splitting, trimming, and replacing.</p>
+
+                        <p><em>A comprehensive tour of the most commonly used string manipulation methods.</em></p>
+<pre><code class="language-rust">fn main() {
+    let s = "  Hello, World! Hello, Rust!  ";
+
+    // Trimming
+    println!("{:?}", s.trim());          // "Hello, World! Hello, Rust!"
+    println!("{:?}", s.trim_start());    // "Hello, World! Hello, Rust!  "
+    println!("{:?}", s.trim_end());      // "  Hello, World! Hello, Rust!"
+
+    // Searching
+    println!("{}", s.contains("Rust"));          // true
+    println!("{:?}", s.find("Hello"));           // Some(2)
+    println!("{:?}", s.rfind("Hello"));          // Some(16)
+    println!("{}", s.starts_with("  Hello"));    // true
+    println!("{}", s.ends_with("!  "));          // true
+
+    // Replacing
+    let replaced = s.replace("Hello", "Hi");
+    println!("{:?}", replaced);
+    let once = s.replacen("Hello", "Hi", 1);
+    println!("{:?}", once);
+
+    // Splitting
+    let words: Vec&lt;&amp;str&gt; = "one,two,three".split(',').collect();
+    println!("{words:?}"); // ["one", "two", "three"]
+
+    let limited: Vec&lt;&amp;str&gt; = "a:b:c:d".splitn(3, ':').collect();
+    println!("{limited:?}"); // ["a", "b", "c:d"]
+
+    // Lines
+    let multiline = "line1\nline2\nline3";
+    let lines: Vec&lt;&amp;str&gt; = multiline.lines().collect();
+    println!("{lines:?}");
+
+    // Case
+    println!("{}", "hello World".to_uppercase()); // HELLO WORLD
+    println!("{}", "hello World".to_lowercase()); // hello world
+
+    // Repeat and join
+    println!("{}", "ab".repeat(3)); // ababab
+    let parts = vec!["one", "two", "three"];
+    println!("{}", parts.join(", ")); // one, two, three
+
+    // Parsing from string
+    let n: i32 = "42".parse().unwrap();
+    let f: f64 = "3.14".parse().unwrap();
+    let result: Result&lt;i32, _&gt; = "abc".parse::&lt;i32&gt;();
+    println!("{n}, {f}, {result:?}");
+
+    // Chars manipulation
+    let capitalized: String = {
+        let mut c = "hello".chars();
+        match c.next() {
+            None => String::new(),
+            Some(first) => first.to_uppercase().to_string() + c.as_str(),
+        }
+    };
+    println!("{capitalized}"); // Hello
+}</code></pre>
+
+                        <h2>Building Strings Efficiently</h2>
+                        <p>Concatenating strings with <code>+</code> is convenient but creates a new allocation for each operation. For building strings from many pieces, use <code>String::with_capacity</code> + <code>push_str</code>, or <code>format!</code> for complex cases. The <code>write!</code> macro from <code>std::fmt::Write</code> lets you write directly into a <code>String</code> with format strings, avoiding the temporary allocation that <code>format!</code> would create.</p>
+
+                        <p><em>Comparing concatenation approaches: the + operator, format!, push_str, and write!.</em></p>
+<pre><code class="language-rust">use std::fmt::Write;
+
+fn build_table(headers: &amp;[&amp;str], rows: &amp;[Vec&lt;String&gt;]) -> String {
+    let col_widths: Vec&lt;usize&gt; = headers.iter().enumerate().map(|(i, h)| {
+        rows.iter()
+            .map(|row| row.get(i).map(|s| s.len()).unwrap_or(0))
+            .max()
+            .unwrap_or(0)
+            .max(h.len())
+    }).collect();
+
+    let mut out = String::with_capacity(256);
+    let separator: String = col_widths.iter().map(|&amp;w| "-".repeat(w + 2)).collect::&lt;Vec&lt;_&gt;&gt;().join("+");
+
+    // write! into String -- no intermediate allocation
+    writeln!(out, "+{separator}+").unwrap();
+    write!(out, "|").unwrap();
+    for (h, &amp;w) in headers.iter().zip(col_widths.iter()) {
+        write!(out, " {h:&lt;w$} |").unwrap();
+    }
+    writeln!(out).unwrap();
+    writeln!(out, "+{separator}+").unwrap();
+
+    for row in rows {
+        write!(out, "|").unwrap();
+        for (cell, &amp;w) in row.iter().zip(col_widths.iter()) {
+            write!(out, " {cell:&lt;w$} |").unwrap();
+        }
+        writeln!(out).unwrap();
+    }
+    writeln!(out, "+{separator}+").unwrap();
+    out
+}
+
+fn main() {
+    // + operator: allocates a new String at each +
+    let s1 = "Hello".to_string();
+    let s2 = ", ";
+    let s3 = "World!";
+    let result = s1 + s2 + s3; // s1 is moved, s2 and s3 are &amp;str
+    println!("{result}");
+
+    // format!: most readable, but always allocates
+    let name = "Rust";
+    let greeting = format!("Hello, {name}! Version {}.{}", 1, 75);
+    println!("{greeting}");
+
+    // push_str: most efficient for incremental building
+    let mut s = String::with_capacity(100);
+    for i in 0..5 {
+        if i &gt; 0 { s.push_str(", "); }
+        s.push_str(&amp;i.to_string());
+    }
+    println!("{s}"); // 0, 1, 2, 3, 4
+
+    // Table example
+    let headers = ["Name", "Age", "City"];
+    let rows = vec![
+        vec!["Alice".to_string(), "30".to_string(), "Rome".to_string()],
+        vec!["Bob".to_string(), "25".to_string(), "Milan".to_string()],
+        vec!["Charlie".to_string(), "35".to_string(), "Florence".to_string()],
+    ];
+    print!("{}", build_table(&amp;headers, &amp;rows));
+}</code></pre>
+
+                        <h2>OsString, CString, and PathBuf</h2>
+                        <p>Not all strings that Rust programs encounter are valid UTF-8. The operating system and native libraries impose their own encoding conventions:</p>
+                        <ul>
+                            <li><strong><code>OsString</code> / <code>OsStr</code></strong>: the OS-native string type. On Unix, it is arbitrary bytes (typically UTF-8 but not guaranteed). On Windows, it is potentially ill-formed UTF-16. Used for file names, environment variables, process arguments, and OS paths. Converts losslessly from/to <code>String</code> only when valid UTF-8.</li>
+                            <li><strong><code>PathBuf</code> / <code>Path</code></strong>: a wrapper around <code>OsString</code>/<code>OsStr</code> that provides path-manipulation methods (<code>join</code>, <code>extension</code>, <code>file_name</code>, <code>parent</code>, etc.). Always use <code>Path</code> instead of string concatenation for paths.</li>
+                            <li><strong><code>CString</code> / <code>CStr</code></strong>: null-terminated byte strings for FFI with C libraries. The nul byte cannot appear in the string body; the terminating nul is managed by the type.</li>
+                        </ul>
+
+                        <p><em>Working with PathBuf for filesystem operations, OsString for environment variables, and CString for FFI-ready strings.</em></p>
+<pre><code class="language-rust">use std::path::{Path, PathBuf};
+use std::ffi::{OsString, CString, CStr};
+
+fn describe_path(p: &amp;Path) {
+    println!("path:      {}", p.display());
+    println!("file_name: {:?}", p.file_name());
+    println!("extension: {:?}", p.extension());
+    println!("parent:    {:?}", p.parent());
+    println!("exists:    {}", p.exists());
+}
+
+fn main() {
+    // PathBuf: owned path
+    let mut path = PathBuf::from("/home/user");
+    path.push("projects");        // /home/user/projects
+    path.push("app");             // /home/user/projects/app
+    path.set_extension("toml");   // /home/user/projects/app.toml
+
+    describe_path(&amp;path);
+
+    // Path::new: borrowed path slice
+    let p = Path::new("/etc/passwd");
+    describe_path(p);
+
+    // Join paths safely
+    let base = Path::new("/var/log");
+    let full = base.join("app").join("error.log");
+    println!("full path: {}", full.display());
+
+    // OsString: round-trip through env variable (may not be UTF-8)
+    let key = OsString::from("PATH");
+    if let Some(val) = std::env::var_os("PATH") {
+        // to_string_lossy: converts to &amp;str, replacing invalid UTF-8 with U+FFFD
+        let s = val.to_string_lossy();
+        let count = s.split(':').count();
+        println!("PATH has {count} entries");
+    }
+
+    // CString: null-terminated, for C FFI
+    let c_str = CString::new("hello from Rust").expect("no nul bytes allowed");
+    // c_str.as_ptr() gives a *const c_char for passing to C functions
+
+    // Converting: String -> CString -> &amp;CStr -> &amp;str
+    let original = "hello";
+    let c = CString::new(original).unwrap();
+    let back: &amp;str = c.to_str().unwrap();
+    println!("round-trip: {back}");
+
+    // Path to String (may fail if path is not valid UTF-8)
+    let path_str: Option&lt;&amp;str&gt; = full.to_str();
+    println!("as str: {:?}", path_str);
+
+    // Always-valid conversion with lossy
+    let lossy = full.to_string_lossy();
+    println!("lossy: {lossy}");
+}</code></pre>
+
+                        <h2>Cow&lt;&amp;str, str&gt; — Clone on Write</h2>
+                        <p><code>Cow&lt;'a, str&gt;</code> (Clone on Write) is a smart pointer that is either a borrowed <code>&amp;'a str</code> or an owned <code>String</code>. It allows functions to return a string that is borrowed when no allocation is needed and owned when it is. This is perfect for sanitization or normalization functions: if the input is already in the desired form, return it borrowed; if it needs transformation, allocate and return owned.</p>
+
+                        <p><em>A normalizer function that returns <code>Cow&lt;str&gt;</code> to avoid allocating when the input already conforms to the expected format.</em></p>
+<pre><code class="language-rust">use std::borrow::Cow;
+
+fn normalize_whitespace(s: &amp;str) -> Cow&lt;str&gt; {
+    if s.contains("  ") || s.starts_with(' ') || s.ends_with(' ') {
+        // Needs transformation: allocate
+        Cow::Owned(s.split_whitespace().collect::&lt;Vec&lt;&amp;str&gt;&gt;().join(" "))
+    } else {
+        // Already normalized: borrow
+        Cow::Borrowed(s)
+    }
+}
+
+fn ensure_uppercase_prefix(s: &amp;str) -> Cow&lt;str&gt; {
+    if s.starts_with(|c: char| c.is_uppercase()) {
+        Cow::Borrowed(s)
+    } else {
+        let mut owned = s.to_owned();
+        if let Some(first) = owned.get_mut(0..1) {
+            first.make_ascii_uppercase();
+        }
+        Cow::Owned(owned)
+    }
+}
+
+fn main() {
+    let already_clean = "hello world";
+    let needs_cleaning = "  hello   world  ";
+
+    let r1 = normalize_whitespace(already_clean);
+    let r2 = normalize_whitespace(needs_cleaning);
+
+    // Both work as &amp;str transparently
+    println!("{:?}", r1); // Borrowed("hello world")   -- no allocation
+    println!("{:?}", r2); // Owned("hello world")      -- allocated
+
+    // Use as &amp;str without caring which variant
+    for s in [&amp;r1, &amp;r2] {
+        println!("len={}", s.len());
+    }
+
+    // Cow in a Vec: heterogeneous borrowed/owned strings
+    let items: Vec&lt;Cow&lt;str&gt;&gt; = vec![
+        Cow::Borrowed("already fine"),
+        Cow::Owned("built at runtime".to_string()),
+        normalize_whitespace("  needs work  "),
+    ];
+    for item in &amp;items { println!("{item}"); }
+}</code></pre>
+
+                    </div>
+                </div>
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>Rust Series &mdash; Module 3</h4>
+                        <a href="rust-collections.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Vec, HashMap, HashSet &amp; BTreeMap</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-iterators-advanced.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Advanced Iterators</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-custom-iterators.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Custom Iterators &amp; IntoIterator</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-strings.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Strings: String, &amp;str &amp; Encoding</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-rust.min.js"></script>
+    <script>
+        const toggle = document.querySelector('.nav-toggle');
+        const navLinks = document.querySelector('.nav-links');
+        toggle.addEventListener('click', () => {
+            navLinks.classList.toggle('active');
+            toggle.classList.toggle('active');
+        });
+    </script>
+
+</body>
+</html>

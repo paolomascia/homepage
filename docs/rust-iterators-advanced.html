@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Iterators in Rust &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="rust-tech-insights.html">Rust</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+            <button class="nav-toggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="rust-tech-insights.html" class="back-link">&larr; Back to Rust Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Feb 2026</span>
+                            <span class="post-reading">16 min read</span>
+                        </div>
+                        <h1>Advanced Iterators</h1>
+                        <div class="post-tags">
+                            <span>Rust</span>
+                            <span>Iterators</span>
+                            <span>Lazy Evaluation</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Rust's iterator system is one of the most expressive in any systems language. Iterator adapters are lazy &mdash; nothing executes until a consuming method is called &mdash; and the entire pipeline is fused into a single loop by the compiler with no intermediate allocations. This article covers the adapters beyond the basics: <code>chain</code>, <code>zip</code>, <code>flat_map</code>, <code>peekable</code>, <code>scan</code>, <code>cycle</code>, <code>unzip</code>, and building efficient pipelines for real data problems.</p>
+
+                        <h2>Lazy Evaluation and Iterator Fusion</h2>
+                        <p>Every iterator adapter (map, filter, chain, zip, ...) returns a new iterator struct that wraps the previous one. No work is done until you call a <em>consuming</em> adapter like <code>collect</code>, <code>for_each</code>, <code>sum</code>, <code>count</code>, or <code>find</code>. When consumption begins, each call to <code>next()</code> on the outermost adapter delegates through the chain until an element is produced or exhausted. The compiler inlines these calls through LLVM, fusing the entire pipeline into a single tight loop.</p>
+                        <p>This means a five-adapter chain has the same performance as a single hand-written loop. You pay for what you use, not for the abstraction layers.</p>
+
+                        <h3>chain — Concatenating Iterators</h3>
+                        <p><code>chain(other)</code> yields all elements of <code>self</code>, then all elements of <code>other</code>. Both iterators must yield the same item type. The resulting iterator is lazy: elements from the second iterator are never touched until the first is exhausted.</p>
+
+                        <p><em>Chaining multiple sequences, mixing owned and borrowed iterators, and using chain to construct a combined pipeline.</em></p>
+<pre><code class="language-rust">fn main() {
+    // Basic chain
+    let a = vec![1, 2, 3];
+    let b = vec![4, 5, 6];
+    let combined: Vec&lt;i32&gt; = a.iter().chain(b.iter()).copied().collect();
+    println!("{combined:?}"); // [1, 2, 3, 4, 5, 6]
+
+    // Chain more than two
+    let c = vec![7, 8, 9];
+    let all: Vec&lt;i32&gt; = a.iter().chain(b.iter()).chain(c.iter()).copied().collect();
+    println!("{all:?}"); // [1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+    // Chain with a single-element iterator (useful for appending/prepending)
+    let with_zero: Vec&lt;i32&gt; = std::iter::once(0).chain(a.iter().copied()).collect();
+    println!("{with_zero:?}"); // [0, 1, 2, 3]
+
+    // Chain slices of different sources
+    let first_names  = ["Alice", "Bob"];
+    let second_names = ["Charlie", "Diana"];
+    let all_names: Vec&lt;&amp;str&gt; = first_names.iter().chain(second_names.iter()).copied().collect();
+    println!("{all_names:?}");
+
+    // Count across chained sources without allocating
+    let total = a.iter().chain(b.iter()).chain(c.iter()).count();
+    println!("total elements: {total}"); // 9
+
+    // Chain + filter (lazy: only visits elements as needed)
+    let even_sum: i32 = a.iter().chain(b.iter()).chain(c.iter())
+        .copied()
+        .filter(|x| x % 2 == 0)
+        .sum();
+    println!("even sum: {even_sum}"); // 2+4+6+8 = 20
+}</code></pre>
+
+                        <h3>zip — Pairing Iterators</h3>
+                        <p><code>zip(other)</code> takes two iterators and produces an iterator of pairs <code>(A, B)</code>. It stops when either iterator is exhausted. This is the standard way to iterate two collections in lockstep. For iterating a collection with its indices, <code>enumerate()</code> is the idiomatic alternative to zipping with a range.</p>
+
+                        <p><em>Zipping collections, unzipping pairs, combining zip with map for element-wise arithmetic.</em></p>
+<pre><code class="language-rust">fn main() {
+    let xs = vec![1.0, 2.0, 3.0, 4.0];
+    let ys = vec![0.5, 1.5, 2.5, 3.5];
+
+    // Element-wise addition via zip
+    let sums: Vec&lt;f64&gt; = xs.iter().zip(ys.iter()).map(|(x, y)| x + y).collect();
+    println!("{sums:?}"); // [1.5, 3.5, 5.5, 7.5]
+
+    // Dot product
+    let dot: f64 = xs.iter().zip(ys.iter()).map(|(x, y)| x * y).sum();
+    println!("dot: {dot}"); // 1*0.5 + 2*1.5 + 3*2.5 + 4*3.5 = 0.5+3+7.5+14 = 25
+
+    // Zip with enumerate for (index, value_a, value_b)
+    let names = vec!["Alice", "Bob", "Charlie"];
+    let scores = vec![92, 88, 75];
+    for (i, (name, score)) in names.iter().zip(scores.iter()).enumerate() {
+        println!("{i}: {name} = {score}");
+    }
+
+    // Unzip: split Vec of pairs into two Vecs
+    let pairs: Vec&lt;(i32, &amp;str)&gt; = vec![(1, "one"), (2, "two"), (3, "three")];
+    let (numbers, words): (Vec&lt;i32&gt;, Vec&lt;&amp;str&gt;) = pairs.into_iter().unzip();
+    println!("{numbers:?}"); // [1, 2, 3]
+    println!("{words:?}");   // ["one", "two", "three"]
+
+    // zip stops at shortest -- intentional truncation
+    let long  = vec![1, 2, 3, 4, 5];
+    let short = vec!["a", "b"];
+    let zipped: Vec&lt;_&gt; = long.iter().zip(short.iter()).collect();
+    println!("{zipped:?}"); // [(1, "a"), (2, "b")]
+
+    // zip_longest equivalent: use itertools crate in real code; manual here:
+    let a = [1, 2, 3];
+    let b = [10, 20];
+    let longest = a.len().max(b.len());
+    let result: Vec&lt;(Option&lt;i32&gt;, Option&lt;i32&gt;)&gt; = (0..longest)
+        .map(|i| (a.get(i).copied(), b.get(i).copied()))
+        .collect();
+    println!("{result:?}"); // [(Some(1),Some(10)), (Some(2),Some(20)), (Some(3),None)]
+}</code></pre>
+
+                        <h3>flat_map — Map Then Flatten</h3>
+                        <p><code>flat_map(f)</code> applies <code>f</code> to each element, where <code>f</code> returns an iterator, then flattens the results into a single stream. It is equivalent to <code>.map(f).flatten()</code> but expressed in one step. Use it whenever you want to expand each element into zero or more output elements: tokenizing text, exploding a record into rows, generating permutations, etc.</p>
+
+                        <p><em>Tokenizing, expanding records, and combining flat_map with other adapters for multi-stage transformations.</em></p>
+<pre><code class="language-rust">fn main() {
+    // Tokenize lines into words
+    let lines = vec!["hello world", "foo bar baz", "one"];
+    let words: Vec&lt;&amp;str&gt; = lines.iter().flat_map(|l| l.split_whitespace()).collect();
+    println!("{words:?}"); // ["hello", "world", "foo", "bar", "baz", "one"]
+
+    // Expand each number into a range [0..n]
+    let numbers = vec![1, 2, 3];
+    let expanded: Vec&lt;u32&gt; = numbers.iter().flat_map(|&amp;n| 0..n).collect();
+    println!("{expanded:?}"); // [0, 0, 1, 0, 1, 2]
+
+    // Filter + expand: only expand even numbers
+    let filtered: Vec&lt;u32&gt; = (1u32..=5)
+        .filter(|n| n % 2 == 0)
+        .flat_map(|n| vec![n, n * 10])
+        .collect();
+    println!("{filtered:?}"); // [2, 20, 4, 40]
+
+    // Parse CSV: each line produces a record, skip malformed
+    let csv = "alice,30\nbob,invalid\ncharlie,25\n,40";
+    let records: Vec&lt;(&amp;str, u32)&gt; = csv.lines()
+        .flat_map(|line| {
+            let mut parts = line.splitn(2, ',');
+            let name  = parts.next()?.trim();
+            let age: u32 = parts.next()?.trim().parse().ok()?;
+            if name.is_empty() { return None; }
+            Some((name, age))
+        })
+        .collect();
+    println!("{records:?}"); // [("alice", 30), ("charlie", 25)]
+
+    // flatten: unwrap one level of nested iterators
+    let nested = vec![vec![1, 2], vec![3, 4], vec![5]];
+    let flat: Vec&lt;i32&gt; = nested.into_iter().flatten().collect();
+    println!("{flat:?}"); // [1, 2, 3, 4, 5]
+}</code></pre>
+
+                        <h3>peekable — Non-Consuming Lookahead</h3>
+                        <p><code>peekable()</code> wraps an iterator and buffers the next element, letting you inspect it with <code>.peek()</code> without consuming it. This is essential for parsers, lexers, and any algorithm that needs to look ahead to decide how to process the current state. <code>peek()</code> returns <code>Option&lt;&amp;Item&gt;</code> and does not advance the iterator; the next call to <code>next()</code> still yields the same element.</p>
+
+                        <p><em>A simple run-length encoder and a number parser built with <code>peekable</code>, demonstrating the lookahead pattern.</em></p>
+<pre><code class="language-rust">fn run_length_encode(s: &amp;str) -> Vec&lt;(char, usize)&gt; {
+    let mut iter = s.chars().peekable();
+    let mut result = Vec::new();
+
+    while let Some(&amp;current) = iter.peek() {
+        let mut count = 0;
+        // Consume all consecutive identical characters
+        while iter.peek() == Some(&amp;current) {
+            iter.next();
+            count += 1;
+        }
+        result.push((current, count));
+    }
+    result
+}
+
+// Parse integers from a character stream, stopping at non-digits
+fn parse_leading_int(chars: &amp;mut std::iter::Peekable&lt;std::str::Chars&gt;) -> Option&lt;u64&gt; {
+    if !chars.peek()?.is_ascii_digit() { return None; }
+    let mut n = 0u64;
+    while let Some(&amp;c) = chars.peek() {
+        if let Some(d) = c.to_digit(10) {
+            n = n * 10 + d as u64;
+            chars.next();
+        } else {
+            break;
+        }
+    }
+    Some(n)
+}
+
+fn main() {
+    let rle = run_length_encode("aaabbbccddddee");
+    println!("{rle:?}"); // [('a',3),('b',3),('c',2),('d',4),('e',2)]
+
+    let mut chars = "123abc456".chars().peekable();
+    println!("{:?}", parse_leading_int(&amp;mut chars)); // Some(123)
+    // remaining: "abc456"
+    println!("{:?}", parse_leading_int(&amp;mut chars)); // None (peek = 'a')
+
+    // Skip non-digit
+    chars.next(); chars.next(); chars.next(); // consume 'a','b','c'
+    println!("{:?}", parse_leading_int(&amp;mut chars)); // Some(456)
+
+    // peek_mut: modify the peeked element before consuming
+    let mut nums = vec![1, 2, 3, 4, 5].into_iter().peekable();
+    if let Some(first) = nums.peek_mut() {
+        *first *= 100;
+    }
+    let result: Vec&lt;i32&gt; = nums.collect();
+    println!("{result:?}"); // [100, 2, 3, 4, 5]
+}</code></pre>
+
+                        <h3>scan — Stateful Transformation</h3>
+                        <p><code>scan(initial_state, f)</code> is like <code>fold</code> but yields each intermediate accumulator value instead of only the final one. The closure receives <code>(&amp;mut State, Item)</code> and returns <code>Option&lt;B&gt;</code>: returning <code>None</code> terminates the iterator early, returning <code>Some(value)</code> yields that value. This makes <code>scan</code> ideal for running totals, moving averages, stateful transformations, and implementing finite state machines over a stream.</p>
+
+                        <p><em>Running totals, early termination with None, and a state-machine token classifier built with scan.</em></p>
+<pre><code class="language-rust">fn main() {
+    // Running sum
+    let values = vec![1, 2, 3, 4, 5];
+    let running: Vec&lt;i32&gt; = values.iter()
+        .scan(0, |acc, &amp;x| { *acc += x; Some(*acc) })
+        .collect();
+    println!("{running:?}"); // [1, 3, 6, 10, 15]
+
+    // Running maximum
+    let data = vec![3, 1, 4, 1, 5, 9, 2, 6];
+    let running_max: Vec&lt;i32&gt; = data.iter()
+        .scan(i32::MIN, |max, &amp;x| { *max = (*max).max(x); Some(*max) })
+        .collect();
+    println!("{running_max:?}"); // [3, 3, 4, 4, 5, 9, 9, 9]
+
+    // Early termination: stop when running sum exceeds threshold
+    let capped: Vec&lt;i32&gt; = values.iter()
+        .scan(0, |acc, &amp;x| {
+            *acc += x;
+            if *acc &gt; 6 { None } else { Some(*acc) }
+        })
+        .collect();
+    println!("{capped:?}"); // [1, 3, 6]  -- stops before 10
+
+    // Detect sign changes in a series
+    let series = vec![1, 2, -1, -2, 3, -4, 5];
+    let sign_changes: Vec&lt;usize&gt; = series.windows(2)
+        .enumerate()
+        .filter(|(_, w)| (w[0] &gt;= 0) != (w[1] &gt;= 0))
+        .map(|(i, _)| i + 1)
+        .collect();
+    println!("sign changes at indices: {sign_changes:?}"); // [2, 4, 5, 6]
+}</code></pre>
+
+                        <h3>cycle, repeat, once, successors</h3>
+                        <p>The standard library provides several iterator constructors for generating sequences without an underlying collection:</p>
+                        <ul>
+                            <li><code>iter.cycle()</code> — repeats the iterator endlessly (the underlying collection must be cloneable; for <code>vec</code> iterators, <code>cycle</code> rewinds by cloning)</li>
+                            <li><code>std::iter::repeat(x)</code> — yields <code>x</code> forever</li>
+                            <li><code>std::iter::repeat_with(f)</code> — calls <code>f()</code> on each step</li>
+                            <li><code>std::iter::once(x)</code> — yields exactly one element</li>
+                            <li><code>std::iter::successors(first, f)</code> — generates a sequence where each element is derived from the previous</li>
+                        </ul>
+
+                        <p><em>Practical uses of cycle, repeat, and successors for sequence generation and padding.</em></p>
+<pre><code class="language-rust">fn main() {
+    // cycle: repeat a pattern
+    let pattern = vec!['R', 'G', 'B'];
+    let repeated: Vec&lt;char&gt; = pattern.iter().cycle().take(9).copied().collect();
+    println!("{repeated:?}"); // ['R','G','B','R','G','B','R','G','B']
+
+    // zip with cycle for round-robin assignment
+    let tasks = vec!["task1", "task2", "task3", "task4", "task5"];
+    let workers = vec!["Alice", "Bob", "Charlie"];
+    let assigned: Vec&lt;_&gt; = tasks.iter().zip(workers.iter().cycle()).collect();
+    for (task, worker) in &amp;assigned {
+        println!("{task} -> {worker}");
+    }
+
+    // repeat: pad a sequence to a fixed length
+    let data = vec![1, 2, 3];
+    let padded: Vec&lt;i32&gt; = data.iter().copied()
+        .chain(std::iter::repeat(0))
+        .take(8)
+        .collect();
+    println!("{padded:?}"); // [1, 2, 3, 0, 0, 0, 0, 0]
+
+    // successors: geometric sequence
+    let powers_of_2: Vec&lt;u64&gt; = std::iter::successors(Some(1u64), |&amp;n| {
+        if n &lt; 1024 { Some(n * 2) } else { None }
+    }).collect();
+    println!("{powers_of_2:?}"); // [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]
+
+    // successors: collatz sequence
+    let collatz: Vec&lt;u64&gt; = std::iter::successors(Some(27u64), |&amp;n| {
+        if n == 1 { None }
+        else if n % 2 == 0 { Some(n / 2) }
+        else { Some(3 * n + 1) }
+    }).collect();
+    println!("collatz(27) length: {}", collatz.len()); // 112 steps
+
+    // repeat_with: generate unique IDs
+    let mut counter = 0u32;
+    let ids: Vec&lt;u32&gt; = std::iter::repeat_with(|| { counter += 1; counter })
+        .take(5)
+        .collect();
+    println!("{ids:?}"); // [1, 2, 3, 4, 5]
+}</code></pre>
+
+                        <h2>Building Pipelines for Real Problems</h2>
+
+                        <h3>Partition and Group</h3>
+                        <p><code>partition</code> splits an iterator into two <code>Vec</code>s based on a predicate. For more complex grouping (more than two buckets), fold into a <code>HashMap</code>.</p>
+
+                        <p><em>Partitioning, grouping, and classifying a stream of log records into separate buckets.</em></p>
+<pre><code class="language-rust">use std::collections::HashMap;
+
+#[derive(Debug)]
+struct LogEntry { level: &amp;'static str, message: &amp;'static str }
+
+fn main() {
+    let logs = vec![
+        LogEntry { level: "ERROR", message: "disk full" },
+        LogEntry { level: "INFO",  message: "server started" },
+        LogEntry { level: "WARN",  message: "high memory" },
+        LogEntry { level: "ERROR", message: "connection refused" },
+        LogEntry { level: "INFO",  message: "request handled" },
+        LogEntry { level: "WARN",  message: "slow query" },
+    ];
+
+    // partition: split into errors and non-errors
+    let (errors, rest): (Vec&lt;_&gt;, Vec&lt;_&gt;) = logs.iter().partition(|e| e.level == "ERROR");
+    println!("{} errors, {} other", errors.len(), rest.len());
+
+    // group by level into HashMap
+    let by_level: HashMap&lt;&amp;str, Vec&lt;&amp;str&gt;&gt; = logs.iter()
+        .fold(HashMap::new(), |mut map, entry| {
+            map.entry(entry.level).or_default().push(entry.message);
+            map
+        });
+    let mut levels: Vec&lt;&amp;&amp;str&gt; = by_level.keys().collect();
+    levels.sort();
+    for level in levels {
+        println!("{level}: {:?}", by_level[level]);
+    }
+}</code></pre>
+
+                        <h3>step_by, take_while, skip_while</h3>
+                        <p><em>Sampling, windowing, and bounded iteration patterns common in data processing.</em></p>
+<pre><code class="language-rust">fn main() {
+    // step_by: sample every N-th element
+    let every_third: Vec&lt;i32&gt; = (0..20).step_by(3).collect();
+    println!("{every_third:?}"); // [0, 3, 6, 9, 12, 15, 18]
+
+    // take_while / skip_while for bounded streams
+    let data = vec![2, 4, 6, 7, 8, 10, 12];
+    let even_prefix: Vec&lt;i32&gt; = data.iter().copied().take_while(|x| x % 2 == 0).collect();
+    println!("{even_prefix:?}"); // [2, 4, 6]
+
+    let after_odd: Vec&lt;i32&gt; = data.iter().copied().skip_while(|x| x % 2 == 0).collect();
+    println!("{after_odd:?}"); // [7, 8, 10, 12]
+
+    // Combining: sliding window sums without allocating windows
+    let values = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
+    let window_size = 3;
+    let window_sums: Vec&lt;f64&gt; = values.windows(window_size)
+        .map(|w| w.iter().sum())
+        .collect();
+    println!("{window_sums:?}"); // [6.0, 9.0, 12.0, 15.0]
+
+    // inspect: non-destructive side-effect in pipeline (useful for debugging)
+    let result: Vec&lt;i32&gt; = (1..=5)
+        .inspect(|x| print!("before_filter:{x} "))
+        .filter(|x| x % 2 == 0)
+        .inspect(|x| print!("after_filter:{x} "))
+        .map(|x| x * 10)
+        .collect();
+    println!();
+    println!("{result:?}"); // [20, 40]
+}</code></pre>
+
+                    </div>
+                </div>
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>Rust Series &mdash; Module 3</h4>
+                        <a href="rust-collections.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Vec, HashMap, HashSet &amp; BTreeMap</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-iterators-advanced.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Advanced Iterators</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-custom-iterators.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Custom Iterators &amp; IntoIterator</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-strings.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Strings: String, &amp;str &amp; Encoding</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-rust.min.js"></script>
+    <script>
+        const toggle = document.querySelector('.nav-toggle');
+        const navLinks = document.querySelector('.nav-links');
+        toggle.addEventListener('click', () => {
+            navLinks.classList.toggle('active');
+            toggle.classList.toggle('active');
+        });
+    </script>
+
+</body>
+</html>

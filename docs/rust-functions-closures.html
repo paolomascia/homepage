@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Functions, Closures &amp; Higher-Order Functions in Rust &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="rust-tech-insights.html">Rust</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+            <button class="nav-toggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="rust-tech-insights.html" class="back-link">&larr; Back to Rust Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Feb 2026</span>
+                            <span class="post-reading">14 min read</span>
+                        </div>
+                        <h1>Functions, Closures &amp; Higher-Order Functions in Rust</h1>
+                        <div class="post-tags">
+                            <span>Rust</span>
+                            <span>Functions</span>
+                            <span>Closures</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Functions are the primary unit of code organisation in Rust, and closures elevate that model by letting you carry behaviour alongside data. Together with iterator adapters and higher-order functions, they form the backbone of idiomatic Rust: expressive, composable, and &mdash; crucially &mdash; compiled away to the same machine code you would write by hand. Understanding how the three closure traits (<code>Fn</code>, <code>FnMut</code>, <code>FnOnce</code>) map to capture modes is the key that unlocks the whole system.</p>
+
+                        <h2>Functions in Rust</h2>
+                        <p>Every Rust program begins with a function, and most of the logic you write lives inside one. Rust uses the <code>fn</code> keyword, requires explicit type annotations on all parameters, and expresses the return type after <code>-&gt;</code>. Unlike many languages, Rust does not use a <code>return</code> statement for the normal exit path: the last <em>expression</em> in a function body (one without a trailing semicolon) is the implicit return value. A semicolon turns an expression into a statement that evaluates to the unit type <code>()</code>, which is why a misplaced semicolon is one of the most common beginner mistakes. This design is not arbitrary &mdash; it aligns with Rust's expression-oriented heritage and lets <code>if</code>, <code>match</code>, and block <code>{}</code> all return values naturally.</p>
+
+                        <h3>Defining and Calling Functions</h3>
+                        <p><em>The simplest case: a pure function that adds two integers, a unit-returning function, and an explicit early return for illustration.</em></p>
+<pre><code class="language-rust">// Parameters must have explicit types; return type follows ->
+fn add(a: i32, b: i32) -> i32 {
+    a + b  // no semicolon — this expression is the return value
+}
+
+// Functions can call other functions freely
+fn add_three(a: i32, b: i32, c: i32) -> i32 {
+    add(add(a, b), c)
+}
+
+// A function with no return type annotation implicitly returns ()
+fn print_sum(a: i32, b: i32) {
+    println!("{} + {} = {}", a, b, add(a, b));
+    // The implicit return value is ()
+}
+
+// Explicit return — identical result, but makes the exit point visible
+fn add_explicit(a: i32, b: i32) -> i32 {
+    return a + b;
+}
+
+fn main() {
+    println!("{}", add(3, 4));          // 7
+    println!("{}", add_three(1, 2, 3)); // 6
+    print_sum(10, 20);                  // 10 + 20 = 30
+}</code></pre>
+
+                        <h3>Multiple Return Values with Tuples</h3>
+                        <p>Go has first-class multiple return values baked into its syntax. Rust does not &mdash; a function signature accepts exactly one return type &mdash; but tuples fill this role elegantly. A tuple is a first-class value: it can be stored, passed, and destructured. The result is just as ergonomic in practice, and the ownership model means no hidden allocations are involved.</p>
+                        <p><em>Returning a tuple of (min, max) from a slice and destructuring the result at the call site.</em></p>
+<pre><code class="language-rust">fn min_max(data: &[i32]) -> (i32, i32) {
+    assert!(!data.is_empty(), "slice must not be empty");
+    let mut min = data[0];
+    let mut max = data[0];
+    for &val in &data[1..] {
+        if val < min { min = val; }
+        if val > max { max = val; }
+    }
+    (min, max)  // return the tuple — no allocation, just two registers
+}
+
+fn main() {
+    let numbers = [3, 1, 4, 1, 5, 9, 2, 6];
+
+    // Destructure the tuple directly in the let binding
+    let (lo, hi) = min_max(&numbers);
+    println!("min={lo}, max={hi}"); // min=1, max=9
+
+    // Or keep it as a tuple and index into it
+    let result = min_max(&numbers);
+    println!("spread: {} to {}", result.0, result.1);
+}</code></pre>
+
+                        <h3>Early Return</h3>
+                        <p>While the implicit last-expression idiom is idiomatic for the happy path, early <code>return</code> is essential for guard clauses. Returning <code>None</code> or an error variant at the top of a function keeps the main logic unindented and readable &mdash; far preferable to deeply nested <code>if/else</code> chains. This pattern is especially common with <code>Option</code> and <code>Result</code> return types.</p>
+                        <p><em>A guard-clause pattern using early return to validate input before computing a result.</em></p>
+<pre><code class="language-rust">fn safe_divide(numerator: u32, denominator: u32) -> Option<u32> {
+    // Guard: reject the invalid case immediately
+    if denominator == 0 {
+        return None;
+    }
+    // Happy path — no extra indentation needed
+    Some(numerator / denominator)
+}
+
+fn parse_positive(s: &str) -> Option<u32> {
+    // Early return if parsing fails
+    let n: u32 = s.trim().parse().ok()?; // ? operator is also an early return
+    if n == 0 {
+        return None; // reject zero explicitly
+    }
+    Some(n)
+}
+
+fn main() {
+    println!("{:?}", safe_divide(10, 2));  // Some(5)
+    println!("{:?}", safe_divide(10, 0));  // None
+    println!("{:?}", parse_positive("42")); // Some(42)
+    println!("{:?}", parse_positive("0"));  // None
+    println!("{:?}", parse_positive("abc")); // None
+}</code></pre>
+
+                        <h3>The Diverging Function <code>!</code></h3>
+                        <p>Some functions never return to their caller: they panic, exit the process, or spin in an infinite loop. Rust models this with the <em>never type</em> <code>!</code>, pronounced "never". The never type is special: it can coerce to any other type, which is why you can write <code>let x: i32 = panic!("oops")</code> without a type mismatch. The compiler knows that if <code>panic!</code> runs, the surrounding code is unreachable, so the type of <code>x</code> is vacuously satisfied. This property makes <code>!</code> the bottom type of the type system and is what makes <code>match</code> arms that call <code>panic!</code> or <code>continue</code> or <code>break</code> type-check correctly against the other arms.</p>
+                        <p><em>Diverging functions in three forms: fatal error, infinite event loop, and the coercion property.</em></p>
+<pre><code class="language-rust">use std::process;
+
+// A function that never returns — signals this with -> !
+fn fatal_error(msg: &str) -> ! {
+    eprintln!("FATAL: {msg}");
+    process::exit(1);
+}
+
+// An infinite loop is another way to diverge
+fn run_forever() -> ! {
+    let mut tick = 0u64;
+    loop {
+        println!("tick {tick}");
+        tick += 1;
+        std::thread::sleep(std::time::Duration::from_secs(1));
+    }
+}
+
+fn main() {
+    // The never type coerces to any type — this is how match arms work:
+    let user_input = "42";
+    let n: i32 = match user_input.parse() {
+        Ok(v)  => v,
+        // panic! has type !, which coerces to i32 — so both arms agree on i32
+        Err(_) => panic!("expected a number"),
+    };
+    println!("parsed: {n}");
+
+    // Diverging functions can be called wherever any type is expected
+    let _value: String = if false { fatal_error("unreachable") } else { "ok".to_string() };
+}</code></pre>
+
+                        <h2>Closures</h2>
+                        <p>A closure is an anonymous function that can <em>capture</em> variables from the enclosing scope. That capture is what distinguishes a closure from a plain function: a plain function knows only about its parameters and global state; a closure can close over local variables, reaching into the environment where it was defined.</p>
+                        <p>Rust provides three capture modes, and the compiler automatically chooses the least restrictive one that satisfies the closure body. If the closure only reads a captured variable, it borrows immutably (<code>&amp;T</code>). If it writes to a captured variable, it borrows mutably (<code>&amp;mut T</code>). If it needs to own the value &mdash; for example, to move it into a new thread &mdash; it takes ownership. The <code>move</code> keyword overrides this inference and forces ownership capture regardless of how the variable is actually used inside the body. This matters for thread safety: a thread requires all its data to be <code>'static</code> (no borrowed references that might dangle), and <code>move</code> is the idiomatic way to achieve that.</p>
+
+                        <h3>Basic Closure Syntax</h3>
+                        <p><em>Four forms of closure syntax, from the most terse to the fully annotated block form.</em></p>
+<pre><code class="language-rust">fn main() {
+    // Minimal: parameters in pipes, single expression body
+    let double = |x| x * 2;
+    println!("{}", double(5)); // 10
+
+    // Fully annotated — explicit parameter and return types
+    let double_typed = |x: i32| -> i32 { x * 2 };
+    println!("{}", double_typed(5)); // 10
+
+    // Multi-line block closure
+    let describe = |n: i32| -> &'static str {
+        if n < 0 { "negative" }
+        else if n == 0 { "zero" }
+        else { "positive" }
+    };
+    println!("{}", describe(-3)); // negative
+    println!("{}", describe(7));  // positive
+
+    // Zero-parameter closure — useful as a callback or thunk
+    let greet = || println!("Hello!");
+    greet(); // Hello!
+
+    // Closures that do not capture anything are interchangeable with fn pointers
+    let add: fn(i32, i32) -> i32 = |a, b| a + b;
+    println!("{}", add(3, 4)); // 7
+}</code></pre>
+
+                        <h3>Capturing the Environment</h3>
+                        <p><em>All three capture modes in one place: immutable borrow, mutable borrow, and move (value capture).</em></p>
+<pre><code class="language-rust">fn main() {
+    // --- Immutable borrow: closure reads outer variable ---
+    let message = String::from("hello");
+    // The closure captures &message — message is still accessible afterward
+    let print_msg = || println!("{message}");
+    print_msg();        // hello
+    print_msg();        // hello — can call many times
+    println!("{message}"); // still valid — only borrowed immutably
+
+    // --- Mutable borrow: closure modifies outer variable ---
+    let mut counter = 0;
+    // The closure captures &mut counter — no other access allowed while it lives
+    let mut increment = || {
+        counter += 1;
+        println!("counter = {counter}");
+    };
+    increment(); // counter = 1
+    increment(); // counter = 2
+    drop(increment); // release the mutable borrow
+    println!("final counter = {counter}"); // counter = 2
+
+    // --- Move: closure takes ownership of captured value ---
+    let name = String::from("Alice");
+    // move forces ownership transfer — name is no longer usable here
+    let greeter = move || println!("Hello, {name}!");
+    greeter(); // Hello, Alice!
+    // println!("{name}"); // compile error: name was moved into the closure
+    greeter(); // can still call greeter — it owns the String
+}</code></pre>
+
+                        <h3>The Fn, FnMut, FnOnce Traits</h3>
+                        <p>Every closure in Rust implements one or more of three traits that describe how the closure can be called. <code>FnOnce</code> is the most general: it can be called <em>at most once</em> because calling it consumes the captured values. Any closure implements <code>FnOnce</code>. <code>FnMut</code> is more restrictive: the closure can be called multiple times, but it may mutate its captured state. It requires exclusive access on each call. <code>Fn</code> is the most restrictive: the closure can be called any number of times concurrently without exclusive access because it only reads (or captures nothing from) the environment.</p>
+                        <p>When writing a generic function that accepts a closure, you should always choose the <em>least restrictive</em> bound that your function actually needs. Accepting <code>Fn</code> when you only need to call once is unnecessarily strict; accepting <code>FnOnce</code> when you need to call multiple times is a compile error. The hierarchy is: every <code>Fn</code> is also <code>FnMut</code>, and every <code>FnMut</code> is also <code>FnOnce</code>.</p>
+                        <p><em>Three generic functions, each demonstrating the appropriate trait bound and what it enables.</em></p>
+<pre><code class="language-rust">// Fn: can call any number of times, no mutation of captures required
+fn apply<F: Fn(i32) -> i32>(f: F, x: i32) -> i32 {
+    f(x)
+}
+
+// FnMut: can call any number of times, but closure may mutate its state
+fn run_n_times<F: FnMut()>(mut f: F, n: usize) {
+    for _ in 0..n {
+        f();
+    }
+}
+
+// FnOnce: called exactly once — the closure may consume its captured values
+fn call_once<F: FnOnce() -> String>(f: F) -> String {
+    f() // consumes f — cannot call f() again after this line
+}
+
+fn main() {
+    // Fn example
+    let result = apply(|x| x * x, 5);
+    println!("{result}"); // 25
+
+    // FnMut example — closure mutates captured counter
+    let mut tally = 0;
+    run_n_times(|| { tally += 1; println!("tick {tally}"); }, 3);
+
+    // FnOnce example — closure consumes a String
+    let message = String::from("consumed!");
+    let owned_msg = call_once(move || message); // message moved in, returned out
+    println!("{owned_msg}"); // consumed!
+
+    // A Fn closure satisfies FnMut and FnOnce bounds — hierarchy applies
+    let square = |x: i32| x * x;
+    run_n_times(|| println!("{}", square(4)), 2); // Fn used as FnMut
+}</code></pre>
+
+                        <h2>Higher-Order Functions</h2>
+                        <p>A higher-order function is one that takes another function as a parameter, returns a function, or both. This is not just a stylistic preference in Rust &mdash; it is the primary mechanism behind the entire iterator ecosystem, which is one of Rust's most powerful and ergonomic features.</p>
+                        <p>The performance story is excellent. When you pass a closure to a generic function parameterised with <code>impl Fn</code> or <code>F: Fn(...)</code>, the compiler performs <em>monomorphization</em>: it generates a separate, specialised copy of the function for each concrete closure type. The closure body is inlined at the call site. There is no virtual dispatch, no function pointer indirection, and no heap allocation. The abstraction is genuinely zero-cost.</p>
+                        <p>The alternative is dynamic dispatch via <code>Box&lt;dyn Fn&gt;</code>. Here the compiler cannot inline because it does not know the concrete type at compile time. The call goes through a vtable pointer. This is necessary when you need to store heterogeneous closures in a collection, or when a function must return different closure types depending on runtime conditions. The trade-off is explicit: dynamic dispatch in exchange for type erasure.</p>
+
+                        <h3>Functions as Parameters</h3>
+                        <p><em>A generic transform function using <code>impl Fn</code> (static dispatch), alongside a demonstration that bare function pointers and closures can both fill the role.</em></p>
+<pre><code class="language-rust">// impl Fn in argument position — monomorphized, zero-cost
+fn transform(v: &[i32], f: impl Fn(i32) -> i32) -> Vec<i32> {
+    v.iter().map(|&x| f(x)).collect()
+}
+
+// fn pointer type — only works for non-capturing closures and named functions
+fn transform_fp(v: &[i32], f: fn(i32) -> i32) -> Vec<i32> {
+    v.iter().map(|&x| f(x)).collect()
+}
+
+fn double(x: i32) -> i32 { x * 2 }
+
+fn main() {
+    let data = vec![1, 2, 3, 4, 5];
+
+    // Pass a named function
+    let doubled = transform(&data, double);
+    println!("{doubled:?}"); // [2, 4, 6, 8, 10]
+
+    // Pass a closure — captures nothing, so also works as fn pointer
+    let tripled = transform(&data, |x| x * 3);
+    println!("{tripled:?}"); // [3, 6, 9, 12, 15]
+
+    // Closure that captures from the environment — only works with impl Fn
+    let factor = 4;
+    let quadrupled = transform(&data, |x| x * factor);
+    println!("{quadrupled:?}"); // [4, 8, 12, 16, 20]
+
+    // fn pointer — accepts named fn and non-capturing closure interchangeably
+    let via_fp = transform_fp(&data, double);
+    println!("{via_fp:?}"); // [2, 4, 6, 8, 10]
+}</code></pre>
+
+                        <h3>Returning Functions and Closures</h3>
+                        <p><code>impl Fn</code> in the return position works when the function always returns the same concrete closure type. The compiler knows the type at compile time and can inline it. When you need to return different closure types based on runtime data &mdash; a <code>match</code> on a string, for instance &mdash; each arm produces a different closure type and <code>impl Fn</code> cannot express that. You must reach for <code>Box&lt;dyn Fn&gt;</code>, which heap-allocates the closure and erases its type behind a pointer. The same applies when storing closures in a <code>Vec</code>: the vector needs a uniform element type, so <code>Vec&lt;Box&lt;dyn Fn(...)&gt;&gt;</code> is the standard pattern.</p>
+                        <p><em>Three factory functions showing when to use <code>impl Fn</code> vs <code>Box&lt;dyn Fn&gt;</code>, plus heterogeneous closure storage in a Vec.</em></p>
+<pre><code class="language-rust">// impl Fn: single concrete closure type — zero-cost, inlinable
+fn make_adder(n: i32) -> impl Fn(i32) -> i32 {
+    move |x| x + n
+}
+
+// Box<dyn Fn>: heap-allocates the closure — used here for API consistency
+fn make_multiplier(n: i32) -> Box<dyn Fn(i32) -> i32> {
+    Box::new(move |x| x * n)
+}
+
+// Box<dyn Fn> required: return type varies across match arms
+fn make_operation(op: &str) -> Box<dyn Fn(i32, i32) -> i32> {
+    match op {
+        "add" => Box::new(|a, b| a + b),
+        "sub" => Box::new(|a, b| a - b),
+        "mul" => Box::new(|a, b| a * b),
+        "max" => Box::new(|a, b| if a > b { a } else { b }),
+        _     => Box::new(|_, _| 0),
+    }
+}
+
+fn main() {
+    let add5 = make_adder(5);
+    println!("{}", add5(10)); // 15
+    println!("{}", add5(20)); // 25 — can call multiple times
+
+    let triple = make_multiplier(3);
+    println!("{}", triple(7)); // 21
+
+    let op = make_operation("mul");
+    println!("{}", op(6, 7)); // 42
+
+    // Vec<Box<dyn Fn>> — heterogeneous collection of operations
+    let pipeline: Vec<Box<dyn Fn(i32) -> i32>> = vec![
+        Box::new(|x| x + 1),
+        make_multiplier(2),
+        Box::new(make_adder(10)),
+        Box::new(|x| x - 3),
+    ];
+
+    let mut value = 5;
+    for step in &pipeline {
+        value = step(value);
+    }
+    println!("pipeline result: {value}"); // ((5+1)*2)+10-3 = 19
+}</code></pre>
+
+                        <h3>Iterator Methods &mdash; the Natural Home of Higher-Order Functions</h3>
+                        <p>Rust's iterator adapters are the most pervasive application of higher-order functions in the language. Each adapter &mdash; <code>map</code>, <code>filter</code>, <code>fold</code>, and dozens more &mdash; accepts a closure and returns a new iterator. Crucially, these adapters are <em>lazy</em>: no work happens until a consuming operation like <code>collect</code>, <code>for_each</code>, or <code>fold</code> drives the chain. The compiler fuses the entire pipeline into a single loop with the closure bodies inlined. There are no intermediate <code>Vec</code> allocations, no virtual dispatch, and the generated code is often identical to a hand-written loop.</p>
+                        <p><em>A comprehensive tour of the most commonly used iterator adapters, each annotated with its purpose.</em></p>
+<pre><code class="language-rust">fn main() {
+    let numbers = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+    // map: transform every element
+    let squares: Vec<i32> = numbers.iter().map(|&x| x * x).collect();
+    println!("squares: {squares:?}");
+
+    // filter: keep elements matching a predicate
+    let evens: Vec<&i32> = numbers.iter().filter(|&&x| x % 2 == 0).collect();
+    println!("evens: {evens:?}");
+
+    // fold: reduce to a single value (explicit initial accumulator)
+    let sum = numbers.iter().fold(0, |acc, &x| acc + x);
+    println!("sum: {sum}"); // 55
+
+    // reduce: like fold but uses first element as initial accumulator
+    let product = numbers.iter().copied().reduce(|acc, x| acc * x);
+    println!("product: {product:?}"); // Some(3628800)
+
+    // flat_map: map then flatten one level
+    let nested = vec![vec![1, 2], vec![3, 4], vec![5]];
+    let flat: Vec<i32> = nested.into_iter().flat_map(|v| v.into_iter()).collect();
+    println!("flat: {flat:?}"); // [1, 2, 3, 4, 5]
+
+    // take_while: yield elements while predicate is true, then stop
+    let small: Vec<&i32> = numbers.iter().take_while(|&&x| x < 5).collect();
+    println!("take_while <5: {small:?}"); // [1, 2, 3, 4]
+
+    // skip_while: skip elements while predicate is true, then yield the rest
+    let rest: Vec<&i32> = numbers.iter().skip_while(|&&x| x < 5).collect();
+    println!("skip_while <5: {rest:?}"); // [5, 6, 7, 8, 9, 10]
+
+    // zip: pair elements from two iterators
+    let letters = ['a', 'b', 'c'];
+    let zipped: Vec<(i32, char)> = numbers.iter().copied().zip(letters.iter().copied()).collect();
+    println!("zipped: {zipped:?}"); // [(1,'a'),(2,'b'),(3,'c')]
+
+    // enumerate: attach a running index to each element
+    for (i, val) in numbers.iter().enumerate().take(3) {
+        println!("  [{i}] = {val}");
+    }
+
+    // chain: concatenate two iterators
+    let a = vec![1, 2];
+    let b = vec![3, 4];
+    let chained: Vec<i32> = a.iter().chain(b.iter()).copied().collect();
+    println!("chained: {chained:?}"); // [1, 2, 3, 4]
+
+    // any / all: short-circuit boolean tests
+    println!("any >8: {}", numbers.iter().any(|&x| x > 8));   // true
+    println!("all >0: {}", numbers.iter().all(|&x| x > 0));   // true
+
+    // find: return first matching element
+    let first_even = numbers.iter().find(|&&x| x % 2 == 0);
+    println!("first even: {first_even:?}"); // Some(2)
+
+    // position: index of first match
+    let pos = numbers.iter().position(|&x| x == 7);
+    println!("position of 7: {pos:?}"); // Some(6)
+
+    // min_by_key / max_by_key: compare by a derived key
+    let words = vec!["banana", "kiwi", "strawberry", "fig"];
+    let shortest = words.iter().min_by_key(|s| s.len());
+    let longest  = words.iter().max_by_key(|s| s.len());
+    println!("shortest: {shortest:?}"); // Some("fig")
+    println!("longest:  {longest:?}");  // Some("strawberry")
+}</code></pre>
+
+                        <p><em>A realistic pipeline: parsing CSV-like records, filtering invalid rows, transforming fields, and collecting into a sorted result.</em></p>
+<pre><code class="language-rust">fn main() {
+    let raw_data = vec![
+        "Alice,30,engineer",
+        "Bob,,manager",       // missing age — invalid
+        "Carol,25,designer",
+        "  ",                 // blank line — invalid
+        "Dave,45,architect",
+        "Eve,28,engineer",
+    ];
+
+    // filter_map: parse each line, silently skip failures
+    // filter: keep only engineers
+    // map: extract just the name
+    // collect + sort: gather and order alphabetically
+    let mut engineers: Vec<String> = raw_data
+        .iter()
+        .filter_map(|line| {
+            let line = line.trim();
+            let parts: Vec<&str> = line.split(',').collect();
+            if parts.len() != 3 { return None; }
+            let name = parts[0].trim();
+            let _age: u32 = parts[1].trim().parse().ok()?; // None on parse failure
+            let role = parts[2].trim();
+            Some((name.to_string(), role.to_string()))
+        })
+        .filter(|(_, role)| role == "engineer")
+        .map(|(name, _)| name)
+        .collect();
+
+    engineers.sort();
+    println!("Engineers: {engineers:?}"); // ["Alice", "Eve"]
+}</code></pre>
+
+                        <h3>The move Keyword in Thread Closures</h3>
+                        <p>When you spawn a thread with <code>thread::spawn</code>, the closure you provide must be <code>'static</code>: it cannot hold any borrowed references to data on the spawning thread's stack, because the compiler cannot guarantee that the stack frame will outlive the new thread. The idiomatic solution is <code>move</code>: transfer ownership of the data into the closure before the thread starts. The spawning thread can no longer use those values, but the new thread owns them outright.</p>
+                        <p>When multiple threads need to share the same data, ownership cannot be in multiple places at once. The standard pattern is <code>Arc&lt;Mutex&lt;T&gt;&gt;</code>: <code>Arc</code> provides shared ownership across threads via atomic reference counting, and <code>Mutex</code> ensures that only one thread mutates the value at a time. Each thread receives a cloned <code>Arc</code> handle (cheap: just increments a counter), moves it into its closure, and locks the mutex to access the inner data.</p>
+                        <p><em>A thread that owns its data via move, followed by a shared counter protected by Arc and Mutex.</em></p>
+<pre><code class="language-rust">use std::thread;
+use std::sync::{Arc, Mutex};
+
+fn main() {
+    // --- move: give the thread its own copy of the data ---
+    let message = String::from("Hello from the thread!");
+    let handle = thread::spawn(move || {
+        // message is owned by this closure — safe to use on any thread
+        println!("{message}");
+    });
+    // println!("{message}"); // compile error: message was moved
+    handle.join().unwrap();
+
+    // --- Arc<Mutex<T>>: shared mutable counter across 4 threads ---
+    let counter = Arc::new(Mutex::new(0i32));
+    let mut handles = vec![];
+
+    for i in 0..4 {
+        let counter_clone = Arc::clone(&counter); // cheap: increments refcount
+        let h = thread::spawn(move || {
+            let mut guard = counter_clone.lock().unwrap(); // blocks until lock acquired
+            *guard += 1;
+            println!("thread {i} incremented counter to {}", *guard);
+        }); // guard dropped here — mutex released
+        handles.push(h);
+    }
+
+    for h in handles {
+        h.join().unwrap();
+    }
+
+    println!("final counter: {}", *counter.lock().unwrap()); // 4
+}</code></pre>
+
+                        <h2>Practical Patterns</h2>
+
+                        <h3>Memoization with Closures</h3>
+                        <p>Memoization caches the result of a function call so that repeated calls with the same argument return the cached value instead of recomputing it. In Rust this is a natural fit for closures: a <code>FnMut</code> closure can capture a <code>HashMap</code> as private state. The first call for a given key runs the underlying function and stores the result; subsequent calls find the entry and return it immediately. Because the cache is hidden inside the closure, callers see a single uniform interface regardless of whether the computation ran or was skipped.</p>
+                        <p><em>A generic memoize combinator that wraps any function and caches its results by key.</em></p>
+<pre><code class="language-rust">use std::collections::HashMap;
+
+// Generic memoizer: wraps any Fn(K) -> V and caches results
+// K must be Hash + Eq (usable as a HashMap key) and Clone (to store a copy)
+// V must be Clone (to return a copy from the cache)
+fn memoize<K, V, F>(mut f: F) -> impl FnMut(K) -> V
+where
+    K: std::hash::Hash + Eq + Clone,
+    V: Clone,
+    F: FnMut(K) -> V,
+{
+    let mut cache: HashMap<K, V> = HashMap::new();
+    move |key: K| {
+        if let Some(cached) = cache.get(&key) {
+            return cached.clone(); // cache hit — no recomputation
+        }
+        let result = f(key.clone()); // cache miss — run the real function
+        cache.insert(key, result.clone());
+        result
+    }
+}
+
+fn slow_square(n: u64) -> u64 {
+    // Simulates an expensive computation
+    std::thread::sleep(std::time::Duration::from_millis(100));
+    n * n
+}
+
+fn main() {
+    let mut memoized = memoize(slow_square);
+
+    // First call: computes (takes ~100ms)
+    let t0 = std::time::Instant::now();
+    println!("5^2 = {}", memoized(5));
+    println!("computed in {:?}", t0.elapsed());
+
+    // Second call: cache hit (negligible time)
+    let t1 = std::time::Instant::now();
+    println!("5^2 = {}", memoized(5));
+    println!("cached  in {:?}", t1.elapsed());
+
+    // Different key: computes again
+    println!("7^2 = {}", memoized(7)); // 49
+}</code></pre>
+
+                        <h3>Callbacks and Event-Driven Code</h3>
+                        <p>In event-driven architectures you often want to register multiple listeners for the same event and call them all when the event fires. The challenge in Rust is that each listener closure may be a different concrete type, so you cannot store them in a plain <code>Vec</code>. Type erasure with <code>Box&lt;dyn Fn(&amp;T)&gt;</code> solves this: the <code>Box</code> heap-allocates each closure and the <code>dyn Fn</code> hides its concrete type behind a trait object. The <code>'static</code> bound prevents closures from borrowing stack data that may not live long enough &mdash; listeners typically outlive the site where they were registered.</p>
+                        <p><em>A minimal EventEmitter generic over the event payload type, with three registered listeners and two emitted events.</em></p>
+<pre><code class="language-rust">struct EventEmitter<T> {
+    listeners: Vec<Box<dyn Fn(&T)>>, // type-erased, heap-allocated callbacks
+}
+
+impl<T> EventEmitter<T> {
+    fn new() -> Self {
+        EventEmitter { listeners: Vec::new() }
+    }
+
+    // F: Fn(&T) + 'static — can call any number of times; must be 'static
+    fn on<F: Fn(&T) + 'static>(&mut self, f: F) {
+        self.listeners.push(Box::new(f));
+    }
+
+    // Call every registered listener with a reference to the event
+    fn emit(&self, event: &T) {
+        for listener in &self.listeners {
+            listener(event);
+        }
+    }
+}
+
+#[derive(Debug)]
+struct UserEvent {
+    user_id: u32,
+    action: String,
+}
+
+fn main() {
+    let mut emitter: EventEmitter<UserEvent> = EventEmitter::new();
+
+    // Listener 1: log to stdout
+    emitter.on(|e| println!("[LOG]   user {} performed '{}'", e.user_id, e.action));
+
+    // Listener 2: alert on sensitive actions
+    emitter.on(|e| {
+        if e.action == "delete_account" {
+            println!("[ALERT] User {} deleted their account!", e.user_id);
+        }
+    });
+
+    // Listener 3: capture user_id list (move forces ownership of the Vec)
+    let mut seen_users: Vec<u32> = Vec::new();
+    // Note: for a mutable-capturing listener we would use RefCell;
+    // here we demonstrate the pattern with a read-only capture.
+    emitter.on(move |e| {
+        // In a real system you'd use Arc<Mutex<Vec<u32>>> to mutate from a closure
+        println!("[TRACK] Seen user_id={} (local snapshot: {:?})", e.user_id, seen_users);
+        let _ = &seen_users; // silence unused variable warning
+    });
+
+    // Emit two events — all three listeners fire for each
+    emitter.emit(&UserEvent { user_id: 1, action: "login".to_string() });
+    println!("---");
+    emitter.emit(&UserEvent { user_id: 2, action: "delete_account".to_string() });
+}</code></pre>
+
+                    </div>
+                </div>
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>Rust Series</h4>
+                        <a href="rust-installation-data-types.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Installation and Data Types</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-control-flow.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Control Flow &amp; Pattern Matching</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-ownership.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Ownership, Borrowing &amp; Lifetimes</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-functions-closures.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Functions, Closures &amp; Higher-Order Functions</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-structs-methods.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Structs, Methods &amp; Associated Functions</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-enums-option-result.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Enums &amp; Option / Result</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-error-handling.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Error Handling (thiserror &amp; anyhow)</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-rust.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script>
+        const toggle = document.querySelector('.nav-toggle');
+        const navLinks = document.querySelector('.nav-links');
+        toggle.addEventListener('click', () => {
+            navLinks.classList.toggle('active');
+            toggle.classList.toggle('active');
+        });
+    </script>
+
+</body>
+</html>

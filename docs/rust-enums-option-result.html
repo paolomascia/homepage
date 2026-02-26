@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enums, Option &amp; Result in Rust &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="rust-tech-insights.html">Rust</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+            <button class="nav-toggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="rust-tech-insights.html" class="back-link">&larr; Back to Rust Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Feb 2026</span>
+                            <span class="post-reading">14 min read</span>
+                        </div>
+                        <h1>Enums, Option &amp; Result in Rust</h1>
+                        <div class="post-tags">
+                            <span>Rust</span>
+                            <span>Enums</span>
+                            <span>Option</span>
+                            <span>Result</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Rust's type system is built on two fundamental abstractions that most languages handle poorly: the ability to say "this value is one of several distinct possibilities, each carrying its own data," and the ability to make the absence of a value or the failure of an operation explicit, first-class, and impossible to silently ignore. Enums, <code>Option&lt;T&gt;</code>, and <code>Result&lt;T, E&gt;</code> are the tools that deliver these guarantees &mdash; and the remarkable thing is that <code>Option</code> and <code>Result</code> are themselves just ordinary enums defined in the standard library, not language magic.</p>
+
+                        <h2>Enums in Rust</h2>
+                        <p>In C, an <code>enum</code> is syntactic sugar for a set of named integer constants. In Java, enums are slightly richer &mdash; they are class instances and can have methods &mdash; but each variant is still fundamentally the same type: it holds no per-variant data beyond what you manually add through fields on the class. Rust enums are something qualitatively different: they are <strong>Algebraic Data Types</strong> (ADTs), specifically <em>sum types</em>. A sum type says "a value of this type is exactly one of these named possibilities at any given moment, and each possibility can carry its own distinct payload."</p>
+                        <p>This seemingly small difference has enormous practical consequences. In C, if you want a value that is either a circle with a radius or a rectangle with a width and height, you reach for a <code>union</code> combined with a tag field &mdash; an error-prone pattern because the compiler does not enforce that you only read the union member that corresponds to the tag. In Rust, you express this directly as an enum, and the compiler guarantees at every use site that you handle every variant. There is no way to accidentally read the rectangle's width when the value is actually a circle.</p>
+                        <p>The reason Rust is designed this way is rooted in a philosophy that runs through the entire language: the type system should make incorrect states unrepresentable. If your domain has five distinct cases, you define an enum with five variants. The compiler then becomes your documentation, your test, and your runtime check simultaneously. Every <code>match</code> on that enum must be exhaustive &mdash; if you add a sixth variant later, the compiler will point you to every place in the codebase where you need to decide what to do with it.</p>
+
+                        <h3>Defining Basic Enums</h3>
+                        <p><em>A simple enum with unit variants (no data), matched exhaustively with <code>match</code> and stored in a variable.</em></p>
+<pre><code class="language-rust">// Unit variants: each variant holds no data, just a name
+#[derive(Debug)]
+enum Direction {
+    North,
+    South,
+    East,
+    West,
+}
+
+fn describe_direction(dir: &Direction) -> &'static str {
+    match dir {
+        Direction::North => "heading north",
+        Direction::South => "heading south",
+        Direction::East  => "heading east",
+        Direction::West  => "heading west",
+        // No wildcard needed — the compiler knows all variants are covered
+    }
+}
+
+fn main() {
+    let current = Direction::North;
+    println!("{}", describe_direction(&current)); // "heading north"
+
+    let all = [Direction::North, Direction::South, Direction::East, Direction::West];
+    for d in &all {
+        println!("{d:?}");
+    }
+
+    // In C you'd compare integers; in Rust you compare typed enum values
+    // (Direction derives PartialEq would allow ==, but match is the idiomatic tool)
+}</code></pre>
+
+                        <h3>Enums with Data</h3>
+                        <p>The real power of Rust enums emerges when variants carry data. Each variant can hold a completely different payload: nothing at all (a <em>unit variant</em>), positional fields like a tuple (a <em>tuple variant</em>), or named fields like a struct (a <em>struct variant</em>). Think of it as a safe, typed union: the compiler tracks which variant is active and only allows you to access the data that actually exists for that variant. In C, a union with a tag field relies entirely on programmer discipline; in Rust, the type system enforces it unconditionally.</p>
+                        <p>This is what makes enums the right tool for modeling domain concepts that are "one of several possibilities, each with its own shape." A network packet, a UI event, a configuration source, a parsed AST node &mdash; all of these fit naturally into an enum with data-carrying variants.</p>
+                        <p><em>Three variant kinds demonstrated in one enum: a unit variant, a tuple variant (positional fields), and a struct variant (named fields).</em></p>
+<pre><code class="language-rust">#[derive(Debug)]
+enum Shape {
+    // Unit variant: no data needed
+    Point,
+    // Tuple variant: positional data — the radius
+    Circle(f64),
+    // Another tuple variant: two positional fields — width and height
+    Rectangle(f64, f64),
+    // Struct variant: named fields — clearer for three or more values
+    Triangle { base: f64, height: f64 },
+}
+
+fn main() {
+    let shapes = vec![
+        Shape::Point,
+        Shape::Circle(3.0),
+        Shape::Rectangle(4.0, 5.0),
+        Shape::Triangle { base: 6.0, height: 8.0 },
+    ];
+
+    for shape in &shapes {
+        println!("{shape:?}");
+    }
+    // Point
+    // Circle(3.0)
+    // Rectangle(4.0, 5.0)
+    // Triangle { base: 6.0, height: 8.0 }
+}</code></pre>
+
+                        <h3>Methods on Enums</h3>
+                        <p><em>Adding an <code>impl</code> block to the enum gives it methods; <code>match self</code> destructures each variant and binds its fields.</em></p>
+<pre><code class="language-rust">#[derive(Debug)]
+enum Shape {
+    Point,
+    Circle(f64),
+    Rectangle(f64, f64),
+    Triangle { base: f64, height: f64 },
+}
+
+impl Shape {
+    fn area(&self) -> f64 {
+        match self {
+            Shape::Point                          => 0.0,
+            Shape::Circle(r)                      => std::f64::consts::PI * r * r,
+            Shape::Rectangle(w, h)                => w * h,
+            Shape::Triangle { base: b, height: h} => 0.5 * b * h,
+        }
+    }
+
+    fn describe(&self) -> String {
+        match self {
+            Shape::Point           => "a point (no area)".to_string(),
+            Shape::Circle(r)       => format!("a circle with radius {r:.2}"),
+            Shape::Rectangle(w, h) => format!("a {w:.2}x{h:.2} rectangle"),
+            Shape::Triangle { base, height } =>
+                format!("a triangle with base {base:.2} and height {height:.2}"),
+        }
+    }
+}
+
+fn main() {
+    let shapes = vec![
+        Shape::Point,
+        Shape::Circle(3.0),
+        Shape::Rectangle(4.0, 5.0),
+        Shape::Triangle { base: 6.0, height: 8.0 },
+    ];
+
+    for s in &shapes {
+        println!("{}: area = {:.4}", s.describe(), s.area());
+    }
+}</code></pre>
+
+                        <h3>The <code>#[derive]</code> Attributes on Enums</h3>
+                        <p><em>Deriving <code>Debug</code>, <code>Clone</code>, and <code>PartialEq</code> on an enum — enabling <code>{:?}</code> formatting, <code>.clone()</code>, and <code>==</code> comparison without writing any implementation code.</em></p>
+<pre><code class="language-rust">// The compiler generates Debug, Clone, and PartialEq implementations automatically
+#[derive(Debug, Clone, PartialEq)]
+enum Color {
+    Red,
+    Green,
+    Blue,
+    Custom(u8, u8, u8),
+}
+
+fn main() {
+    let c1 = Color::Red;
+    let c2 = c1.clone(); // Clone: make an independent copy
+
+    // Debug: print with {:?}
+    println!("{c1:?}");  // Red
+    println!("{c2:?}");  // Red
+
+    // PartialEq: compare with ==
+    println!("{}", c1 == c2);                                    // true
+    println!("{}", Color::Blue == Color::Green);                 // false
+    println!("{}", Color::Custom(10, 20, 30) == Color::Custom(10, 20, 30)); // true
+    println!("{}", Color::Custom(10, 20, 30) == Color::Custom(10, 20, 99)); // false
+
+    let c3 = Color::Custom(255, 128, 0);
+    println!("{c3:?}"); // Custom(255, 128, 0)
+}</code></pre>
+
+                        <h3>Representing State Machines</h3>
+                        <p>One of the most compelling uses of enums is modeling state machines. A state machine is a system that can be in exactly one of a finite set of states at any time, and that transitions between states according to defined rules. Enums are a perfect fit: the enum type represents the machine, each variant represents one state, and the compiler ensures you never accidentally treat one state as another or forget to handle a state in your transition logic.</p>
+                        <p>This is something that is genuinely hard to do safely in languages without sum types. In Java or Python you might represent state as a string or an integer, but then there is nothing stopping you from putting an invalid value in the field, or from forgetting to handle a state in a long <code>if-else</code> chain. In Rust, if you add a new state to the enum, every <code>match</code> in the codebase that does not include a wildcard arm becomes a compile error, immediately pointing you to every piece of logic that needs to be updated. The compiler becomes a collaborator in maintaining the invariants of your state machine.</p>
+                        <p><em>A traffic light modeled as an enum: exhaustive <code>match</code> for transitions and durations, iterated in a loop.</em></p>
+<pre><code class="language-rust">#[derive(Debug, Clone, PartialEq)]
+enum TrafficLight {
+    Red,
+    Yellow,
+    Green,
+}
+
+impl TrafficLight {
+    // Returns the next state in the cycle
+    fn next(&self) -> TrafficLight {
+        match self {
+            TrafficLight::Red    => TrafficLight::Green,
+            TrafficLight::Green  => TrafficLight::Yellow,
+            TrafficLight::Yellow => TrafficLight::Red,
+        }
+    }
+
+    // Each state has a defined duration — the compiler ensures all states are covered
+    fn duration_secs(&self) -> u32 {
+        match self {
+            TrafficLight::Red    => 30,
+            TrafficLight::Green  => 25,
+            TrafficLight::Yellow => 5,
+        }
+    }
+}
+
+fn main() {
+    let mut light = TrafficLight::Red;
+
+    // Simulate six transitions
+    for _ in 0..6 {
+        println!("{:?} — hold for {} seconds", light, light.duration_secs());
+        light = light.next();
+    }
+    // Red — hold for 30 seconds
+    // Green — hold for 25 seconds
+    // Yellow — hold for 5 seconds
+    // Red — hold for 30 seconds
+    // ...
+}</code></pre>
+
+                        <h2>Option&lt;T&gt; &mdash; Null Safety</h2>
+                        <p>In 1965, Tony Hoare introduced the null reference into ALGOL W. He later called it his "billion dollar mistake" &mdash; an understatement by several orders of magnitude. Null references have caused an incalculable number of runtime crashes, security vulnerabilities, and debugging hours across virtually every language that adopted them. The problem is not that the concept of "absence" is wrong; it is that representing absence as a special value of every pointer type means the compiler cannot distinguish "this will always have a value" from "this might not have a value." Every pointer dereference is potentially unsafe, and there is no way to verify correctness without running the code.</p>
+                        <p>Rust eliminates null entirely. There is no null, no nil, no undefined. The concept of "a value that might be absent" is represented instead by the type <code>Option&lt;T&gt;</code>, which is defined in the standard library as an ordinary enum. Because it is a distinct type, the compiler can enforce that you handle both the present and absent cases before you can access the inner value. You cannot accidentally dereference a "null" because the type system does not allow you to use the inner value without first checking which variant you have.</p>
+                        <p>The definition of <code>Option</code> is beautifully simple:</p>
+<pre><code class="language-rust">// From the Rust standard library — just a regular enum
+// T is a generic type parameter: Option works for any type
+enum Option&lt;T&gt; {
+    Some(T),  // the value is present, and here it is
+    None,     // the value is absent
+}
+
+// The compiler knows about Option so you don't need to qualify it:
+let present: Option&lt;i32&gt; = Some(42);
+let absent: Option&lt;i32&gt;  = None;
+
+// You cannot use the i32 inside present without handling None:
+// let n = present + 1; // compile error — Option&lt;i32&gt; is not i32</code></pre>
+
+                        <h3>Basic Option Usage</h3>
+                        <p><em>A function returning <code>Option&lt;i32&gt;</code> showing three idiomatic ways to consume it: exhaustive <code>match</code>, <code>if let</code>, and <code>unwrap_or</code>.</em></p>
+<pre><code class="language-rust">fn find_first_even(nums: &[i32]) -> Option&lt;i32&gt; {
+    for &n in nums {
+        if n % 2 == 0 {
+            return Some(n); // found — wrap in Some
+        }
+    }
+    None // not found — return None
+}
+
+fn main() {
+    let numbers = vec![1, 3, 7, 4, 9, 2];
+
+    // 1. Exhaustive match: the compiler forces handling of both arms
+    match find_first_even(&numbers) {
+        Some(n) => println!("found even: {n}"),
+        None    => println!("no even numbers"),
+    }
+
+    // 2. if let: when you only care about the Some case
+    if let Some(n) = find_first_even(&numbers) {
+        println!("if let found: {n}");
+    }
+
+    // 3. unwrap_or: provide a fallback value if None
+    let result = find_first_even(&[1, 3, 5]).unwrap_or(-1);
+    println!("unwrap_or result: {result}"); // -1
+
+    // 4. unwrap_or_else: lazy fallback — closure only called if None
+    let result2 = find_first_even(&[1, 3, 5]).unwrap_or_else(|| {
+        println!("computing fallback...");
+        0
+    });
+    println!("unwrap_or_else result: {result2}"); // 0
+}</code></pre>
+
+                        <h3>Option Methods &mdash; a Rich API</h3>
+                        <p><code>Option&lt;T&gt;</code> ships with a large set of methods that let you work with optional values in a fluent, composable style. Understanding these methods is important because they appear everywhere in idiomatic Rust code, and each one expresses a precise intent that would otherwise require several lines of <code>match</code>.</p>
+
+                        <p><strong><code>is_some()</code> / <code>is_none()</code></strong> &mdash; check which variant you have without consuming or unwrapping the value. Useful for conditional logic where you want to branch on presence without binding the inner value.</p>
+                        <p><em>Checking whether an Option is populated, without extracting its contents.</em></p>
+<pre><code class="language-rust">let maybe: Option&lt;i32&gt; = Some(5);
+println!("{}", maybe.is_some()); // true
+println!("{}", maybe.is_none()); // false
+
+let empty: Option&lt;i32&gt; = None;
+println!("{}", empty.is_some()); // false
+println!("{}", empty.is_none()); // true</code></pre>
+
+                        <p><strong><code>unwrap()</code> / <code>expect()</code></strong> &mdash; extract the inner value, panicking if the option is <code>None</code>. <code>unwrap()</code> gives a generic panic message; <code>expect("message")</code> lets you provide a descriptive message that explains what invariant was violated. Always prefer <code>expect</code> in production code: a good message turns a mystery panic into a meaningful diagnosis.</p>
+                        <p><em>Extracting values with <code>unwrap</code> and <code>expect</code> — and why <code>expect</code> is always preferable.</em></p>
+<pre><code class="language-rust">let val: Option&lt;&str&gt; = Some("hello");
+println!("{}", val.unwrap()); // "hello" — panics if None with generic message
+
+// expect gives a precise message when the invariant fails
+let config_value: Option&lt;String&gt; = Some("production".to_string());
+let env = config_value.expect("APP_ENV must be set before calling this function");
+println!("{env}");
+
+// None.unwrap()  => thread 'main' panicked at 'called `Option::unwrap()` on a `None` value'
+// None.expect("context") => thread 'main' panicked at 'context'</code></pre>
+
+                        <p><strong><code>unwrap_or(default)</code> / <code>unwrap_or_else(|| ...)</code></strong> &mdash; provide a fallback instead of panicking. <code>unwrap_or</code> eagerly evaluates the default (suitable for cheap values); <code>unwrap_or_else</code> accepts a closure that is only called when the option is <code>None</code> (suitable for expensive computations or side effects).</p>
+                        <p><em>Eager vs lazy default values: use <code>unwrap_or</code> for cheap literals, <code>unwrap_or_else</code> for closures that do work.</em></p>
+<pre><code class="language-rust">// unwrap_or: default evaluated immediately (fine for literals)
+let port: Option&lt;u16&gt; = None;
+let actual_port = port.unwrap_or(8080);
+println!("{actual_port}"); // 8080
+
+// unwrap_or_else: closure only runs on None — important when default is expensive
+let name: Option&lt;String&gt; = None;
+let username = name.unwrap_or_else(|| {
+    // Only called when name is None
+    std::env::var("USER").unwrap_or_else(|_| "anonymous".to_string())
+});
+println!("{username}");</code></pre>
+
+                        <p><strong><code>map(|x| ...)</code></strong> &mdash; transform the inner value of a <code>Some</code> by applying a function to it. If the option is <code>None</code>, <code>map</code> short-circuits and returns <code>None</code> without calling the function. This is the "functor" operation: it lets you work on the value inside the box without unpacking and repacking it manually.</p>
+                        <p><em>Transforming the contents of a <code>Some</code> without touching <code>None</code> &mdash; the option equivalent of a safe transformation.</em></p>
+<pre><code class="language-rust">let maybe_num: Option&lt;i32&gt; = Some(4);
+let doubled = maybe_num.map(|n| n * 2);
+println!("{doubled:?}"); // Some(8)
+
+let nothing: Option&lt;i32&gt; = None;
+let still_nothing = nothing.map(|n| n * 2);
+println!("{still_nothing:?}"); // None — closure never called
+
+// map can change the inner type
+let maybe_str: Option&lt;i32&gt; = Some(42);
+let as_string: Option&lt;String&gt; = maybe_str.map(|n| n.to_string());
+println!("{as_string:?}"); // Some("42")</code></pre>
+
+                        <p><strong><code>and_then(|x| ...)</code></strong> &mdash; chain operations that themselves return <code>Option</code>. Also known as <code>flatMap</code> in other languages. Where <code>map</code> would produce <code>Option&lt;Option&lt;T&gt;&gt;</code>, <code>and_then</code> flattens the result to <code>Option&lt;T&gt;</code>. This is the fundamental tool for composing a series of fallible operations where any step might produce <code>None</code>.</p>
+                        <p><em>Chaining two Option-returning operations &mdash; if either step produces None, the whole chain short-circuits.</em></p>
+<pre><code class="language-rust">fn parse_positive(s: &str) -> Option&lt;u32&gt; {
+    s.trim().parse::&lt;i32&gt;().ok()
+        .and_then(|n| if n > 0 { Some(n as u32) } else { None })
+}
+
+println!("{:?}", parse_positive("42"));   // Some(42)
+println!("{:?}", parse_positive("-3"));   // None — negative
+println!("{:?}", parse_positive("abc"));  // None — parse fails</code></pre>
+
+                        <p><strong><code>or(other)</code> and <code>filter(|x| ...)</code></strong> &mdash; <code>or</code> provides a fallback <code>Option</code> when the first is <code>None</code>; <code>filter</code> converts a <code>Some</code> to <code>None</code> if the inner value does not satisfy a predicate. Together they let you express "use this, or try that" and "only proceed if the value meets this condition."</p>
+                        <p><em>Fallback chaining with <code>or</code> and conditional filtering with <code>filter</code>.</em></p>
+<pre><code class="language-rust">let primary: Option&lt;i32&gt; = None;
+let fallback: Option&lt;i32&gt; = Some(99);
+println!("{:?}", primary.or(fallback)); // Some(99)
+
+let val: Option&lt;i32&gt; = Some(10);
+let filtered = val.filter(|&n| n > 5);
+println!("{:?}", filtered); // Some(10)
+
+let val2: Option&lt;i32&gt; = Some(3);
+let filtered2 = val2.filter(|&n| n > 5);
+println!("{:?}", filtered2); // None — 3 is not > 5</code></pre>
+
+                        <p><strong><code>ok_or(err)</code></strong> &mdash; convert an <code>Option&lt;T&gt;</code> into a <code>Result&lt;T, E&gt;</code> by supplying an error value for the <code>None</code> case. This is the bridge from the "absence" world to the "error" world, and it is discussed further in the Combining section below.</p>
+                        <p><em>Converting an Option to a Result by naming what the absence means as an error.</em></p>
+<pre><code class="language-rust">let maybe: Option&lt;i32&gt; = Some(7);
+let result: Result&lt;i32, &str&gt; = maybe.ok_or("value was missing");
+println!("{result:?}"); // Ok(7)
+
+let nothing: Option&lt;i32&gt; = None;
+let err_result: Result&lt;i32, &str&gt; = nothing.ok_or("value was missing");
+println!("{err_result:?}"); // Err("value was missing")</code></pre>
+
+                        <p>Here is a realistic pipeline that chains several of these methods: parse a string as a number, keep it only if it is positive, then halve it.</p>
+                        <p><em>A fluent Option pipeline combining <code>and_then</code>, <code>filter</code>, and <code>map</code> &mdash; each step can independently produce None, short-circuiting the rest.</em></p>
+<pre><code class="language-rust">fn process(input: &str) -> Option&lt;f64&gt; {
+    input
+        .trim()
+        .parse::&lt;f64&gt;()  // returns Result — .ok() converts to Option
+        .ok()
+        .filter(|&n| n > 0.0)      // keep only positive values
+        .map(|n| n / 2.0)          // halve it
+}
+
+fn main() {
+    println!("{:?}", process("  8.0  ")); // Some(4.0)
+    println!("{:?}", process("-3.0"));    // None — filtered out
+    println!("{:?}", process("hello"));   // None — parse failed
+    println!("{:?}", process("0.0"));     // None — not > 0
+}</code></pre>
+
+                        <h3>Nested Options and Flattening</h3>
+                        <p><em>Dealing with <code>Option&lt;Option&lt;T&gt;&gt;</code> using <code>flatten()</code>, and navigating a 2D grid safely with <code>and_then</code>.</em></p>
+<pre><code class="language-rust">// Nested Option arises when you map an Option-returning function over an Option
+let nested: Option&lt;Option&lt;i32&gt;&gt; = Some(Some(42));
+let flat: Option&lt;i32&gt; = nested.flatten();
+println!("{flat:?}"); // Some(42)
+
+let nested2: Option&lt;Option&lt;i32&gt;&gt; = Some(None);
+println!("{:?}", nested2.flatten()); // None
+
+let nested3: Option&lt;Option&lt;i32&gt;&gt; = None;
+println!("{:?}", nested3.flatten()); // None
+
+// Real-world use: safely index a 2D grid without panicking on out-of-bounds
+let grid = vec![
+    vec![1, 2, 3],
+    vec![4, 5, 6],
+    vec![7, 8, 9],
+];
+
+fn get_cell(grid: &Vec&lt;Vec&lt;i32&gt;&gt;, row: usize, col: usize) -> Option&lt;i32&gt; {
+    // get() returns Option&lt;&[i32]&gt; — and_then chains to get the column
+    grid.get(row).and_then(|r| r.get(col).copied())
+}
+
+println!("{:?}", get_cell(&grid, 1, 2)); // Some(6)
+println!("{:?}", get_cell(&grid, 5, 0)); // None — row out of bounds
+println!("{:?}", get_cell(&grid, 0, 9)); // None — col out of bounds</code></pre>
+
+                        <h2>Result&lt;T, E&gt; &mdash; Recoverable Errors</h2>
+                        <p>Rust's approach to error handling is grounded in a simple idea: errors are values. A function that can fail says so in its return type. The caller receives either a success value or an error value, and the compiler ensures the caller acknowledges both possibilities. You cannot accidentally ignore an error the way you can in C (where a function might return -1 on failure and many callers forget to check), and you do not pay the runtime overhead and non-local control flow of exceptions.</p>
+                        <p>Compare with Java's approach: checked exceptions force you to handle or declare errors, but the mechanism is separate from the return type &mdash; it is threaded through a parallel channel that the type system treats differently. Unchecked exceptions (subclasses of <code>RuntimeException</code>) can be thrown anywhere and caught nowhere, making it impossible to reason about which code paths can fail. Rust unifies everything: if a function can fail, the failure is visible in the type signature, handled with the same tools as success, and impossible to accidentally discard (the compiler emits a warning if you ignore a <code>Result</code>).</p>
+                        <p>Like <code>Option</code>, <code>Result</code> is an ordinary enum in the standard library:</p>
+<pre><code class="language-rust">// From the Rust standard library
+// T is the success type, E is the error type
+enum Result&lt;T, E&gt; {
+    Ok(T),   // the operation succeeded, here is the value
+    Err(E),  // the operation failed, here is the error
+}
+
+// A function that can fail declares Result in its signature
+// The caller is forced to handle both outcomes
+fn might_fail(input: &str) -> Result&lt;i32, String&gt; {
+    if input.is_empty() {
+        Err("input was empty".to_string())
+    } else {
+        Ok(input.len() as i32)
+    }
+}</code></pre>
+
+                        <h3>Basic Result Usage</h3>
+                        <p><em>A division function returning <code>Result</code>, consumed with an exhaustive <code>match</code> that handles the error case explicitly.</em></p>
+<pre><code class="language-rust">fn divide(a: f64, b: f64) -> Result&lt;f64, String&gt; {
+    if b == 0.0 {
+        Err(format!("cannot divide {a} by zero"))
+    } else {
+        Ok(a / b)
+    }
+}
+
+fn main() {
+    // Exhaustive match — the compiler requires both Ok and Err arms
+    match divide(10.0, 2.0) {
+        Ok(result)  => println!("10 / 2 = {result}"),
+        Err(msg)    => println!("error: {msg}"),
+    }
+
+    match divide(10.0, 0.0) {
+        Ok(result)  => println!("result: {result}"),
+        Err(msg)    => println!("error: {msg}"), // "cannot divide 10 by zero"
+    }
+}</code></pre>
+
+                        <h3>Result Methods</h3>
+                        <p><code>Result&lt;T, E&gt;</code> mirrors much of <code>Option&lt;T&gt;</code>'s API, with additional methods for transforming the error side. This symmetry is deliberate: once you understand Option's combinators, Result's feel immediately familiar.</p>
+
+                        <p><strong><code>is_ok()</code> / <code>is_err()</code></strong> &mdash; inspect which variant you have without consuming the value. Useful for assertions in tests or for routing logic that does not need the inner value.</p>
+                        <p><em>Testing whether a Result represents success or failure without extracting either value.</em></p>
+<pre><code class="language-rust">let good: Result&lt;i32, &str&gt; = Ok(42);
+let bad:  Result&lt;i32, &str&gt; = Err("oops");
+
+println!("{} {}", good.is_ok(), good.is_err()); // true false
+println!("{} {}", bad.is_ok(),  bad.is_err());  // false true</code></pre>
+
+                        <p><strong><code>unwrap()</code> / <code>expect("message")</code></strong> &mdash; extract the <code>Ok</code> value, panicking on <code>Err</code>. As with <code>Option</code>, always prefer <code>expect</code> with a message that describes the invariant being asserted. Reserve these for cases where you have already ensured success through prior logic, or in quick prototypes and tests.</p>
+                        <p><em>Using <code>expect</code> to communicate intent: the message tells future readers (and future you) what went wrong and why it was unexpected.</em></p>
+<pre><code class="language-rust">let config: Result&lt;String, std::io::Error&gt; =
+    std::fs::read_to_string("config.toml");
+
+// Prefer expect over unwrap: the message becomes the panic message on failure
+let content = config.expect("config.toml must exist and be readable at startup");
+
+// In tests, unwrap is fine because test failures should panic
+// let parsed: i32 = "42".parse().unwrap();</code></pre>
+
+                        <p><strong><code>unwrap_or</code> / <code>unwrap_or_else</code></strong> &mdash; return the <code>Ok</code> value or a fallback if <code>Err</code>, without panicking. The same eager vs lazy distinction as <code>Option</code>.</p>
+                        <p><em>Providing a safe fallback value when an operation fails, avoiding panics in production code paths.</em></p>
+<pre><code class="language-rust">let result: Result&lt;i32, &str&gt; = Err("bad input");
+println!("{}", result.unwrap_or(0));    // 0
+
+let result2: Result&lt;i32, String&gt; = Err("bad".to_string());
+let val = result2.unwrap_or_else(|e| {
+    println!("recovering from error: {e}");
+    -1
+});
+println!("{val}"); // -1</code></pre>
+
+                        <p><strong><code>map(|x| ...)</code></strong> &mdash; transform the <code>Ok</code> value, leaving <code>Err</code> untouched. Identical in spirit to <code>Option::map</code>: apply a function to the success path without having to unwrap and rewrap.</p>
+                        <p><em>Transforming the success value of a Result while leaving any error unchanged.</em></p>
+<pre><code class="language-rust">let ok: Result&lt;i32, &str&gt; = Ok(5);
+let mapped = ok.map(|n| n * 10);
+println!("{mapped:?}"); // Ok(50)
+
+let err: Result&lt;i32, &str&gt; = Err("failed");
+let mapped_err = err.map(|n| n * 10);
+println!("{mapped_err:?}"); // Err("failed") — map not called</code></pre>
+
+                        <p><strong><code>map_err(|e| ...)</code></strong> &mdash; transform the <code>Err</code> value, leaving <code>Ok</code> untouched. This is essential for converting between error types &mdash; a common need when combining results from different libraries that use different error types.</p>
+                        <p><em>Converting an error type with <code>map_err</code> &mdash; the key tool for making disparate error types compatible.</em></p>
+<pre><code class="language-rust">// parse() returns Result&lt;i32, ParseIntError&gt;; we want Result&lt;i32, String&gt;
+let result: Result&lt;i32, String&gt; =
+    "42".parse::&lt;i32&gt;()
+        .map_err(|e| format!("parse failed: {e}"));
+println!("{result:?}"); // Ok(42)
+
+let bad: Result&lt;i32, String&gt; =
+    "xyz".parse::&lt;i32&gt;()
+        .map_err(|e| format!("parse failed: {e}"));
+println!("{bad:?}"); // Err("parse failed: invalid digit found in string")</code></pre>
+
+                        <p><strong><code>and_then(|x| ...)</code></strong> &mdash; chain fallible operations. The closure receives the <code>Ok</code> value and must itself return a <code>Result</code>. If the first operation is <code>Err</code>, the chain short-circuits. This is the fundamental tool for sequencing operations where any step can fail.</p>
+                        <p><em>Chaining two fallible operations: if either step fails, the whole chain returns that Err.</em></p>
+<pre><code class="language-rust">fn parse_number(s: &str) -> Result&lt;i32, String&gt; {
+    s.trim().parse::&lt;i32&gt;().map_err(|e| format!("parse error: {e}"))
+}
+
+fn double_if_positive(n: i32) -> Result&lt;i32, String&gt; {
+    if n > 0 {
+        Ok(n * 2)
+    } else {
+        Err(format!("{n} is not positive"))
+    }
+}
+
+let pipeline = parse_number("5").and_then(double_if_positive);
+println!("{pipeline:?}"); // Ok(10)
+
+let pipeline2 = parse_number("-3").and_then(double_if_positive);
+println!("{pipeline2:?}"); // Err("-3 is not positive")
+
+let pipeline3 = parse_number("abc").and_then(double_if_positive);
+println!("{pipeline3:?}"); // Err("parse error: ...")</code></pre>
+
+                        <p><strong><code>ok()</code></strong> &mdash; convert a <code>Result&lt;T, E&gt;</code> to <code>Option&lt;T&gt;</code>, discarding the error information. Useful when you care about presence or absence but not about the reason for failure.</p>
+                        <p><em>Dropping the error and converting to Option when the distinction between failure reasons does not matter.</em></p>
+<pre><code class="language-rust">let ok_result: Result&lt;i32, &str&gt; = Ok(7);
+println!("{:?}", ok_result.ok()); // Some(7)
+
+let err_result: Result&lt;i32, &str&gt; = Err("failed");
+println!("{:?}", err_result.ok()); // None — error info discarded</code></pre>
+
+                        <p>Here is a complete chained pipeline using <code>map_err</code> and <code>and_then</code> together:</p>
+                        <p><em>A realistic pipeline: parse a string, validate the value, and double it &mdash; each step using the appropriate combinator.</em></p>
+<pre><code class="language-rust">fn parse_and_double(input: &str) -> Result&lt;i32, String&gt; {
+    input
+        .trim()
+        .parse::&lt;i32&gt;()
+        .map_err(|e| format!("could not parse '{input}': {e}"))
+        .and_then(|n| {
+            if n >= 0 {
+                Ok(n * 2)
+            } else {
+                Err(format!("expected non-negative number, got {n}"))
+            }
+        })
+}
+
+fn main() {
+    println!("{:?}", parse_and_double(" 21 "));  // Ok(42)
+    println!("{:?}", parse_and_double("-5"));     // Err("expected non-negative number, got -5")
+    println!("{:?}", parse_and_double("hello"));  // Err("could not parse 'hello': ...")
+}</code></pre>
+
+                        <h3>The ? Operator with Result</h3>
+                        <p>The <code>?</code> operator is syntactic sugar for a very common pattern: if the value is <code>Ok(x)</code>, unwrap it to <code>x</code> and continue; if it is <code>Err(e)</code>, convert <code>e</code> using <code>From::from</code> (which handles error type conversion automatically when a <code>From</code> implementation exists) and return early from the current function. This makes error-propagation code dramatically more readable: instead of a ladder of <code>match</code> expressions, each fallible call gets a simple <code>?</code> suffix. The function must itself return a <code>Result</code> (or <code>Option</code>) for <code>?</code> to be valid.</p>
+                        <p>The <code>From::from</code> conversion that <code>?</code> performs automatically is why it is idiomatic to define a custom error enum and implement <code>From&lt;SpecificError&gt;</code> for it: you can then use <code>?</code> across function calls that return different error types, and the conversions happen at each <code>?</code> site without ceremony.</p>
+                        <p><em>The ? operator in use: clean early-return propagation vs the equivalent verbose <code>match</code> desugaring.</em></p>
+<pre><code class="language-rust">use std::num::ParseIntError;
+
+// With ?: each ? either unwraps Ok or returns Err from the function
+fn parse_and_add(a: &str, b: &str) -> Result&lt;i32, ParseIntError&gt; {
+    let x = a.trim().parse::&lt;i32&gt;()?;  // returns early with Err if parse fails
+    let y = b.trim().parse::&lt;i32&gt;()?;  // same
+    Ok(x + y)
+}
+
+// What the compiler desugars ? into (approximately):
+fn parse_and_add_verbose(a: &str, b: &str) -> Result&lt;i32, ParseIntError&gt; {
+    let x = match a.trim().parse::&lt;i32&gt;() {
+        Ok(val) => val,
+        Err(e)  => return Err(From::from(e)),
+    };
+    let y = match b.trim().parse::&lt;i32&gt;() {
+        Ok(val) => val,
+        Err(e)  => return Err(From::from(e)),
+    };
+    Ok(x + y)
+}
+
+fn main() {
+    println!("{:?}", parse_and_add("10", "32"));    // Ok(42)
+    println!("{:?}", parse_and_add("10", "abc"));   // Err(ParseIntError { ... })
+    println!("{:?}", parse_and_add_verbose("3", "4")); // Ok(7)
+}</code></pre>
+
+                        <h3>Collecting Results: Vec of Results</h3>
+                        <p>A common pattern is to have an iterator of operations that each might fail, and you want either all the results (if every operation succeeded) or the first error (if any failed). Rust's <code>collect()</code> handles this transparently: if you collect into <code>Result&lt;Vec&lt;T&gt;, E&gt;</code>, it iterates through the results and returns <code>Ok(Vec&lt;T&gt;)</code> if all were <code>Ok</code>, or the first <code>Err</code> it encounters. This is far more ergonomic than manually looping and accumulating errors.</p>
+                        <p><em>Collecting an iterator of fallible operations into either a complete Vec or the first error.</em></p>
+<pre><code class="language-rust">fn main() {
+    // All succeed: collect into Result&lt;Vec&lt;i32&gt;, _&gt;
+    let strings_ok = vec!["1", "2", "3", "4"];
+    let result: Result&lt;Vec&lt;i32&gt;, _&gt; = strings_ok
+        .iter()
+        .map(|s| s.parse::&lt;i32&gt;())
+        .collect();
+    println!("{result:?}"); // Ok([1, 2, 3, 4])
+
+    // One fails: collect returns the first Err
+    let strings_bad = vec!["1", "two", "3"];
+    let result2: Result&lt;Vec&lt;i32&gt;, _&gt; = strings_bad
+        .iter()
+        .map(|s| s.parse::&lt;i32&gt;())
+        .collect();
+    println!("{result2:?}"); // Err(ParseIntError { ... })
+}
+
+// Real-world example: parse a CSV row of floats
+fn parse_csv_row(row: &str) -> Result&lt;Vec&lt;f64&gt;, String&gt; {
+    row.split(',')
+        .map(|field| {
+            field.trim()
+                 .parse::&lt;f64&gt;()
+                 .map_err(|e| format!("could not parse '{}': {}", field.trim(), e))
+        })
+        .collect()  // collect stops at first Err
+}
+
+fn main_csv() {
+    println!("{:?}", parse_csv_row("1.5, 2.0, 3.14")); // Ok([1.5, 2.0, 3.14])
+    println!("{:?}", parse_csv_row("1.5, bad, 3.14")); // Err("could not parse 'bad': ...")
+}</code></pre>
+
+                        <h2>Combining Option and Result</h2>
+                        <p>Real programs constantly move between the "might be absent" world of <code>Option</code> and the "might have failed" world of <code>Result</code>. The standard library provides clean bridges in both directions. <code>Option::ok_or(err)</code> and <code>Option::ok_or_else(|| err)</code> convert a <code>None</code> into a named error, promoting absence into a failure with an explanation. <code>Result::ok()</code> goes the other way, converting an error into absence when the reason for failure does not matter to the caller. These conversions let you use <code>?</code> on options inside functions that return <code>Result</code>, and use <code>if let Some</code> on results inside functions that return <code>Option</code>.</p>
+                        <p><em>Converting between Option and Result in both directions, and using both with <code>?</code> in a composed function.</em></p>
+<pre><code class="language-rust">use std::collections::HashMap;
+
+// Option::ok_or_else: give the None case a specific error message
+fn lookup_age(db: &HashMap&lt;&str, i32&gt;, name: &str) -> Result&lt;i32, String&gt; {
+    db.get(name)
+        .copied()
+        .ok_or_else(|| format!("no entry for '{name}' in database"))
+}
+
+// Result::ok(): drop the error, treat failure as absence
+fn is_adult(db: &HashMap&lt;&str, i32&gt;, name: &str) -> Option&lt;bool&gt; {
+    lookup_age(db, name)
+        .ok()           // Err becomes None, Ok(age) becomes Some(age)
+        .map(|age| age >= 18)
+}
+
+// Use ? with Result in a function that calls both
+fn check_entry(db: &HashMap&lt;&str, i32&gt;, name: &str) -> Result&lt;String, String&gt; {
+    let age = lookup_age(db, name)?; // ? works because lookup_age returns Result
+    if age >= 18 {
+        Ok(format!("{name} is an adult (age {age})"))
+    } else {
+        Ok(format!("{name} is a minor (age {age})"))
+    }
+}
+
+fn main() {
+    let mut db = HashMap::new();
+    db.insert("alice", 30);
+    db.insert("bob", 15);
+
+    println!("{:?}", lookup_age(&db, "alice")); // Ok(30)
+    println!("{:?}", lookup_age(&db, "carol")); // Err("no entry for 'carol'...")
+
+    println!("{:?}", is_adult(&db, "alice")); // Some(true)
+    println!("{:?}", is_adult(&db, "bob"));   // Some(false)
+    println!("{:?}", is_adult(&db, "carol")); // None
+
+    println!("{:?}", check_entry(&db, "alice")); // Ok("alice is an adult (age 30)")
+    println!("{:?}", check_entry(&db, "carol")); // Err("no entry for 'carol'...")
+}</code></pre>
+
+                        <h2>When to Use Enums vs Structs</h2>
+                        <p>Structs and enums complement each other as the two fundamental ways to compose data in Rust, corresponding to the two fundamental operations in type theory. A struct is a <em>product type</em>: it holds a value for field A <em>and</em> a value for field B <em>and</em> a value for field C, all simultaneously. Every field exists for every instance. An enum is a <em>sum type</em>: it holds a value that is variant A <em>or</em> variant B <em>or</em> variant C, with only one active at a time.</p>
+                        <p>The practical rule is simple. If you are describing a thing that has multiple properties that all apply at once, use a struct. A <code>User</code> has a name <em>and</em> an email <em>and</em> a creation date. If you are describing a thing that can be in one of several distinct states, use an enum. An <code>AuthState</code> is either anonymous <em>or</em> logged in with a user <em>or</em> locked out with a reason &mdash; not all three simultaneously.</p>
+                        <p>The compiler's exhaustiveness checking makes enums especially safe to evolve. Adding a new field to a struct is usually backward compatible (though it breaks struct literal initialization). Adding a new variant to an enum is immediately flagged everywhere in the codebase where that enum is matched without a wildcard arm &mdash; the compiler guides you to every decision point that needs to be updated. This is invaluable in large codebases: the type system enforces that your logic is consistent with your data model.</p>
+                        <p>In practice, structs and enums are often combined: enum variants frequently carry struct-like data, and structs frequently contain fields whose types are enums. <code>Option&lt;T&gt;</code> itself is an enum that appears as a field in countless structs. The two abstractions are not alternatives but complements, each expressing a different kind of relationship between values.</p>
+
+                    </div>
+                </div>
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>Rust Series</h4>
+                        <a href="rust-installation-data-types.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Installation and Data Types</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-control-flow.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Control Flow &amp; Pattern Matching</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-ownership.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Ownership, Borrowing &amp; Lifetimes</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-functions-closures.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Functions &amp; Closures</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-structs-methods.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Structs &amp; Methods</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-enums-option-result.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Enums, Option &amp; Result</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-error-handling.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Error Handling</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-rust.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script>
+        const toggle = document.querySelector('.nav-toggle');
+        const navLinks = document.querySelector('.nav-links');
+        toggle.addEventListener('click', () => {
+            navLinks.classList.toggle('active');
+            toggle.classList.toggle('active');
+        });
+    </script>
+
+</body>
+</html>

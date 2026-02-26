@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Custom Iterators &amp; IntoIterator in Rust &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="rust-tech-insights.html">Rust</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+            <button class="nav-toggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="rust-tech-insights.html" class="back-link">&larr; Back to Rust Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Feb 2026</span>
+                            <span class="post-reading">14 min read</span>
+                        </div>
+                        <h1>Custom Iterators &amp; IntoIterator</h1>
+                        <div class="post-tags">
+                            <span>Rust</span>
+                            <span>Iterator</span>
+                            <span>IntoIterator</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Implementing <code>Iterator</code> for your own types is one of Rust's most rewarding patterns. A single method &mdash; <code>next(&amp;mut self) -&gt; Option&lt;Self::Item&gt;</code> &mdash; unlocks the entire iterator adapter ecosystem for free. <code>IntoIterator</code> goes further, allowing your types to be used directly in <code>for</code> loops. Together, these two traits are how you make your domain types participate in idiomatic Rust data processing.</p>
+
+                        <h2>The Iterator Trait</h2>
+                        <p>The <code>Iterator</code> trait requires exactly one method: <code>next</code>. Every other method &mdash; <code>map</code>, <code>filter</code>, <code>fold</code>, <code>collect</code>, <code>zip</code>, <code>chain</code>, and over 70 others &mdash; is a provided default method built on top of <code>next</code>. Once you implement <code>next</code>, all of these are available immediately with no additional work.</p>
+                        <p>The pattern is simple: the iterator struct holds all the state needed to produce the next element. Each call to <code>next</code> advances that state and returns either <code>Some(item)</code> or <code>None</code> when exhausted. After returning <code>None</code>, the iterator may return <code>None</code> again on subsequent calls (the "fused" property), or it may produce more elements &mdash; it depends on the implementation. Implementors of genuinely finite iterators should also implement the <code>FusedIterator</code> marker trait to allow the optimizer to skip the termination check in certain loops.</p>
+
+                        <h3>A Range-Like Counter</h3>
+                        <p><em>A <code>Counter</code> struct that yields integers from a start to an end, demonstrating the minimum viable Iterator implementation and showing how all adapter methods become available immediately.</em></p>
+<pre><code class="language-rust">struct Counter {
+    current: u32,
+    end:     u32,
+}
+
+impl Counter {
+    fn new(start: u32, end: u32) -> Self {
+        Counter { current: start, end }
+    }
+}
+
+impl Iterator for Counter {
+    type Item = u32;
+
+    fn next(&amp;mut self) -> Option&lt;u32&gt; {
+        if self.current &lt; self.end {
+            let val = self.current;
+            self.current += 1;
+            Some(val)
+        } else {
+            None
+        }
+    }
+}
+
+fn main() {
+    // All these methods are FREE -- we only implemented `next`.
+    let sum: u32 = Counter::new(1, 6).sum();
+    println!("sum 1..5 = {sum}"); // 15
+
+    let squares: Vec&lt;u32&gt; = Counter::new(1, 6).map(|x| x * x).collect();
+    println!("{squares:?}"); // [1, 4, 9, 16, 25]
+
+    let evens: Vec&lt;u32&gt; = Counter::new(0, 10).filter(|x| x % 2 == 0).collect();
+    println!("{evens:?}"); // [0, 2, 4, 6, 8]
+
+    // zip two counters
+    let pairs: Vec&lt;(u32, u32)&gt; = Counter::new(1, 4)
+        .zip(Counter::new(4, 7))
+        .collect();
+    println!("{pairs:?}"); // [(1,4), (2,5), (3,6)]
+
+    // fold: product
+    let product: u32 = Counter::new(1, 6).fold(1, |acc, x| acc * x);
+    println!("5! = {product}"); // 120
+
+    // Any standard pipeline
+    let result: Vec&lt;String&gt; = Counter::new(1, 6)
+        .filter(|x| x % 2 != 0)
+        .map(|x| format!("item_{x}"))
+        .collect();
+    println!("{result:?}"); // ["item_1", "item_3", "item_5"]
+}</code></pre>
+
+                        <h2>Implementing DoubleEndedIterator</h2>
+                        <p>If your iterator can efficiently yield elements from both ends, implement <code>DoubleEndedIterator</code> by providing <code>next_back(&amp;mut self) -&gt; Option&lt;Self::Item&gt;</code>. This unlocks <code>.rev()</code> (lazy reversal), <code>.rfind()</code>, <code>.rfold()</code>, and <code>.last()</code> in O(1) rather than O(n).</p>
+
+                        <p><em>The <code>Counter</code> extended with <code>DoubleEndedIterator</code>, enabling lazy reversal and bidirectional consumption.</em></p>
+<pre><code class="language-rust">struct RangeIter {
+    front: u32,
+    back:  u32,
+}
+
+impl RangeIter {
+    fn new(start: u32, end: u32) -> Self {
+        RangeIter { front: start, back: end }
+    }
+}
+
+impl Iterator for RangeIter {
+    type Item = u32;
+    fn next(&amp;mut self) -> Option&lt;u32&gt; {
+        if self.front &lt; self.back {
+            let v = self.front;
+            self.front += 1;
+            Some(v)
+        } else { None }
+    }
+}
+
+impl DoubleEndedIterator for RangeIter {
+    fn next_back(&amp;mut self) -> Option&lt;u32&gt; {
+        if self.front &lt; self.back {
+            self.back -= 1;
+            Some(self.back)
+        } else { None }
+    }
+}
+
+fn main() {
+    // .rev() is now lazy and free
+    let reversed: Vec&lt;u32&gt; = RangeIter::new(1, 6).rev().collect();
+    println!("{reversed:?}"); // [5, 4, 3, 2, 1]
+
+    // Mixed forward/backward consumption
+    let mut iter = RangeIter::new(1, 6);
+    println!("{:?}", iter.next());      // Some(1)
+    println!("{:?}", iter.next_back()); // Some(5)
+    println!("{:?}", iter.next());      // Some(2)
+    println!("{:?}", iter.next_back()); // Some(4)
+    println!("{:?}", iter.next());      // Some(3)
+    println!("{:?}", iter.next());      // None (met in the middle)
+
+    // .last() uses next_back for O(1) if DoubleEndedIterator is implemented
+    let last = RangeIter::new(0, 100).last();
+    println!("{last:?}"); // Some(99)
+}</code></pre>
+
+                        <h2>IntoIterator — Making Types Usable in for Loops</h2>
+                        <p>The <code>IntoIterator</code> trait converts a value into an iterator. It is what the <code>for</code> loop desugars to: <code>for x in collection</code> becomes <code>let mut iter = collection.into_iter(); while let Some(x) = iter.next() { ... }</code>. Implementing <code>IntoIterator</code> for your type (and for <code>&amp;YourType</code> and <code>&amp;mut YourType</code>) gives it ergonomic <code>for</code> loop support with all three ownership modes.</p>
+                        <p>The convention is to implement it three ways:</p>
+                        <ul>
+                            <li><strong><code>impl IntoIterator for Collection</code></strong> — consumes the collection, yields owned values</li>
+                            <li><strong><code>impl IntoIterator for &amp;Collection</code></strong> — borrows the collection, yields immutable references</li>
+                            <li><strong><code>impl IntoIterator for &amp;mut Collection</code></strong> — mutably borrows, yields mutable references</li>
+                        </ul>
+
+                        <p><em>A <code>Matrix</code> struct implementing all three <code>IntoIterator</code> forms, enabling natural <code>for</code> loop usage in all three ownership modes.</em></p>
+<pre><code class="language-rust">#[derive(Debug, Clone)]
+struct Matrix {
+    data: Vec&lt;Vec&lt;f64&gt;&gt;,
+    rows: usize,
+    cols: usize,
+}
+
+impl Matrix {
+    fn new(rows: usize, cols: usize) -> Self {
+        Matrix { data: vec![vec![0.0; cols]; rows], rows, cols }
+    }
+
+    fn set(&amp;mut self, r: usize, c: usize, v: f64) { self.data[r][c] = v; }
+    fn get(&amp;self, r: usize, c: usize) -> f64 { self.data[r][c] }
+}
+
+// Consuming iterator: yields rows as owned Vec&lt;f64&gt;
+struct MatrixIntoIter { data: Vec&lt;Vec&lt;f64&gt;&gt; }
+impl Iterator for MatrixIntoIter {
+    type Item = Vec&lt;f64&gt;;
+    fn next(&amp;mut self) -> Option&lt;Vec&lt;f64&gt;&gt; {
+        if self.data.is_empty() { None } else { Some(self.data.remove(0)) }
+    }
+}
+impl IntoIterator for Matrix {
+    type Item = Vec&lt;f64&gt;;
+    type IntoIter = MatrixIntoIter;
+    fn into_iter(self) -> MatrixIntoIter { MatrixIntoIter { data: self.data } }
+}
+
+// Borrowing iterator: yields rows as &amp;[f64]
+struct MatrixIter&lt;'a&gt; { matrix: &amp;'a Matrix, row: usize }
+impl&lt;'a&gt; Iterator for MatrixIter&lt;'a&gt; {
+    type Item = &amp;'a [f64];
+    fn next(&amp;mut self) -> Option&lt;&amp;'a [f64]&gt; {
+        if self.row &lt; self.matrix.rows {
+            let r = self.row;
+            self.row += 1;
+            Some(&amp;self.matrix.data[r])
+        } else { None }
+    }
+}
+impl&lt;'a&gt; IntoIterator for &amp;'a Matrix {
+    type Item = &amp;'a [f64];
+    type IntoIter = MatrixIter&lt;'a&gt;;
+    fn into_iter(self) -> MatrixIter&lt;'a&gt; { MatrixIter { matrix: self, row: 0 } }
+}
+
+fn main() {
+    let mut m = Matrix::new(3, 3);
+    for r in 0..3 {
+        for c in 0..3 { m.set(r, c, (r * 3 + c) as f64 + 1.0); }
+    }
+
+    // Immutable for loop (&amp;m uses IntoIterator for &amp;Matrix)
+    println!("rows:");
+    for row in &amp;m {
+        println!("  {row:?}");
+    }
+
+    // Consuming for loop (m is moved into MatrixIntoIter)
+    let row_sums: Vec&lt;f64&gt; = m.into_iter().map(|row| row.iter().sum()).collect();
+    println!("row sums: {row_sums:?}"); // [6.0, 15.0, 24.0]
+}</code></pre>
+
+                        <h2>Iterator Adapters as Structs</h2>
+                        <p>All the standard adapters (<code>Map</code>, <code>Filter</code>, <code>Chain</code>, etc.) are implemented as plain structs wrapping the inner iterator and a closure. You can write your own adapters in exactly the same way. This lets you define domain-specific transformations that chain seamlessly with the standard library.</p>
+
+                        <p><em>A custom <code>Throttle</code> adapter that yields elements with a simulated delay, and a <code>Windowed</code> adapter yielding overlapping windows without allocation.</em></p>
+<pre><code class="language-rust">// A custom adapter struct: wraps an iterator and yields every N-th element.
+struct EveryNth&lt;I&gt; {
+    iter: I,
+    n:    usize,
+    step: usize,
+}
+
+impl&lt;I: Iterator&gt; EveryNth&lt;I&gt; {
+    fn new(iter: I, n: usize) -> Self {
+        assert!(n &gt; 0, "n must be positive");
+        EveryNth { iter, n, step: 0 }
+    }
+}
+
+impl&lt;I: Iterator&gt; Iterator for EveryNth&lt;I&gt; {
+    type Item = I::Item;
+    fn next(&amp;mut self) -> Option&lt;I::Item&gt; {
+        loop {
+            let item = self.iter.next()?;
+            let emit = self.step == 0;
+            self.step = (self.step + 1) % self.n;
+            if emit { return Some(item); }
+        }
+    }
+}
+
+// Extension trait: adds `.every_nth(n)` to all iterators
+trait IterExt: Iterator + Sized {
+    fn every_nth(self, n: usize) -> EveryNth&lt;Self&gt; {
+        EveryNth::new(self, n)
+    }
+}
+impl&lt;I: Iterator&gt; IterExt for I {}
+
+fn main() {
+    // every 3rd element
+    let sampled: Vec&lt;i32&gt; = (0..15).every_nth(3).collect();
+    println!("{sampled:?}"); // [0, 3, 6, 9, 12]
+
+    // Chains with standard adapters seamlessly
+    let result: Vec&lt;i32&gt; = (0..20)
+        .every_nth(2)       // [0, 2, 4, 6, 8, 10, 12, 14, 16, 18]
+        .filter(|x| x &gt; &amp;5) // [6, 8, 10, 12, 14, 16, 18]
+        .take(3)             // [6, 8, 10]
+        .collect();
+    println!("{result:?}");
+}</code></pre>
+
+                        <h2>ExactSizeIterator and size_hint</h2>
+                        <p>Two additional traits refine the <code>Iterator</code> contract with size information:</p>
+                        <ul>
+                            <li><strong><code>size_hint() -&gt; (usize, Option&lt;usize&gt;)</code></strong> — a hint on the remaining element count: <code>(lower_bound, upper_bound)</code>. The default returns <code>(0, None)</code>. <code>collect()</code> uses this to pre-allocate the output Vec.</li>
+                            <li><strong><code>ExactSizeIterator</code></strong> — guarantees that <code>size_hint()</code> returns <code>(n, Some(n))</code> where <code>n</code> is the exact remaining count. Unlocks <code>.len()</code>.</li>
+                        </ul>
+
+                        <p><em>The <code>RangeIter</code> from earlier extended with <code>size_hint</code> and <code>ExactSizeIterator</code>.</em></p>
+<pre><code class="language-rust">struct ExactCounter {
+    current: u32,
+    end:     u32,
+}
+
+impl ExactCounter {
+    fn new(start: u32, end: u32) -> Self { ExactCounter { current: start, end } }
+}
+
+impl Iterator for ExactCounter {
+    type Item = u32;
+    fn next(&amp;mut self) -> Option&lt;u32&gt; {
+        if self.current &lt; self.end {
+            let v = self.current;
+            self.current += 1;
+            Some(v)
+        } else { None }
+    }
+
+    fn size_hint(&amp;self) -> (usize, Option&lt;usize&gt;) {
+        let remaining = (self.end - self.current) as usize;
+        (remaining, Some(remaining))
+    }
+}
+
+impl ExactSizeIterator for ExactCounter {}
+
+fn main() {
+    let c = ExactCounter::new(5, 15);
+    println!("len: {}", c.len()); // 10  -- from ExactSizeIterator
+
+    // collect() uses size_hint to pre-allocate -- no reallocation needed
+    let v: Vec&lt;u32&gt; = ExactCounter::new(0, 1000).collect();
+    println!("collected {} items", v.len());
+}</code></pre>
+
+                        <h2>Lazy vs Eager: When to Collect</h2>
+                        <p>A common beginner mistake is inserting unnecessary <code>.collect()</code> calls between pipeline stages. Each <code>collect</code> allocates a new <code>Vec</code>, traverses all elements, and then the next adapter traverses them again. Instead, chain adapters lazily and collect exactly once at the end.</p>
+
+                        <p><em>Showing the cost of eager collection vs lazy chaining, and when collect is and is not necessary.</em></p>
+<pre><code class="language-rust">fn main() {
+    let data: Vec&lt;i32&gt; = (0..1_000_000).collect();
+
+    // WRONG: two allocations, two traversals
+    // let step1: Vec&lt;i32&gt; = data.iter().filter(|&&amp;x| x % 2 == 0).copied().collect();
+    // let step2: Vec&lt;i32&gt; = step1.iter().map(|&amp;x| x * 3).collect();
+
+    // CORRECT: lazy pipeline, one traversal, one allocation
+    let result: Vec&lt;i32&gt; = data.iter()
+        .filter(|&amp;&amp;x| x % 2 == 0)
+        .map(|&amp;x| x * 3)
+        .take(5)
+        .collect();
+    println!("{result:?}"); // [0, 6, 12, 18, 24]
+
+    // When to collect early:
+    // 1. When you need to share or reuse the intermediate result
+    // 2. When you need random access (get by index)
+    // 3. When lifetime constraints prevent chaining (e.g., borrow ends)
+    // 4. When debugging: collect mid-pipeline to inspect intermediate values
+
+    // collect into types other than Vec
+    use std::collections::{HashSet, HashMap};
+    let unique: HashSet&lt;i32&gt; = vec![1, 2, 2, 3, 3, 3].into_iter().collect();
+    println!("{unique:?}");
+
+    let map: HashMap&lt;i32, i32&gt; = (1..=5).map(|x| (x, x * x)).collect();
+    println!("{map:?}");
+
+    // collect into String from chars
+    let s: String = "hello world"
+        .chars()
+        .filter(|c| !c.is_whitespace())
+        .map(|c| c.to_uppercase().next().unwrap())
+        .collect();
+    println!("{s}"); // HELLOWORLD
+}</code></pre>
+
+                    </div>
+                </div>
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>Rust Series &mdash; Module 3</h4>
+                        <a href="rust-collections.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Vec, HashMap, HashSet &amp; BTreeMap</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-iterators-advanced.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Advanced Iterators</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-custom-iterators.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Custom Iterators &amp; IntoIterator</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-strings.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Strings: String, &amp;str &amp; Encoding</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-rust.min.js"></script>
+    <script>
+        const toggle = document.querySelector('.nav-toggle');
+        const navLinks = document.querySelector('.nav-links');
+        toggle.addEventListener('click', () => {
+            navLinks.classList.toggle('active');
+            toggle.classList.toggle('active');
+        });
+    </script>
+
+</body>
+</html>

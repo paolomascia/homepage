@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generics: Bounds, Where Clauses &amp; Monomorphization in Rust &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="rust-tech-insights.html">Rust</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+            <button class="nav-toggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="rust-tech-insights.html" class="back-link">&larr; Back to Rust Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Feb 2026</span>
+                            <span class="post-reading">15 min read</span>
+                        </div>
+                        <h1>Generics: Bounds, Where Clauses &amp; Monomorphization</h1>
+                        <div class="post-tags">
+                            <span>Rust</span>
+                            <span>Generics</span>
+                            <span>Monomorphization</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Generics let you write code once and have it work across many types. In Rust, generics are a compile-time mechanism: the compiler substitutes each concrete type for the type parameter and generates specialized code with no runtime overhead. Trait bounds tell the compiler what operations are valid on a generic type, turning what would be a runtime error in other languages into a precise compile-time guarantee.</p>
+
+                        <h2>Generic Functions</h2>
+                        <p>A generic function is parameterized by one or more type variables declared in angle brackets after the function name. Without bounds, a type parameter is completely opaque &mdash; you cannot call any methods on it, pass it to functions, or compare it. Bounds are how you describe what you need the type to be able to do.</p>
+                        <p>Rust performs <em>monomorphization</em> at compile time: for every unique set of type arguments a generic function is called with, the compiler generates a fully specialized, concrete version. A call to <code>max::&lt;i32&gt;(a, b)</code> and a call to <code>max::&lt;f64&gt;(x, y)</code> produce two separate functions in the binary, each with no more overhead than if you had written them by hand. This is what "zero-cost abstractions" means concretely.</p>
+
+                        <h3>Basic Generic Functions</h3>
+                        <p><em>Progressively constrained generic functions: from unbounded (virtually useless) to single-bound, to multi-bound, demonstrating what each level unlocks.</em></p>
+<pre><code class="language-rust">use std::fmt;
+
+// Unbounded: T can be anything, but we can do nothing with it except store it.
+fn first&lt;T&gt;(slice: &amp;[T]) -> Option&lt;&amp;T&gt; {
+    slice.first()
+}
+
+// Single bound: PartialOrd allows `&gt;` comparison.
+fn larger&lt;T: PartialOrd&gt;(a: T, b: T) -> T {
+    if a &gt; b { a } else { b }
+}
+
+// Multiple bounds: PartialOrd for comparison, Display for printing.
+fn print_larger&lt;T: PartialOrd + fmt::Display&gt;(a: T, b: T) {
+    let result = if a &gt; b { a } else { b };
+    println!("larger: {result}");
+}
+
+// Where clause: cleaner when bounds get complex.
+fn describe_pair&lt;T, U&gt;(t: T, u: U) -> String
+where
+    T: fmt::Display + fmt::Debug,
+    U: fmt::Display + Clone,
+{
+    format!("t={t} ({t:?}), u={u}")
+}
+
+fn main() {
+    println!("{:?}", first(&amp;[1, 2, 3]));     // Some(1)
+    println!("{}", larger(3.14, 2.71));       // 3.14
+    println!("{}", larger("apple", "banana")); // banana
+    print_larger(100u32, 200u32);             // larger: 200
+    println!("{}", describe_pair(42, "hello")); // t=42 (42), u=hello
+}</code></pre>
+
+                        <h2>Generic Structs and Enums</h2>
+                        <p>Structs and enums can also be generic. The standard library's most pervasive types &mdash; <code>Option&lt;T&gt;</code>, <code>Result&lt;T, E&gt;</code>, <code>Vec&lt;T&gt;</code>, <code>HashMap&lt;K, V&gt;</code> &mdash; are all generic. When you define a generic struct, you can have different <code>impl</code> blocks with different bounds, making certain methods available only when the type parameter satisfies specific constraints. This is called <em>conditional implementation</em>.</p>
+
+                        <p><em>A generic <code>Pair&lt;T&gt;</code> struct with an unconditional <code>impl</code> block and a conditional one that adds methods only when <code>T: PartialOrd + Display</code>.</em></p>
+<pre><code class="language-rust">use std::fmt;
+
+#[derive(Debug)]
+struct Pair&lt;T&gt; {
+    first:  T,
+    second: T,
+}
+
+// Always available, regardless of T
+impl&lt;T&gt; Pair&lt;T&gt; {
+    fn new(first: T, second: T) -> Self {
+        Pair { first, second }
+    }
+
+    fn first(&amp;self)  -> &amp;T { &amp;self.first }
+    fn second(&amp;self) -> &amp;T { &amp;self.second }
+}
+
+// Only available when T: PartialOrd + Display
+impl&lt;T: PartialOrd + fmt::Display&gt; Pair&lt;T&gt; {
+    fn larger(&amp;self) -> &amp;T {
+        if self.first &gt;= self.second { &amp;self.first } else { &amp;self.second }
+    }
+
+    fn print_sorted(&amp;self) {
+        if self.first &lt;= self.second {
+            println!("({}, {})", self.first, self.second);
+        } else {
+            println!("({}, {})", self.second, self.first);
+        }
+    }
+}
+
+// Generic enum: like Option but with an additional "loading" state
+#[derive(Debug)]
+enum Loadable&lt;T&gt; {
+    Loading,
+    Loaded(T),
+    Failed(String),
+}
+
+impl&lt;T: fmt::Display&gt; Loadable&lt;T&gt; {
+    fn display(&amp;self) {
+        match self {
+            Loadable::Loading     => println!("Loading..."),
+            Loadable::Loaded(v)   => println!("Loaded: {v}"),
+            Loadable::Failed(msg) => println!("Failed: {msg}"),
+        }
+    }
+}
+
+fn main() {
+    let p = Pair::new(5, 10);
+    println!("first: {}", p.first());
+    println!("larger: {}", p.larger());
+    p.print_sorted(); // (5, 10)
+
+    let p2 = Pair::new("zebra", "apple");
+    p2.print_sorted(); // (apple, zebra)
+
+    let data: Loadable&lt;u32&gt; = Loadable::Loaded(42);
+    data.display(); // Loaded: 42
+
+    let err: Loadable&lt;u32&gt; = Loadable::Failed("timeout".to_string());
+    err.display(); // Failed: timeout
+}</code></pre>
+
+                        <h2>Generic Implementations of Traits</h2>
+                        <p>You can implement a trait generically for a family of types. For example, you might implement a custom <code>Summary</code> trait for all types that implement <code>Display</code>, without naming any concrete type. This is called a <em>blanket implementation</em> and is one of the most powerful tools for code reuse in Rust. The standard library uses this technique extensively: <code>impl&lt;T: Display&gt; ToString for T</code> gives every displayable type a <code>to_string()</code> method without listing each one.</p>
+
+                        <p><em>A generic <code>Cache&lt;K, V&gt;</code> with impl blocks that add methods depending on whether <code>K</code> is hashable, orderable, or displayable.</em></p>
+<pre><code class="language-rust">use std::collections::HashMap;
+use std::fmt;
+
+struct Cache&lt;K, V&gt; {
+    store: HashMap&lt;K, V&gt;,
+}
+
+// Always available: K: Eq + Hash is required for HashMap.
+impl&lt;K: std::hash::Hash + Eq, V&gt; Cache&lt;K, V&gt; {
+    fn new() -> Self { Cache { store: HashMap::new() } }
+
+    fn insert(&amp;mut self, key: K, value: V) -> Option&lt;V&gt; {
+        self.store.insert(key, value)
+    }
+
+    fn get(&amp;self, key: &amp;K) -> Option&lt;&amp;V&gt; {
+        self.store.get(key)
+    }
+
+    fn len(&amp;self) -> usize { self.store.len() }
+}
+
+// Extra methods when V is also Display
+impl&lt;K: std::hash::Hash + Eq + fmt::Display, V: fmt::Display&gt; Cache&lt;K, V&gt; {
+    fn print_all(&amp;self) {
+        for (k, v) in &amp;self.store {
+            println!("  {k} => {v}");
+        }
+    }
+}
+
+fn main() {
+    let mut cache: Cache&lt;String, u32&gt; = Cache::new();
+    cache.insert("hits".to_string(), 42);
+    cache.insert("misses".to_string(), 7);
+
+    println!("hits: {:?}", cache.get(&amp;"hits".to_string())); // Some(42)
+    println!("size: {}", cache.len()); // 2
+    cache.print_all(); // hits => 42 / misses => 7
+}</code></pre>
+
+                        <h2>The Monomorphization Model in Depth</h2>
+                        <p>Monomorphization means the compiler copies and specializes generic code for every concrete type it encounters during compilation. The process is similar to C++ template instantiation, but Rust performs it after type-checking, so errors are caught at the definition site ("this bound is not met") rather than at the instantiation site ("no member named X in class Y").</p>
+                        <p>The key implication is code size: if you call <code>sort::&lt;i32&gt;</code>, <code>sort::&lt;f64&gt;</code>, and <code>sort::&lt;String&gt;</code>, you get three copies of the sort algorithm in the binary. For most code this is a non-issue and the performance benefit of inlining outweighs the size cost. For code where binary size matters (embedded, WebAssembly), you can manually introduce dynamic dispatch to reduce duplication.</p>
+
+                        <p><em>A sorting utility showing how monomorphization produces type-specialized code, and a manual de-genericization approach to reduce binary size in size-constrained contexts.</em></p>
+<pre><code class="language-rust">// Generic sort wrapper -- monomorphized for each concrete type.
+// The compiler generates three separate sort_slice functions.
+fn sort_slice&lt;T: Ord&gt;(data: &amp;mut [T]) {
+    data.sort();
+}
+
+// Generic with key extraction
+fn sort_by_key&lt;T, K: Ord&gt;(data: &amp;mut Vec&lt;T&gt;, key: impl Fn(&amp;T) -> K) {
+    data.sort_by_key(key);
+}
+
+fn main() {
+    let mut ints = vec![3, 1, 4, 1, 5, 9, 2, 6];
+    sort_slice(&amp;mut ints);
+    println!("{ints:?}"); // [1, 1, 2, 3, 4, 5, 6, 9]
+
+    let mut words = vec!["banana", "apple", "cherry", "date"];
+    sort_slice(&amp;mut words);
+    println!("{words:?}"); // ["apple", "banana", "cherry", "date"]
+
+    #[derive(Debug)]
+    struct Person { name: String, age: u32 }
+    let mut people = vec![
+        Person { name: "Charlie".to_string(), age: 30 },
+        Person { name: "Alice".to_string(), age: 25 },
+        Person { name: "Bob".to_string(), age: 35 },
+    ];
+    sort_by_key(&amp;mut people, |p| p.age);
+    for p in &amp;people { println!("{}: {}", p.name, p.age); }
+    // Alice: 25 / Charlie: 30 / Bob: 35
+}</code></pre>
+
+                        <h2>const Generics</h2>
+                        <p>Since Rust 1.51, type parameters can be not just types but also constant values &mdash; integers, booleans, or characters. This is called <em>const generics</em> and enables truly zero-overhead fixed-size abstractions. The classic use case is fixed-size arrays: <code>[T; N]</code> is already parameterized by a const generic <code>N</code>. You can write generic functions over arrays of any compile-time-known size without heap allocation or copying into a <code>Vec</code>.</p>
+
+                        <p><em>A stack-allocated <code>SmallVec&lt;T, N&gt;</code> that holds up to N elements without heap allocation, using const generics for the capacity parameter.</em></p>
+<pre><code class="language-rust">// A fixed-capacity buffer backed by a stack array.
+// N is a const generic: the capacity is baked into the type at compile time.
+#[derive(Debug)]
+struct FixedBuffer&lt;T, const N: usize&gt; {
+    data: [Option&lt;T&gt;; N],
+    len: usize,
+}
+
+impl&lt;T: Copy + Default, const N: usize&gt; FixedBuffer&lt;T, N&gt; {
+    fn new() -> Self {
+        FixedBuffer { data: [None; N], len: 0 }
+    }
+
+    fn push(&amp;mut self, val: T) -> bool {
+        if self.len &gt;= N { return false; }
+        self.data[self.len] = Some(val);
+        self.len += 1;
+        true
+    }
+
+    fn pop(&amp;mut self) -> Option&lt;T&gt; {
+        if self.len == 0 { return None; }
+        self.len -= 1;
+        self.data[self.len].take()
+    }
+
+    fn len(&amp;self) -> usize { self.len }
+    fn capacity() -> usize { N }
+    fn is_full(&amp;self) -> bool { self.len == N }
+}
+
+// Generic function over all array sizes -- works with [T; 4], [T; 16], etc.
+fn sum_array&lt;const N: usize&gt;(arr: &amp;[i32; N]) -> i32 {
+    arr.iter().sum()
+}
+
+fn main() {
+    let mut buf: FixedBuffer&lt;i32, 4&gt; = FixedBuffer::new();
+    println!("capacity: {}", FixedBuffer::&lt;i32, 4&gt;::capacity()); // 4
+
+    for i in 0..5 {
+        let ok = buf.push(i);
+        println!("push {i}: {ok}"); // false on 5th push (capacity exceeded)
+    }
+    println!("len: {}", buf.len()); // 4
+
+    while let Some(v) = buf.pop() {
+        println!("pop: {v}");
+    }
+
+    let arr4:  [i32; 4] = [1, 2, 3, 4];
+    let arr8:  [i32; 8] = [1, 2, 3, 4, 5, 6, 7, 8];
+    println!("sum4: {}", sum_array(&amp;arr4)); // 10
+    println!("sum8: {}", sum_array(&amp;arr8)); // 36
+}</code></pre>
+
+                        <h2>Phantom Types</h2>
+                        <p>A <em>phantom type</em> is a type parameter that appears only in a <code>PhantomData&lt;T&gt;</code> field and is not stored in the struct at all. It has zero runtime cost (PhantomData is a zero-sized type) but carries compile-time information. The canonical use case is encoding state or units of measure in the type system, so that operations mixing incompatible states or units are caught at compile time rather than at runtime.</p>
+
+                        <p><em>A type-safe units system using phantom types to prevent mixing metres with kilometres or Celsius with Fahrenheit at compile time.</em></p>
+<pre><code class="language-rust">use std::marker::PhantomData;
+use std::ops::Add;
+
+// Unit markers -- zero-sized types used only as phantom parameters.
+struct Metres;
+struct Kilometres;
+struct Celsius;
+struct Fahrenheit;
+
+// A measurement value tagged with its unit at the type level.
+#[derive(Debug, Clone, Copy)]
+struct Quantity&lt;T, Unit&gt; {
+    value: T,
+    _unit: PhantomData&lt;Unit&gt;,
+}
+
+impl&lt;T, Unit&gt; Quantity&lt;T, Unit&gt; {
+    fn new(value: T) -> Self {
+        Quantity { value, _unit: PhantomData }
+    }
+    fn value(&amp;self) -> &amp;T { &amp;self.value }
+}
+
+// Addition is only defined for the SAME unit -- mixing is a compile error.
+impl&lt;T: Add&lt;Output = T&gt;, Unit&gt; Add for Quantity&lt;T, Unit&gt; {
+    type Output = Quantity&lt;T, Unit&gt;;
+    fn add(self, rhs: Self) -> Self::Output {
+        Quantity::new(self.value + rhs.value)
+    }
+}
+
+// Explicit conversions between units
+impl Quantity&lt;f64, Metres&gt; {
+    fn to_kilometres(self) -> Quantity&lt;f64, Kilometres&gt; {
+        Quantity::new(self.value / 1000.0)
+    }
+}
+
+fn main() {
+    let d1: Quantity&lt;f64, Metres&gt;     = Quantity::new(500.0);
+    let d2: Quantity&lt;f64, Metres&gt;     = Quantity::new(300.0);
+    let d3: Quantity&lt;f64, Kilometres&gt; = Quantity::new(1.5);
+
+    let total = d1 + d2;
+    println!("total metres: {:.1}", total.value()); // 800.0
+
+    let km = d1.to_kilometres();
+    println!("in km: {:.3}", km.value()); // 0.500
+
+    // This would be a compile-time error:
+    // let bad = d1 + d3; // type mismatch: Metres vs Kilometres
+
+    let t1: Quantity&lt;f64, Celsius&gt;    = Quantity::new(20.0);
+    let t2: Quantity&lt;f64, Celsius&gt;    = Quantity::new(5.0);
+    // let bad2 = t1 + Quantity::&lt;f64, Fahrenheit&gt;::new(68.0); // compile error
+    println!("temp sum: {:.1}°C", (t1 + t2).value()); // 25.0°C
+}</code></pre>
+
+                    </div>
+                </div>
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>Rust Series &mdash; Module 2</h4>
+                        <a href="rust-traits.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Traits: Definition, Implementation &amp; Default Methods</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-trait-objects.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Trait Objects &amp; Dynamic Dispatch</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-generics.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Generics: Bounds, Where Clauses &amp; Monomorphization</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-lifetimes-advanced.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Advanced Lifetimes &amp; HRTB</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-rust.min.js"></script>
+    <script>
+        const toggle = document.querySelector('.nav-toggle');
+        const navLinks = document.querySelector('.nav-links');
+        toggle.addEventListener('click', () => {
+            navLinks.classList.toggle('active');
+            toggle.classList.toggle('active');
+        });
+    </script>
+
+</body>
+</html>

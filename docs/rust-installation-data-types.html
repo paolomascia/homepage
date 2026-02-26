@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rust Installation and Data Types &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="rust-tech-insights.html">Rust</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+            <button class="nav-toggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="rust-tech-insights.html" class="back-link">&larr; Back to Rust Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Feb 2026</span>
+                            <span class="post-reading">14 min read</span>
+                        </div>
+                        <h1>Rust Installation and Data Types</h1>
+                        <div class="post-tags">
+                            <span>Rust</span>
+                            <span>Installation</span>
+                            <span>Data Types</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Rust is a systems programming language that guarantees memory safety without a garbage collector. Before writing your first line of Rust, you need to understand how the toolchain is structured and what data types the language offers &mdash; from simple integers and booleans to compound types like tuples, arrays, and the heap-allocated <code>String</code>.</p>
+
+                        <h2>Why Rust?</h2>
+                        <p>Rust was designed by Mozilla Research and reached its 1.0 release in 2015. It sits in a unique position: it gives you the raw performance of C/C++ while preventing the entire class of memory bugs &mdash; null-pointer dereferences, buffer overflows, use-after-free &mdash; that plague those languages. The compiler enforces these guarantees at compile time through its <strong>ownership system</strong>, meaning you pay zero runtime cost for safety.</p>
+                        <p>Rust is particularly well-suited for system programming, WebAssembly, embedded devices, game engines, network services, and any domain where performance and reliability are non-negotiable.</p>
+
+                        <h2>Installing Rust</h2>
+
+                        <h3>rustup &mdash; the Official Toolchain Manager</h3>
+                        <p>The canonical way to install Rust is via <strong>rustup</strong>, a command-line tool that manages Rust versions and associated tools. It installs the compiler (<code>rustc</code>), the package manager and build tool (<code>cargo</code>), and the standard library.</p>
+
+                        <p><strong>Linux / macOS:</strong></p>
+<pre><code class="language-bash">curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh</code></pre>
+                        <p>Follow the on-screen prompts. The installer adds <code>~/.cargo/bin</code> to your <code>PATH</code> automatically. Open a new terminal or run:</p>
+<pre><code class="language-bash">source "$HOME/.cargo/env"</code></pre>
+
+                        <p><strong>Windows:</strong></p>
+                        <p>Download and run <code>rustup-init.exe</code> from <code>https://rustup.rs</code>. It also installs the required MSVC build tools if not already present.</p>
+
+                        <h3>Verify the Installation</h3>
+<pre><code class="language-bash">rustc --version   # e.g. rustc 1.76.0 (07dca489a 2024-02-04)
+cargo --version   # e.g. cargo 1.76.0 (...)
+rustup --version  # e.g. rustup 1.27.0 (...)</code></pre>
+
+                        <h3>Keeping Rust Up to Date</h3>
+<pre><code class="language-bash">rustup update        # update to the latest stable
+rustup show          # show installed toolchains
+rustup toolchain list</code></pre>
+
+                        <h3>Useful Components</h3>
+<pre><code class="language-bash">rustup component add clippy     # linter with helpful suggestions
+rustup component add rustfmt    # automatic code formatter
+rustup component add rust-analyzer  # LSP for IDE support</code></pre>
+
+                        <h2>Hello, World!</h2>
+
+                        <h3>Create a New Project with Cargo</h3>
+                        <p>Cargo is Rust's build system and package manager. Every Rust project should be created and managed with it.</p>
+<pre><code class="language-bash">cargo new hello_world
+cd hello_world</code></pre>
+                        <p>Cargo creates the following structure:</p>
+<pre><code class="language-bash">hello_world/
+├── Cargo.toml      # project manifest (name, version, dependencies)
+└── src/
+    └── main.rs     # entry point</code></pre>
+
+                        <p>The generated <code>src/main.rs</code>:</p>
+<pre><code class="language-rust">fn main() {
+    println!("Hello, world!");
+}</code></pre>
+
+                        <h3>Build and Run</h3>
+<pre><code class="language-bash">cargo run        # compile + execute (debug build)
+cargo build      # compile only (debug)
+cargo build --release  # compile with optimisations (slow compile, fast binary)
+cargo check      # type-check without producing a binary (very fast)</code></pre>
+
+                        <h3>Understanding the Code</h3>
+                        <ul>
+                            <li><code>fn main()</code> &mdash; every executable Rust program starts here; no return type means it returns <code>()</code> (unit).</li>
+                            <li><code>println!</code> &mdash; a <em>macro</em> (note the <code>!</code>), not a function. Macros are expanded at compile time and allow variable-argument formatting.</li>
+                            <li>No semicolons are needed after the closing brace of a block, but statement expressions inside blocks end with <code>;</code>.</li>
+                        </ul>
+
+                        <h2>Variables and Mutability</h2>
+                        <p>In Rust, variables are <strong>immutable by default</strong>. This is a deliberate design choice: immutability makes reasoning about code much easier and enables the compiler to make more aggressive optimisations.</p>
+<pre><code class="language-rust">fn main() {
+    let x = 5;          // immutable — cannot be reassigned
+    // x = 6;           // compile error: cannot assign twice to immutable variable
+
+    let mut y = 10;     // mutable — can be reassigned
+    y += 1;
+    println!("y = {y}");
+
+    // Shadowing: re-declare with the same name (even with a different type)
+    let x = x + 1;      // shadows the previous x
+    let x = x * 2;
+    println!("x = {x}"); // 12
+
+    // Constants: always immutable, type is mandatory, set at compile time
+    const MAX_POINTS: u32 = 100_000;
+    println!("max = {MAX_POINTS}");
+}</code></pre>
+                        <p><strong>Shadowing</strong> is different from <code>mut</code>: each <code>let</code> creates a new binding, so you can change the type. With <code>mut</code> you can change the value but the type stays fixed.</p>
+
+                        <h2>Scalar Types</h2>
+                        <p>Scalar types represent a single value. Rust has four scalar types: integers, floating-point numbers, booleans, and characters.</p>
+
+                        <h3>Integer Types</h3>
+                        <p>Rust's integer types are sized and explicitly signed or unsigned:</p>
+                        <table>
+                            <thead>
+                                <tr><th>Type</th><th>Size</th><th>Range (signed)</th><th>Notes</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td><code>i8</code></td><td>1 byte</td><td>&minus;128 to 127</td><td></td></tr>
+                                <tr><td><code>i16</code></td><td>2 bytes</td><td>&minus;32 768 to 32 767</td><td></td></tr>
+                                <tr><td><code>i32</code></td><td>4 bytes</td><td>&minus;2.1B to 2.1B</td><td>default integer type</td></tr>
+                                <tr><td><code>i64</code></td><td>8 bytes</td><td>&pm;9.2&times;10&sup1;&sup8;</td><td></td></tr>
+                                <tr><td><code>i128</code></td><td>16 bytes</td><td>very large</td><td></td></tr>
+                                <tr><td><code>isize</code></td><td>pointer-sized</td><td>platform-dependent</td><td>used for indexing</td></tr>
+                                <tr><td><code>u8</code></td><td>1 byte</td><td>0 to 255</td><td>also used for bytes</td></tr>
+                                <tr><td><code>u32</code></td><td>4 bytes</td><td>0 to 4.3B</td><td></td></tr>
+                                <tr><td><code>u64</code></td><td>8 bytes</td><td>0 to 18.4&times;10&sup1;&sup8;</td><td></td></tr>
+                                <tr><td><code>usize</code></td><td>pointer-sized</td><td>platform-dependent</td><td>slice indices, lengths</td></tr>
+                            </tbody>
+                        </table>
+
+<pre><code class="language-rust">fn main() {
+    let a: i32  = -42;
+    let b: u8   = 255;
+    let c: i64  = 9_223_372_036_854_775_807; // underscores as visual separators
+    let d       = 0xFF;          // hex literal  → 255 (i32 inferred)
+    let e       = 0o77;          // octal        → 63
+    let f       = 0b1111_0000;   // binary       → 240
+    let g: u8   = b'A';          // byte literal → 65
+
+    // Integer overflow panics in debug builds, wraps in release
+    // Use explicit methods for safe arithmetic:
+    let h = 200u8.checked_add(100);   // → None (would overflow)
+    let i = 200u8.wrapping_add(100);  // → 44  (wraps around)
+    let j = 200u8.saturating_add(100);// → 255 (clamped)
+    println!("{a} {b} {c} {d} {e} {f} {g} {h:?} {i} {j}");
+}</code></pre>
+
+                        <h3>Floating-Point Types</h3>
+<pre><code class="language-rust">fn main() {
+    let x: f32 = 3.14;         // 32-bit float (single precision)
+    let y: f64 = 2.718_281_82; // 64-bit float (double precision, default)
+
+    // Standard arithmetic
+    let sum        = x + 1.0_f32;
+    let product    = y * 2.0;
+    let quotient   = 10.0_f64 / 3.0;
+    let remainder  = 10.5_f64 % 3.0;
+
+    // Math functions are methods
+    let sq = 2.0_f64.sqrt();     // 1.41...
+    let powered = 2.0_f64.powi(10);  // integer exponent → 1024.0
+    let powered_f = 2.0_f64.powf(0.5); // float exponent
+    let abs_val = (-5.0_f64).abs();
+
+    println!("{quotient:.4} {sq:.6} {abs_val}");
+
+    // Special values
+    let inf = f64::INFINITY;
+    let neg_inf = f64::NEG_INFINITY;
+    let nan = f64::NAN;
+    println!("inf={inf} nan={nan} is_nan={}", nan.is_nan());
+}</code></pre>
+
+                        <h3>Boolean</h3>
+<pre><code class="language-rust">fn main() {
+    let t: bool = true;
+    let f: bool = false;
+
+    // Logical operators
+    println!("{}", t && f);   // false — short-circuits
+    println!("{}", t || f);   // true  — short-circuits
+    println!("{}", !t);       // false
+
+    // Comparisons produce bool
+    let is_big = 100 > 50;    // true
+    println!("{is_big}");
+}</code></pre>
+
+                        <h3>Character</h3>
+                        <p>Rust's <code>char</code> is a Unicode Scalar Value (4 bytes). Single quotes are used for character literals, double quotes for string literals.</p>
+<pre><code class="language-rust">fn main() {
+    let letter: char = 'A';
+    let emoji: char  = '🦀';   // Rust's unofficial mascot — Ferris the crab
+    let chinese: char = '中';
+
+    println!("{letter} {emoji} {chinese}");
+    println!("is alphabetic: {}", letter.is_alphabetic());
+    println!("is uppercase:  {}", letter.is_uppercase());
+    println!("to lowercase:  {}", letter.to_lowercase().next().unwrap());
+    println!("unicode value: U+{:04X}", letter as u32);
+}</code></pre>
+
+                        <h2>Compound Types</h2>
+
+                        <h3>Tuples</h3>
+                        <p>Tuples group values of <em>different</em> types into a single compound type. Their length is fixed at declaration.</p>
+<pre><code class="language-rust">fn main() {
+    let tup: (i32, f64, char) = (500, 6.4, 'z');
+
+    // Destructuring
+    let (x, y, z) = tup;
+    println!("x={x} y={y} z={z}");
+
+    // Index access with dot notation
+    let first  = tup.0;
+    let second = tup.1;
+    println!("{first} {second}");
+
+    // Unit type: () — the empty tuple, represents "nothing"
+    let unit: () = ();
+    println!("unit = {unit:?}");
+
+    // Practical use: returning multiple values from a function
+    fn min_max(nums: &[i32]) -> (i32, i32) {
+        let mut min = nums[0];
+        let mut max = nums[0];
+        for &n in nums.iter().skip(1) {
+            if n < min { min = n; }
+            if n > max { max = n; }
+        }
+        (min, max)
+    }
+    let (lo, hi) = min_max(&[3, 1, 4, 1, 5, 9, 2, 6]);
+    println!("min={lo} max={hi}");
+}</code></pre>
+
+                        <h3>Arrays</h3>
+                        <p>Arrays have a <em>fixed length</em> known at compile time and store elements of the <em>same type</em>. They live on the stack. Use a <code>Vec</code> if you need a growable collection.</p>
+<pre><code class="language-rust">fn main() {
+    // Declaration
+    let arr: [i32; 5] = [1, 2, 3, 4, 5];
+
+    // Initialise all elements to the same value
+    let zeros = [0; 10];   // [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+    // Access by index (panics at runtime on out-of-bounds in debug)
+    println!("first = {}", arr[0]);
+    println!("last  = {}", arr[arr.len() - 1]);
+
+    // Iterate
+    for n in arr {
+        print!("{n} ");
+    }
+    println!();
+
+    // Slices: a reference to a contiguous sequence (no fixed length in type)
+    let slice: &[i32] = &arr[1..4];  // borrows elements 1, 2, 3
+    println!("slice = {:?}", slice);
+
+    // Multidimensional arrays
+    let matrix: [[i32; 3]; 2] = [[1, 2, 3], [4, 5, 6]];
+    println!("matrix[1][2] = {}", matrix[1][2]); // 6
+}</code></pre>
+
+                        <h2>String Types</h2>
+                        <p>Rust has two main string types, which often confuse beginners:</p>
+                        <ul>
+                            <li><strong><code>&amp;str</code></strong> (string slice) &mdash; an immutable reference to a UTF-8 string stored somewhere in memory (often a string literal baked into the binary). It is a <em>fat pointer</em>: a pointer + a length.</li>
+                            <li><strong><code>String</code></strong> &mdash; a heap-allocated, growable, mutable UTF-8 string owned by the variable that holds it.</li>
+                        </ul>
+<pre><code class="language-rust">fn main() {
+    // &str — string slice (borrowed, immutable, no heap allocation)
+    let s1: &str = "Hello, world!";
+    println!("len = {}", s1.len());       // byte length, not char count
+    println!("chars = {}", s1.chars().count()); // actual Unicode character count
+
+    // String — owned, heap-allocated, growable
+    let mut s2 = String::new();           // empty string
+    s2.push_str("Hello");                 // append a &str
+    s2.push(',');                         // append a char
+    s2.push_str(" world!");
+
+    // From a literal
+    let s3 = String::from("Hi there");
+    let s4 = "greetings".to_string();
+
+    // Concatenation — + operator consumes the left-hand String
+    let s5 = s3 + " " + &s4;   // s3 is moved here, cannot be used after
+    println!("{s5}");
+
+    // format! macro — does not consume arguments
+    let hello = String::from("Hello");
+    let world = String::from("World");
+    let combined = format!("{hello}, {world}!");
+    println!("{combined}");
+
+    // Slicing (must align to char boundaries!)
+    let slice = &combined[0..5]; // "Hello"
+    println!("{slice}");
+
+    // Common methods
+    println!("{}", "  trim me  ".trim());
+    println!("{}", "hello".to_uppercase());
+    println!("{}", "Hello World".to_lowercase());
+    println!("{}", "rust".contains("us"));
+    println!("{}", "hello world".replace("world", "Rust"));
+
+    for word in "one two three".split_whitespace() {
+        println!("{word}");
+    }
+}</code></pre>
+
+                        <h2>Type Inference and Type Aliases</h2>
+                        <p>Rust's compiler is excellent at inferring types, but you can always annotate explicitly for clarity.</p>
+<pre><code class="language-rust">// Type aliases — give a meaningful name to an existing type
+type Kilometers = i32;
+type Result<T> = std::result::Result<T, String>;
+
+fn add_km(a: Kilometers, b: Kilometers) -> Kilometers {
+    a + b
+}
+
+fn main() {
+    // Inference from usage context
+    let mut v = Vec::new();
+    v.push(1_u32);       // compiler now knows v is Vec<u32>
+
+    // Explicit turbofish syntax when inference is ambiguous
+    let parsed = "42".parse::<i64>().unwrap();
+
+    // Casting with 'as' (no implicit coercion in Rust)
+    let x: i32 = 42;
+    let y: f64 = x as f64;
+    let z: u8  = 300_i32 as u8;  // truncates to 44 (300 % 256)
+    println!("{parsed} {y} {z}");
+}</code></pre>
+
+                        <h2>The <code>Option</code> Type: No Null Pointers</h2>
+                        <p>Rust has no <code>null</code>. Instead, the standard library provides <code>Option&lt;T&gt;</code> to represent a value that may or may not exist. The compiler forces you to handle both cases, eliminating null-pointer bugs at compile time.</p>
+<pre><code class="language-rust">fn divide(a: f64, b: f64) -> Option<f64> {
+    if b == 0.0 {
+        None
+    } else {
+        Some(a / b)
+    }
+}
+
+fn main() {
+    // Pattern matching — the idiomatic way
+    match divide(10.0, 2.0) {
+        Some(result) => println!("Result: {result}"),
+        None         => println!("Cannot divide by zero"),
+    }
+
+    // if let — convenient when you only care about Some
+    if let Some(val) = divide(7.0, 3.0) {
+        println!("Got {val:.4}");
+    }
+
+    // Chaining with Option methods
+    let result = divide(10.0, 0.0)
+        .unwrap_or(0.0);         // default on None
+    println!("{result}");
+
+    let doubled = divide(6.0, 2.0)
+        .map(|x| x * 2.0)       // transform Some value
+        .unwrap_or_default();    // 0.0 on None
+    println!("{doubled}");
+
+    // unwrap() panics on None — only use when you're certain it's Some
+    let safe = divide(9.0, 3.0).unwrap(); // 3.0
+    println!("{safe}");
+}</code></pre>
+
+                    </div>
+                </div>
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>Rust Series</h4>
+                        <a href="rust-installation-data-types.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Installation and Data Types</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-control-flow.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Control Flow &amp; Pattern Matching</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-ownership.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Ownership, Borrowing &amp; Lifetimes</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-rust.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script>
+        const toggle = document.querySelector('.nav-toggle');
+        const navLinks = document.querySelector('.nav-links');
+        toggle.addEventListener('click', () => {
+            navLinks.classList.toggle('active');
+            toggle.classList.toggle('active');
+        });
+    </script>
+
+</body>
+</html>

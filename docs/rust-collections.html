@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vec, HashMap, HashSet &amp; BTreeMap in Rust &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="rust-tech-insights.html">Rust</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+            <button class="nav-toggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="rust-tech-insights.html" class="back-link">&larr; Back to Rust Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Feb 2026</span>
+                            <span class="post-reading">17 min read</span>
+                        </div>
+                        <h1>Vec, HashMap, HashSet &amp; BTreeMap</h1>
+                        <div class="post-tags">
+                            <span>Rust</span>
+                            <span>Collections</span>
+                            <span>HashMap</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Rust's standard library provides a small but complete set of collection types. Unlike languages that ship dozens of overlapping containers, Rust gives you exactly the right tool for each access pattern: <code>Vec</code> for ordered, index-accessible data; <code>HashMap</code> for key-value lookup by equality; <code>HashSet</code> for membership testing; <code>BTreeMap</code>/<code>BTreeSet</code> for sorted data. Choosing the right collection is a matter of understanding the performance contracts each one makes.</p>
+
+                        <h2>Vec&lt;T&gt; — The Growable Array</h2>
+                        <p><code>Vec&lt;T&gt;</code> is Rust's heap-allocated, contiguous, growable array. It is by far the most commonly used collection. Internally it stores three values: a pointer to the heap buffer, the current length (number of initialized elements), and the capacity (total allocated slots). When you push past the capacity, Vec reallocates a larger buffer and moves all elements.</p>
+                        <p>The amortized cost of <code>push</code> is O(1): reallocation doubles the capacity, so the total work for n pushes is proportional to n. Random access by index is O(1). Insertion or removal in the middle is O(n) due to element shifting.</p>
+
+                        <h3>Vec Fundamentals</h3>
+                        <p><em>Construction, access, mutation, slicing, and the most important Vec methods in one annotated example.</em></p>
+<pre><code class="language-rust">fn main() {
+    // Construction
+    let mut v: Vec&lt;i32&gt; = Vec::new();
+    let mut v2 = vec![1, 2, 3, 4, 5];     // macro literal
+    let zeros: Vec&lt;i32&gt; = vec![0; 5];      // repeat element
+
+    // Push / pop
+    v.push(10); v.push(20); v.push(30);
+    println!("{:?}", v.pop()); // Some(30)
+
+    // Index access (panics on out of bounds)
+    println!("{}", v2[0]);   // 1
+
+    // Safe access: returns Option
+    println!("{:?}", v2.get(10)); // None
+
+    // Slices: &amp;Vec&lt;T&gt; coerces to &amp;[T]
+    let sum: i32 = v2.iter().sum();
+    println!("sum: {sum}"); // 15
+
+    // Insert / remove (O(n))
+    v2.insert(2, 99);                // [1, 2, 99, 3, 4, 5]
+    v2.remove(2);                    // back to [1, 2, 3, 4, 5]
+
+    // retain: keep elements matching predicate
+    v2.retain(|&amp;x| x % 2 != 0);
+    println!("{v2:?}"); // [1, 3, 5]
+
+    // extend from iterator
+    let mut a = vec![1, 2, 3];
+    a.extend([4, 5, 6]);
+    println!("{a:?}"); // [1, 2, 3, 4, 5, 6]
+
+    // dedup: remove consecutive duplicates (sort first for full dedup)
+    let mut d = vec![1, 1, 2, 3, 3, 3, 2];
+    d.dedup();
+    println!("{d:?}"); // [1, 2, 3, 2]
+
+    // drain: remove and iterate a range
+    let mut src = vec![1, 2, 3, 4, 5];
+    let drained: Vec&lt;i32&gt; = src.drain(1..3).collect();
+    println!("drained: {drained:?}"); // [2, 3]
+    println!("remaining: {src:?}");   // [1, 4, 5]
+
+    // Capacity management
+    let mut preallocated: Vec&lt;i32&gt; = Vec::with_capacity(100);
+    println!("len={}, cap={}", preallocated.len(), preallocated.capacity()); // 0, 100
+    preallocated.extend(0..10);
+    preallocated.shrink_to_fit(); // release unused capacity
+}</code></pre>
+
+                        <h3>Sorting and Searching</h3>
+                        <p><em>Stable sort, unstable sort, sort by key, binary search on a sorted Vec, and deduplication.</em></p>
+<pre><code class="language-rust">fn main() {
+    let mut nums = vec![3, 1, 4, 1, 5, 9, 2, 6, 5, 3];
+
+    // sort() -- stable, O(n log n)
+    nums.sort();
+    println!("{nums:?}"); // [1, 1, 2, 3, 3, 4, 5, 5, 6, 9]
+
+    // sort_unstable() -- slightly faster, not stable
+    nums.sort_unstable();
+
+    // sort_by / sort_by_key for custom order
+    let mut words = vec!["banana", "apple", "cherry", "date"];
+    words.sort_by_key(|s| s.len()); // sort by string length
+    println!("{words:?}"); // ["date", "apple", "banana", "cherry"]
+
+    words.sort_by(|a, b| a.cmp(b)); // lexicographic
+    println!("{words:?}");
+
+    // binary_search on sorted slice: O(log n)
+    let sorted = vec![1, 3, 5, 7, 9, 11];
+    println!("{:?}", sorted.binary_search(&amp;7));  // Ok(3) -- found at index 3
+    println!("{:?}", sorted.binary_search(&amp;6));  // Err(3) -- would insert at 3
+
+    // windows and chunks
+    for window in [1, 2, 3, 4, 5].windows(3) {
+        print!("{window:?} ");  // [1,2,3] [2,3,4] [3,4,5]
+    }
+    println!();
+    for chunk in [1, 2, 3, 4, 5].chunks(2) {
+        print!("{chunk:?} ");   // [1,2] [3,4] [5]
+    }
+    println!();
+}</code></pre>
+
+                        <h2>HashMap&lt;K, V&gt;</h2>
+                        <p><code>HashMap&lt;K, V&gt;</code> provides O(1) average-case insert, lookup, and remove via hashing. Keys must implement <code>Hash + Eq</code>. Rust's default hasher (<code>SipHash 1-3</code>) is collision-resistant by design, protecting against hash-flooding attacks at the cost of some throughput. For performance-critical code where the keys are trusted (e.g., integers in tight loops), you can swap in a faster hasher like <code>FxHashMap</code> or <code>AHashMap</code> from popular crates.</p>
+                        <p>The <code>Entry</code> API is one of HashMap's most distinctive features: it lets you look up a key and conditionally insert or modify the value in a single, atomic step, avoiding a double lookup.</p>
+
+                        <h3>HashMap Fundamentals</h3>
+                        <p><em>Insertion, lookup, removal, iteration, and the entry API covering the most common patterns.</em></p>
+<pre><code class="language-rust">use std::collections::HashMap;
+
+fn main() {
+    let mut scores: HashMap&lt;String, u32&gt; = HashMap::new();
+
+    // Insert
+    scores.insert("Alice".to_string(), 10);
+    scores.insert("Bob".to_string(), 20);
+    scores.insert("Charlie".to_string(), 15);
+
+    // Lookup: returns Option&lt;&amp;V&gt;
+    println!("{:?}", scores.get("Alice")); // Some(10)
+    println!("{:?}", scores.get("Dave"));  // None
+
+    // contains_key
+    println!("{}", scores.contains_key("Bob")); // true
+
+    // Update
+    scores.insert("Alice".to_string(), 99); // overwrites
+
+    // Remove: returns Option&lt;V&gt;
+    println!("{:?}", scores.remove("Bob")); // Some(20)
+
+    // Iterate (unordered)
+    for (name, score) in &amp;scores {
+        println!("{name}: {score}");
+    }
+
+    // Entry API --------------------------------------------------------
+
+    // or_insert: insert default if absent, return &amp;mut V either way
+    let mut word_count: HashMap&lt;&amp;str, u32&gt; = HashMap::new();
+    for word in "the quick brown fox jumps over the lazy dog the".split_whitespace() {
+        *word_count.entry(word).or_insert(0) += 1;
+    }
+    println!("the: {}", word_count["the"]); // 3
+
+    // or_insert_with: lazy default (only computed if key absent)
+    let mut cache: HashMap&lt;u32, Vec&lt;u32&gt;&gt; = HashMap::new();
+    cache.entry(1).or_insert_with(Vec::new).push(42);
+    cache.entry(1).or_insert_with(Vec::new).push(99);
+    println!("{:?}", cache[&amp;1]); // [42, 99]
+
+    // or_default: uses Default::default()
+    let mut freq: HashMap&lt;char, u32&gt; = HashMap::new();
+    for c in "hello world".chars() {
+        *freq.entry(c).or_default() += 1;
+    }
+
+    // and_modify: modify existing value, chain with or_insert
+    scores
+        .entry("Charlie".to_string())
+        .and_modify(|s| *s += 5)
+        .or_insert(0);
+
+    // Collect from iterator of tuples
+    let map: HashMap&lt;&amp;str, i32&gt; = [("a", 1), ("b", 2), ("c", 3)].into_iter().collect();
+    println!("{map:?}");
+}</code></pre>
+
+                        <h3>Common HashMap Patterns</h3>
+                        <p><em>Grouping, inverting, merging, and frequency counting &mdash; the patterns that appear over and over in real code.</em></p>
+<pre><code class="language-rust">use std::collections::HashMap;
+
+fn group_by_key&lt;T, K, F&gt;(items: Vec&lt;T&gt;, key_fn: F) -> HashMap&lt;K, Vec&lt;T&gt;&gt;
+where
+    K: std::hash::Hash + Eq,
+    F: Fn(&amp;T) -> K,
+{
+    let mut map: HashMap&lt;K, Vec&lt;T&gt;&gt; = HashMap::new();
+    for item in items {
+        map.entry(key_fn(&amp;item)).or_default().push(item);
+    }
+    map
+}
+
+fn main() {
+    // Group words by first character
+    let words = vec!["apple", "avocado", "banana", "blueberry", "cherry", "apricot"];
+    let grouped = group_by_key(words, |w| w.chars().next().unwrap());
+    let mut keys: Vec&lt;char&gt; = grouped.keys().cloned().collect();
+    keys.sort();
+    for k in keys {
+        println!("{k}: {:?}", grouped[&amp;k]);
+    }
+
+    // Frequency map
+    let text = "to be or not to be that is the question";
+    let freq: HashMap&lt;&amp;str, usize&gt; = text
+        .split_whitespace()
+        .fold(HashMap::new(), |mut map, word| {
+            *map.entry(word).or_insert(0) += 1;
+            map
+        });
+    let mut pairs: Vec&lt;_&gt; = freq.iter().collect();
+    pairs.sort_by(|a, b| b.1.cmp(a.1).then(a.0.cmp(b.0)));
+    for (word, count) in pairs.iter().take(3) {
+        println!("{word}: {count}");
+    }
+
+    // Invert a map (assumes values are unique)
+    let original: HashMap&lt;&amp;str, u32&gt; = [("a", 1), ("b", 2), ("c", 3)].into_iter().collect();
+    let inverted: HashMap&lt;u32, &amp;str&gt; = original.iter().map(|(&amp;k, &amp;v)| (v, k)).collect();
+    println!("{inverted:?}");
+
+    // Merge two maps (second wins on conflict)
+    let mut base: HashMap&lt;&amp;str, i32&gt; = [("x", 1), ("y", 2)].into_iter().collect();
+    let patch: HashMap&lt;&amp;str, i32&gt;  = [("y", 99), ("z", 3)].into_iter().collect();
+    for (k, v) in patch { base.insert(k, v); }
+    println!("{base:?}"); // {x:1, y:99, z:3}
+}</code></pre>
+
+                        <h2>HashSet&lt;T&gt;</h2>
+                        <p><code>HashSet&lt;T&gt;</code> is a <code>HashMap&lt;T, ()&gt;</code> under the hood: a set of unique values with O(1) average insert, remove, and contains. Elements must implement <code>Hash + Eq</code>. The primary use cases are deduplication, membership testing, and set operations (union, intersection, difference, symmetric difference) &mdash; all provided as iterator-returning methods.</p>
+
+                        <p><em>Basic operations, set algebra, and deduplication using HashSet.</em></p>
+<pre><code class="language-rust">use std::collections::HashSet;
+
+fn main() {
+    let mut set: HashSet&lt;i32&gt; = HashSet::new();
+
+    // Insert: returns true if value was absent
+    println!("{}", set.insert(1)); // true
+    println!("{}", set.insert(2)); // true
+    println!("{}", set.insert(1)); // false (already present)
+
+    // Contains
+    println!("{}", set.contains(&amp;1)); // true
+    println!("{}", set.contains(&amp;5)); // false
+
+    // Remove
+    set.remove(&amp;2);
+
+    // --- Set algebra ---
+    let a: HashSet&lt;i32&gt; = [1, 2, 3, 4, 5].into_iter().collect();
+    let b: HashSet&lt;i32&gt; = [3, 4, 5, 6, 7].into_iter().collect();
+
+    // Union: elements in a OR b
+    let mut union: Vec&lt;i32&gt; = a.union(&amp;b).cloned().collect();
+    union.sort();
+    println!("union: {union:?}"); // [1, 2, 3, 4, 5, 6, 7]
+
+    // Intersection: elements in BOTH
+    let mut inter: Vec&lt;i32&gt; = a.intersection(&amp;b).cloned().collect();
+    inter.sort();
+    println!("intersection: {inter:?}"); // [3, 4, 5]
+
+    // Difference: in a but NOT in b
+    let mut diff: Vec&lt;i32&gt; = a.difference(&amp;b).cloned().collect();
+    diff.sort();
+    println!("a - b: {diff:?}"); // [1, 2]
+
+    // Symmetric difference: in one but NOT both
+    let mut sym: Vec&lt;i32&gt; = a.symmetric_difference(&amp;b).cloned().collect();
+    sym.sort();
+    println!("sym diff: {sym:?}"); // [1, 2, 6, 7]
+
+    // Subset / superset
+    let c: HashSet&lt;i32&gt; = [3, 4].into_iter().collect();
+    println!("c ⊆ a: {}", c.is_subset(&amp;a)); // true
+    println!("a ⊇ c: {}", a.is_superset(&amp;c)); // true
+
+    // Deduplication via HashSet
+    let dupes = vec![1, 2, 3, 2, 1, 4, 3, 5];
+    let unique: HashSet&lt;i32&gt; = dupes.into_iter().collect();
+    let mut sorted: Vec&lt;i32&gt; = unique.into_iter().collect();
+    sorted.sort();
+    println!("deduped: {sorted:?}"); // [1, 2, 3, 4, 5]
+}</code></pre>
+
+                        <h2>BTreeMap&lt;K, V&gt; and BTreeSet&lt;T&gt;</h2>
+                        <p><code>BTreeMap</code> and <code>BTreeSet</code> store elements in sorted order using a B-tree structure. All operations are O(log n) &mdash; slower than <code>HashMap</code>'s O(1) average, but with two critical advantages: the keys are always in sorted order (iterating a <code>BTreeMap</code> yields key-value pairs in ascending order) and the API includes powerful range queries. Keys must implement <code>Ord</code>, not <code>Hash</code>.</p>
+                        <p>Use <code>BTreeMap</code> when you need: ordered iteration, range lookups (all keys between A and B), finding the minimum or maximum key, or when your key type doesn't implement <code>Hash</code>.</p>
+
+                        <p><em>Ordered iteration, range queries, floor/ceil entry lookups, and a sliding-window example using BTreeMap's ordered properties.</em></p>
+<pre><code class="language-rust">use std::collections::{BTreeMap, BTreeSet};
+
+fn main() {
+    let mut scores: BTreeMap&lt;&amp;str, u32&gt; = BTreeMap::new();
+    scores.insert("Charlie", 75);
+    scores.insert("Alice", 92);
+    scores.insert("Bob", 88);
+    scores.insert("Diana", 65);
+    scores.insert("Eve", 97);
+
+    // Iteration is always in key-sorted (alphabetical) order
+    for (name, score) in &amp;scores {
+        println!("{name}: {score}");
+    }
+    // Alice:92 / Bob:88 / Charlie:75 / Diana:65 / Eve:97
+
+    // Range query: all keys between "Bob" and "Eve" inclusive
+    use std::ops::Bound::Included;
+    for (k, v) in scores.range((Included("Bob"), Included("Eve"))) {
+        println!("range: {k}={v}");
+    }
+    // Bob:88 / Charlie:75 / Diana:65 / Eve:97
+
+    // First and last key
+    println!("first: {:?}", scores.iter().next());     // Alice
+    println!("last:  {:?}", scores.iter().next_back()); // Eve
+
+    // BTreeSet: sorted unique elements with range iteration
+    let mut primes: BTreeSet&lt;u32&gt; = [2, 3, 5, 7, 11, 13, 17, 19].into_iter().collect();
+    primes.insert(23);
+
+    // Range: primes between 5 and 13
+    let range: Vec&lt;&amp;u32&gt; = primes.range(5..=13).collect();
+    println!("primes 5..=13: {range:?}"); // [5, 7, 11, 13]
+
+    // Predecessor / successor (floor / ceiling)
+    println!("&lt;= 10: {:?}", primes.range(..=10).next_back()); // Some(7)
+    println!("&gt;= 10: {:?}", primes.range(10..).next());        // Some(11)
+
+    // Time-series example: BTreeMap ordered by timestamp
+    let mut events: BTreeMap&lt;u64, &amp;str&gt; = BTreeMap::new();
+    events.insert(1000, "start");
+    events.insert(1050, "request");
+    events.insert(1100, "response");
+    events.insert(1200, "end");
+
+    // Events between t=1040 and t=1150
+    for (t, e) in events.range(1040..=1150) {
+        println!("t={t}: {e}");
+    }
+    // t=1050: request / t=1100: response
+}</code></pre>
+
+                        <h2>VecDeque — Double-Ended Queue</h2>
+                        <p><code>VecDeque&lt;T&gt;</code> is a ring buffer that supports O(1) push and pop from <em>both</em> ends. It is ideal for queues and sliding-window algorithms. Like <code>Vec</code>, it supports index access, slicing (via <code>as_slices()</code>), and all iterator methods.</p>
+
+                        <p><em>A fixed-size sliding window average using VecDeque, draining from the front as new values arrive.</em></p>
+<pre><code class="language-rust">use std::collections::VecDeque;
+
+struct SlidingAverage {
+    window: VecDeque&lt;f64&gt;,
+    capacity: usize,
+    sum: f64,
+}
+
+impl SlidingAverage {
+    fn new(capacity: usize) -> Self {
+        SlidingAverage { window: VecDeque::with_capacity(capacity), capacity, sum: 0.0 }
+    }
+
+    fn push(&amp;mut self, value: f64) -> f64 {
+        if self.window.len() == self.capacity {
+            self.sum -= self.window.pop_front().unwrap();
+        }
+        self.window.push_back(value);
+        self.sum += value;
+        self.sum / self.window.len() as f64
+    }
+}
+
+fn main() {
+    let mut avg = SlidingAverage::new(3);
+    for &amp;v in &amp;[1.0, 2.0, 3.0, 4.0, 5.0, 6.0] {
+        println!("push {v:.0} -> avg={:.2}", avg.push(v));
+    }
+    // push 1 -> 1.00
+    // push 2 -> 1.50
+    // push 3 -> 2.00
+    // push 4 -> 3.00  (window: [2, 3, 4])
+    // push 5 -> 4.00  (window: [3, 4, 5])
+    // push 6 -> 5.00  (window: [4, 5, 6])
+}</code></pre>
+
+                        <h2>Choosing the Right Collection</h2>
+                        <p>A quick decision guide:</p>
+                        <ul>
+                            <li><strong><code>Vec&lt;T&gt;</code></strong> — default choice for sequences. O(1) index, O(1) amortized push, O(n) insert/remove in middle.</li>
+                            <li><strong><code>VecDeque&lt;T&gt;</code></strong> — when you need O(1) push/pop from both ends (queue, sliding window).</li>
+                            <li><strong><code>LinkedList&lt;T&gt;</code></strong> — almost never. Use <code>VecDeque</code> instead; cache locality makes it faster in practice for nearly all workloads.</li>
+                            <li><strong><code>HashMap&lt;K, V&gt;</code></strong> — default key-value store. O(1) average. Keys need <code>Hash + Eq</code>.</li>
+                            <li><strong><code>BTreeMap&lt;K, V&gt;</code></strong> — when you need sorted keys, range queries, or minimum/maximum. O(log n). Keys need <code>Ord</code>.</li>
+                            <li><strong><code>HashSet&lt;T&gt;</code></strong> — membership testing, deduplication, set algebra. O(1) average.</li>
+                            <li><strong><code>BTreeSet&lt;T&gt;</code></strong> — sorted unique elements with range iteration. O(log n).</li>
+                            <li><strong><code>BinaryHeap&lt;T&gt;</code></strong> — priority queue. O(log n) push/pop, O(1) peek-max.</li>
+                        </ul>
+
+                        <p><em>A task scheduler using BinaryHeap as a max-priority queue.</em></p>
+<pre><code class="language-rust">use std::collections::BinaryHeap;
+use std::cmp::Reverse;
+
+#[derive(Debug, Eq, PartialEq)]
+struct Task {
+    priority: u32,
+    name: String,
+}
+
+// BinaryHeap is a max-heap; implement Ord to rank by priority.
+impl Ord for Task {
+    fn cmp(&amp;self, other: &amp;Self) -> std::cmp::Ordering {
+        self.priority.cmp(&amp;other.priority)
+    }
+}
+impl PartialOrd for Task {
+    fn partial_cmp(&amp;self, other: &amp;Self) -> Option&lt;std::cmp::Ordering&gt; { Some(self.cmp(other)) }
+}
+
+fn main() {
+    // Max-heap: highest priority processed first
+    let mut queue: BinaryHeap&lt;Task&gt; = BinaryHeap::new();
+    queue.push(Task { priority: 3, name: "low priority".to_string() });
+    queue.push(Task { priority: 10, name: "critical".to_string() });
+    queue.push(Task { priority: 7, name: "medium".to_string() });
+    queue.push(Task { priority: 10, name: "also critical".to_string() });
+
+    while let Some(task) = queue.pop() {
+        println!("[{}] {}", task.priority, task.name);
+    }
+    // [10] critical / [10] also critical / [7] medium / [3] low priority
+
+    // Min-heap: wrap with Reverse
+    let mut min_heap: BinaryHeap&lt;Reverse&lt;u32&gt;&gt; = BinaryHeap::new();
+    for &amp;n in &amp;[5, 1, 3, 2, 4] { min_heap.push(Reverse(n)); }
+    while let Some(Reverse(n)) = min_heap.pop() {
+        print!("{n} "); // 1 2 3 4 5
+    }
+    println!();
+}</code></pre>
+
+                    </div>
+                </div>
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>Rust Series &mdash; Module 3</h4>
+                        <a href="rust-collections.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Vec, HashMap, HashSet &amp; BTreeMap</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-iterators-advanced.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Advanced Iterators</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-custom-iterators.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Custom Iterators &amp; IntoIterator</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-strings.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Strings: String, &amp;str &amp; Encoding</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-rust.min.js"></script>
+    <script>
+        const toggle = document.querySelector('.nav-toggle');
+        const navLinks = document.querySelector('.nav-links');
+        toggle.addEventListener('click', () => {
+            navLinks.classList.toggle('active');
+            toggle.classList.toggle('active');
+        });
+    </script>
+
+</body>
+</html>
