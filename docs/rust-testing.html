@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Testing &amp; Benchmarking in Rust &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="rust-tech-insights.html">Rust</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+            <button class="nav-toggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+            <header class="article-header">
+                        <a href="rust-tech-insights.html" class="back-link">&larr; Back to Rust Tech Insights</a>
+                <div class="post-meta">
+                    <span class="post-date">Mar 2026</span>
+                    <span class="post-reading">16 min read</span>
+                </div>
+                <h1>Testing &amp; Benchmarking in Rust</h1>
+                <div class="post-tags">
+                    <span>Rust</span>
+                    <span>Testing</span>
+                    <span>Benchmarking</span>
+                </div>
+            </header>
+
+                    <div class="article-body">
+
+            <!-- 1. Unit tests -->
+            <section>
+                <h2>1. Unit Tests</h2>
+                <p>Rust unit tests live alongside the code they test in a <code>#[cfg(test)]</code> module. Run them with <code>cargo test</code>.</p>
+                <pre><code class="language-rust">// src/lib.rs
+
+pub fn add(a: i32, b: i32) -&gt; i32 { a + b }
+
+pub fn divide(a: f64, b: f64) -&gt; Result&lt;f64, String&gt; {
+    if b == 0.0 {
+        Err("division by zero".to_string())
+    } else {
+        Ok(a / b)
+    }
+}
+
+pub fn is_palindrome(s: &amp;str) -&gt; bool {
+    let chars: Vec&lt;char&gt; = s.chars().collect();
+    chars == chars.iter().rev().cloned().collect::&lt;Vec&lt;_&gt;&gt;()
+}
+
+#[cfg(test)]      // only compiled during `cargo test`
+mod tests {
+    use super::*; // import everything from the parent module
+
+    #[test]
+    fn test_add() {
+        assert_eq!(add(2, 3), 5);
+        assert_eq!(add(-1, 1), 0);
+        assert_eq!(add(0, 0), 0);
+    }
+
+    #[test]
+    fn test_divide_ok() {
+        let result = divide(10.0, 2.0).unwrap();
+        assert!((result - 5.0).abs() &lt; f64::EPSILON);
+    }
+
+    #[test]
+    fn test_divide_by_zero() {
+        let result = divide(1.0, 0.0);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "division by zero");
+    }
+
+    #[test]
+    #[should_panic(expected = "attempt to divide by zero")]
+    fn test_integer_divide_by_zero() {
+        let _ = 5 / 0; // panics with "attempt to divide by zero"
+    }
+
+    #[test]
+    fn test_palindrome() {
+        assert!(is_palindrome("racecar"));
+        assert!(is_palindrome(""));
+        assert!(!is_palindrome("hello"));
+    }
+
+    // Test that returns Result — failure is an Err, not a panic
+    #[test]
+    fn test_divide_returns_result() -&gt; Result&lt;(), String&gt; {
+        let x = divide(9.0, 3.0)?;
+        assert_eq!(x, 3.0);
+        Ok(())
+    }
+}
+</code></pre>
+                <p>Common assert macros:</p>
+                <ul>
+                    <li><code>assert!(expr)</code> — panics if false</li>
+                    <li><code>assert_eq!(a, b)</code> — panics if <code>a != b</code>, shows both values</li>
+                    <li><code>assert_ne!(a, b)</code> — panics if <code>a == b</code></li>
+                    <li><code>assert!(expr, "message {}", val)</code> — custom message with formatting</li>
+                </ul>
+            </section>
+
+            <!-- 2. Test organization -->
+            <section>
+                <h2>2. Test Organization and Filtering</h2>
+                <pre><code class="language-rust">// Group related tests in sub-modules
+#[cfg(test)]
+mod tests {
+    mod arithmetic {
+        use super::super::*;
+
+        #[test]
+        fn add_positive() { assert_eq!(add(1, 2), 3); }
+
+        #[test]
+        fn add_negative() { assert_eq!(add(-5, 3), -2); }
+    }
+
+    mod strings {
+        use super::super::*;
+
+        #[test]
+        fn palindrome_even() { assert!(is_palindrome("abba")); }
+
+        #[test]
+        fn palindrome_odd() { assert!(is_palindrome("aba")); }
+    }
+}
+</code></pre>
+                <pre><code class="language-bash"># Run all tests
+cargo test
+
+# Run tests matching a name pattern
+cargo test palindrome       # runs tests whose name contains "palindrome"
+cargo test tests::strings   # runs all tests in the strings module
+
+# Run a single test by exact name
+cargo test tests::arithmetic::add_positive -- --exact
+
+# Show stdout even for passing tests
+cargo test -- --nocapture
+
+# Run tests sequentially (not in parallel)
+cargo test -- --test-threads=1
+
+# List all test names without running them
+cargo test -- --list
+</code></pre>
+
+                <h3>2.1 Test Attributes</h3>
+                <pre><code class="language-rust">#[cfg(test)]
+mod tests {
+    // Skip a test temporarily
+    #[test]
+    #[ignore = "flaky on CI, tracked in #123"]
+    fn test_network_call() { /* ... */ }
+
+    // Run only ignored tests
+    // cargo test -- --ignored
+
+    // Test that must panic with a specific message
+    #[test]
+    #[should_panic(expected = "index out of bounds")]
+    fn test_out_of_bounds() {
+        let v = vec![1, 2, 3];
+        let _ = v[10];
+    }
+
+    // Conditional compilation: only run on Linux
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn test_linux_specific() { /* ... */ }
+}
+</code></pre>
+            </section>
+
+            <!-- 3. Integration tests -->
+            <section>
+                <h2>3. Integration Tests</h2>
+                <p>Integration tests live in the <code>tests/</code> directory. Each file is compiled as a separate crate that links against your library — they test the public API only.</p>
+                <pre><code class="language-rust">// tests/api.rs — tests the public API of the library crate
+use my_crate::{add, divide, is_palindrome};
+
+#[test]
+fn api_add_works() {
+    assert_eq!(add(10, 20), 30);
+}
+
+#[test]
+fn api_divide_by_zero_returns_err() {
+    assert!(divide(1.0, 0.0).is_err());
+}
+</code></pre>
+                <pre><code class="language-rust">// tests/common/mod.rs — shared helpers for multiple test files
+pub fn assert_approx_eq(a: f64, b: f64) {
+    assert!((a - b).abs() &lt; 1e-9, "expected {a} ≈ {b}");
+}
+
+pub fn make_test_data() -&gt; Vec&lt;i32&gt; {
+    (1..=10).collect()
+}
+</code></pre>
+                <pre><code class="language-rust">// tests/integration.rs — uses the shared helpers
+mod common;
+
+#[test]
+fn test_with_helpers() {
+    let data = common::make_test_data();
+    assert_eq!(data.len(), 10);
+    common::assert_approx_eq(1.0 / 3.0 * 3.0, 1.0);
+}
+</code></pre>
+                <pre><code class="language-bash"># Run only integration tests
+cargo test --test api
+cargo test --test integration
+</code></pre>
+            </section>
+
+            <!-- 4. Doc tests -->
+            <section>
+                <h2>4. Documentation Tests</h2>
+                <p>Code blocks in doc comments are compiled and run as tests. This ensures documentation examples stay correct as the code evolves.</p>
+                <pre><code class="language-rust">/// Computes the factorial of `n`.
+///
+/// # Examples
+///
+/// ```
+/// use my_crate::factorial;
+///
+/// assert_eq!(factorial(0), 1);
+/// assert_eq!(factorial(5), 120);
+/// assert_eq!(factorial(10), 3_628_800);
+/// ```
+///
+/// # Panics
+///
+/// Panics if `n` would overflow `u64`.
+///
+/// ```should_panic
+/// use my_crate::factorial;
+/// factorial(21); // overflows u64
+/// ```
+pub fn factorial(n: u64) -&gt; u64 {
+    (1..=n).product()
+}
+
+/// Returns the nth Fibonacci number.
+///
+/// ```
+/// use my_crate::fib;
+/// let seq: Vec&lt;u64&gt; = (0..8).map(fib).collect();
+/// assert_eq!(seq, [0, 1, 1, 2, 3, 5, 8, 13]);
+/// ```
+pub fn fib(n: u64) -&gt; u64 {
+    match n {
+        0 =&gt; 0,
+        1 =&gt; 1,
+        _ =&gt; fib(n - 1) + fib(n - 2),
+    }
+}
+</code></pre>
+
+                <h3>4.1 Doc Test Annotations</h3>
+                <pre><code class="language-rust">/// ```ignore
+/// // This block is in the docs but NOT compiled as a test
+/// some_unstable_api();
+/// ```
+///
+/// ```no_run
+/// // This block IS compiled but NOT executed (e.g., would block or need network)
+/// let listener = std::net::TcpListener::bind("0.0.0.0:80").unwrap();
+/// ```
+///
+/// ```compile_fail
+/// // This block must FAIL to compile — good for showing type errors
+/// let x: i32 = "not a number"; // error[E0308]
+/// ```
+///
+/// ```
+/// # // Lines starting with `#` are compiled but hidden in docs
+/// # use my_crate::add;
+/// assert_eq!(add(2, 3), 5); // only this line shows in rendered docs
+/// ```
+pub fn documented_function() {}
+</code></pre>
+                <pre><code class="language-bash"># Run only documentation tests
+cargo test --doc
+</code></pre>
+            </section>
+
+            <!-- 5. Async tests -->
+            <section>
+                <h2>5. Async Tests</h2>
+                <pre><code class="language-rust">// Cargo.toml: tokio = { version = "1", features = ["full", "test-util"] }
+
+#[cfg(test)]
+mod async_tests {
+    use tokio::time::{sleep, Duration};
+
+    // #[tokio::test] sets up a Tokio runtime for the test
+    #[tokio::test]
+    async fn test_async_operation() {
+        sleep(Duration::from_millis(10)).await;
+        assert_eq!(2 + 2, 4);
+    }
+
+    // Single-threaded runtime for tests without Send requirements
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_single_thread() {
+        let result = async { 42u32 }.await;
+        assert_eq!(result, 42);
+    }
+
+    // tokio::test with time control
+    #[tokio::test]
+    async fn test_with_pause() {
+        // tokio::time::pause() stops the mock clock — sleep(1h) returns instantly
+        tokio::time::pause();
+        let start = tokio::time::Instant::now();
+        sleep(Duration::from_secs(3600)).await; // returns immediately!
+        assert!(start.elapsed() &gt; Duration::from_secs(3600));
+    }
+
+    // Test with timeout
+    #[tokio::test]
+    async fn test_with_timeout() {
+        let result = tokio::time::timeout(
+            Duration::from_millis(100),
+            async { sleep(Duration::from_millis(10)).await; 42u32 },
+        )
+        .await;
+        assert_eq!(result.unwrap(), 42);
+    }
+}
+</code></pre>
+            </section>
+
+            <!-- 6. Mocking and test doubles -->
+            <section>
+                <h2>6. Mocking and Test Doubles</h2>
+                <p>Rust's trait system makes mocking straightforward without a framework — implement a test double that records calls or returns fixed values.</p>
+                <pre><code class="language-rust">// Define behavior through a trait
+trait EmailSender: Send + Sync {
+    fn send(&amp;self, to: &amp;str, subject: &amp;str, body: &amp;str) -&gt; Result&lt;(), String&gt;;
+}
+
+// Production implementation
+struct SmtpSender { host: String }
+impl EmailSender for SmtpSender {
+    fn send(&amp;self, to: &amp;str, subject: &amp;str, body: &amp;str) -&gt; Result&lt;(), String&gt; {
+        // real SMTP logic
+        println!("[SMTP] to={to} subject={subject}");
+        Ok(())
+    }
+}
+
+// The code under test
+struct UserService {
+    sender: Box&lt;dyn EmailSender&gt;,
+}
+
+impl UserService {
+    fn welcome_user(&amp;self, email: &amp;str) -&gt; Result&lt;(), String&gt; {
+        self.sender.send(email, "Welcome!", "Thanks for signing up.")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::{Arc, Mutex};
+
+    // Test double that records sent emails
+    struct MockSender {
+        sent: Arc&lt;Mutex&lt;Vec&lt;(String, String, String)&gt;&gt;&gt;,
+        should_fail: bool,
+    }
+
+    impl MockSender {
+        fn new() -&gt; Self {
+            MockSender { sent: Arc::new(Mutex::new(Vec::new())), should_fail: false }
+        }
+        fn failing() -&gt; Self {
+            MockSender { sent: Arc::new(Mutex::new(Vec::new())), should_fail: true }
+        }
+    }
+
+    impl EmailSender for MockSender {
+        fn send(&amp;self, to: &amp;str, subject: &amp;str, body: &amp;str) -&gt; Result&lt;(), String&gt; {
+            if self.should_fail {
+                return Err("SMTP unavailable".to_string());
+            }
+            self.sent.lock().unwrap()
+                .push((to.to_string(), subject.to_string(), body.to_string()));
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn test_welcome_sends_email() {
+        let mock = MockSender::new();
+        let sent = Arc::clone(&amp;mock.sent);
+        let service = UserService { sender: Box::new(mock) };
+
+        service.welcome_user("alice@example.com").unwrap();
+
+        let emails = sent.lock().unwrap();
+        assert_eq!(emails.len(), 1);
+        assert_eq!(emails[0].0, "alice@example.com");
+        assert_eq!(emails[0].1, "Welcome!");
+    }
+
+    #[test]
+    fn test_welcome_propagates_error() {
+        let service = UserService { sender: Box::new(MockSender::failing()) };
+        let result = service.welcome_user("bob@example.com");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("SMTP unavailable"));
+    }
+}
+</code></pre>
+
+                <h3>6.1 mockall Crate</h3>
+                <pre><code class="language-rust">// Cargo.toml: mockall = "0.13"
+// mockall auto-generates mock structs from traits
+use mockall::{automock, predicate::*};
+
+#[automock]
+trait Database {
+    fn find_user(&amp;self, id: u32) -&gt; Option&lt;String&gt;;
+    fn save_user(&amp;mut self, id: u32, name: &amp;str) -&gt; bool;
+}
+
+#[cfg(test)]
+mod mock_tests {
+    use super::*;
+
+    #[test]
+    fn test_with_mockall() {
+        let mut db = MockDatabase::new();
+
+        // Set expectations
+        db.expect_find_user()
+            .with(eq(42))
+            .times(1)
+            .returning(|_| Some("Alice".to_string()));
+
+        db.expect_find_user()
+            .with(eq(0))
+            .returning(|_| None);
+
+        assert_eq!(db.find_user(42), Some("Alice".to_string()));
+        assert_eq!(db.find_user(0), None);
+        // mockall verifies expectations were met when `db` is dropped
+    }
+}
+</code></pre>
+            </section>
+
+            <!-- 7. Property-based testing -->
+            <section>
+                <h2>7. Property-Based Testing with proptest</h2>
+                <p><a href="https://docs.rs/proptest" target="_blank">proptest</a> generates hundreds of random inputs and checks that properties hold for all of them. It also shrinks failing inputs to the minimal example.</p>
+                <pre><code class="language-rust">// Cargo.toml: proptest = "1"
+use proptest::prelude::*;
+
+fn sort(mut v: Vec&lt;i32&gt;) -&gt; Vec&lt;i32&gt; {
+    v.sort();
+    v
+}
+
+proptest! {
+    // Automatically generates random Vec&lt;i32&gt; inputs
+    #[test]
+    fn sort_is_idempotent(v: Vec&lt;i32&gt;) {
+        let once = sort(v.clone());
+        let twice = sort(once.clone());
+        prop_assert_eq!(once, twice);
+    }
+
+    #[test]
+    fn sort_preserves_length(v: Vec&lt;i32&gt;) {
+        prop_assert_eq!(sort(v.clone()).len(), v.len());
+    }
+
+    #[test]
+    fn sort_is_ordered(v: Vec&lt;i32&gt;) {
+        let sorted = sort(v);
+        for w in sorted.windows(2) {
+            prop_assert!(w[0] &lt;= w[1]);
+        }
+    }
+
+    // Custom strategy: only test with non-empty vecs of small numbers
+    #[test]
+    fn sort_min_is_first(v in prop::collection::vec(0i32..100, 1..50)) {
+        let sorted = sort(v.clone());
+        let min = *v.iter().min().unwrap();
+        prop_assert_eq!(sorted[0], min);
+    }
+}
+</code></pre>
+
+                <h3>7.1 Custom Strategies</h3>
+                <pre><code class="language-rust">use proptest::prelude::*;
+
+// Generate a valid email address (simplified)
+fn email_strategy() -&gt; impl Strategy&lt;Value = String&gt; {
+    ("[a-z]{3,10}", "[a-z]{3,8}").prop_map(|(user, domain)| {
+        format!("{user}@{domain}.com")
+    })
+}
+
+// Generate a pair where a &lt;= b
+fn ordered_pair() -&gt; impl Strategy&lt;Value = (i32, i32)&gt; {
+    (i32::MIN / 2..i32::MAX / 2).prop_flat_map(|a| {
+        (Just(a), a..i32::MAX / 2)
+    })
+}
+
+proptest! {
+    #[test]
+    fn email_contains_at(email in email_strategy()) {
+        prop_assert!(email.contains('@'));
+    }
+
+    #[test]
+    fn pair_is_ordered((a, b) in ordered_pair()) {
+        prop_assert!(a &lt;= b);
+    }
+}
+</code></pre>
+            </section>
+
+            <!-- 8. Benchmarking with Criterion -->
+            <section>
+                <h2>8. Benchmarking with Criterion</h2>
+                <p><a href="https://docs.rs/criterion" target="_blank">Criterion</a> provides statistically rigorous benchmarks with warm-up, outlier detection, and HTML reports.</p>
+                <pre><code class="language-toml"># Cargo.toml
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "my_benchmark"
+harness = false   # disable the default test harness
+</code></pre>
+                <pre><code class="language-rust">// benches/my_benchmark.rs
+use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
+
+fn fibonacci(n: u64) -&gt; u64 {
+    match n { 0 =&gt; 0, 1 =&gt; 1, n =&gt; fibonacci(n-1) + fibonacci(n-2) }
+}
+
+fn fibonacci_iter(n: u64) -&gt; u64 {
+    let (mut a, mut b) = (0u64, 1u64);
+    for _ in 0..n { (a, b) = (b, a + b); }
+    a
+}
+
+// Single benchmark
+fn bench_fibonacci(c: &mut Criterion) {
+    c.bench_function("fib 20 recursive", |b| {
+        // black_box prevents the compiler from optimizing away the computation
+        b.iter(|| fibonacci(black_box(20)))
+    });
+}
+
+// Parametric benchmark — compare across different inputs
+fn bench_fib_compare(c: &mut Criterion) {
+    let mut group = c.benchmark_group("fibonacci");
+
+    for n in [10u64, 20, 30].iter() {
+        group.bench_with_input(BenchmarkId::new("recursive", n), n, |b, &amp;n| {
+            b.iter(|| fibonacci(black_box(n)))
+        });
+        group.bench_with_input(BenchmarkId::new("iterative", n), n, |b, &amp;n| {
+            b.iter(|| fibonacci_iter(black_box(n)))
+        });
+    }
+
+    group.finish();
+}
+
+// Sort benchmark with setup
+fn bench_sort(c: &mut Criterion) {
+    let mut group = c.benchmark_group("sort");
+
+    for size in [100usize, 1_000, 10_000] {
+        group.bench_with_input(
+            BenchmarkId::new("std_sort", size),
+            &amp;size,
+            |b, &amp;size| {
+                // iter_batched: re-creates the input for each iteration
+                b.iter_batched(
+                    || (0..size as i32).rev().collect::&lt;Vec&lt;i32&gt;&gt;(),
+                    |mut v| { v.sort(); v },
+                    criterion::BatchSize::SmallInput,
+                )
+            }
+        );
+    }
+
+    group.finish();
+}
+
+criterion_group!(benches, bench_fibonacci, bench_fib_compare, bench_sort);
+criterion_main!(benches);
+</code></pre>
+                <pre><code class="language-bash"># Run benchmarks
+cargo bench
+
+# Run a specific benchmark
+cargo bench -- fibonacci
+
+# Save a baseline and compare later
+cargo bench -- --save-baseline main
+git checkout feature-branch
+cargo bench -- --baseline main   # shows regression/improvement vs main
+
+# HTML reports are at target/criterion/report/index.html
+</code></pre>
+            </section>
+
+            <!-- 9. Code coverage -->
+            <section>
+                <h2>9. Code Coverage with cargo-llvm-cov</h2>
+                <pre><code class="language-bash"># Install
+cargo install cargo-llvm-cov
+
+# Generate coverage report
+cargo llvm-cov
+
+# HTML report
+cargo llvm-cov --html
+# open target/llvm-cov/html/index.html
+
+# LCOV format (for CI integration)
+cargo llvm-cov --lcov --output-path lcov.info
+
+# Only count lines covered by tests (not doc tests)
+cargo llvm-cov --no-cfg-coverage
+</code></pre>
+                <pre><code class="language-rust">// Exclude code from coverage with:
+#[cfg(not(tarpaulin_include))]
+fn excluded_from_coverage() { /* ... */ }
+
+// Or with an attribute:
+// #[allow(dead_code)]
+// fn unreachable_error_path() { panic!("should never happen") }
+</code></pre>
+            </section>
+
+            <!-- 10. CI configuration -->
+            <section>
+                <h2>10. CI Configuration Example</h2>
+                <pre><code class="language-yaml"># .github/workflows/test.yml
+name: Tests
+
+on: [push, pull_request]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      # Build
+      - run: cargo build --all-features
+
+      # Unit and integration tests
+      - run: cargo test --all-features
+
+      # Documentation tests
+      - run: cargo test --doc
+
+      # Clippy lints
+      - run: cargo clippy -- -D warnings
+
+      # Format check
+      - run: cargo fmt --check
+
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      - run: cargo llvm-cov --lcov --output-path lcov.info
+      - uses: codecov/codecov-action@v4
+        with:
+          files: lcov.info
+</code></pre>
+            </section>
+                    </div><!-- /article-body -->
+                </div><!-- /article-main -->
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+
+                    <div class="sidebar-box">
+                        <h4>Rust Series &mdash; Module 6</h4>
+                        <a href="rust-macros-declarative.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Declarative Macros</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                        <a href="rust-macros-procedural.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Procedural Macros</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                        <a href="rust-testing.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Testing &amp; Benchmarking</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                        <a href="rust-cargo-workspaces.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Cargo Workspaces &amp; Build Scripts</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-rust.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+    <script>
+        const toggle = document.querySelector('.nav-toggle');
+        const navLinks = document.querySelector('.nav-links');
+        toggle.addEventListener('click', () => {
+            navLinks.classList.toggle('active');
+            toggle.classList.toggle('active');
+        });
+    </script>
+</body>
+</html>

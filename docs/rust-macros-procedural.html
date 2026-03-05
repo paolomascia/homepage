@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Procedural Macros in Rust &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="rust-tech-insights.html">Rust</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+            <button class="nav-toggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+            <header class="article-header">
+                        <a href="rust-tech-insights.html" class="back-link">&larr; Back to Rust Tech Insights</a>
+                <div class="post-meta">
+                    <span class="post-date">Mar 2026</span>
+                    <span class="post-reading">18 min read</span>
+                </div>
+                <h1>Procedural Macros</h1>
+                <div class="post-tags">
+                    <span>Rust</span>
+                    <span>Proc Macros</span>
+                    <span>Metaprogramming</span>
+                </div>
+            </header>
+
+                    <div class="article-body">
+
+            <!-- 1. Overview -->
+            <section>
+                <h2>1. Overview of Procedural Macros</h2>
+                <p>Procedural macros are Rust functions that receive a <code>TokenStream</code> and return a <code>TokenStream</code>. Unlike <code>macro_rules!</code>, they have access to the full Rust type system and can perform arbitrary computation at compile time.</p>
+                <p>There are three kinds:</p>
+                <ul>
+                    <li><strong>Custom derive</strong> — <code>#[derive(MyTrait)]</code> generates a trait implementation.</li>
+                    <li><strong>Attribute macros</strong> — <code>#[my_attr]</code> transforms any item (functions, structs, etc.).</li>
+                    <li><strong>Function-like macros</strong> — <code>my_macro!(...)</code> like <code>macro_rules!</code> but with full Rust code.</li>
+                </ul>
+
+                <h3>1.1 Proc Macro Crate Setup</h3>
+                <p>Proc macros must live in their own crate with <code>proc-macro = true</code> in <code>Cargo.toml</code>.</p>
+                <pre><code class="language-toml"># my-derive/Cargo.toml
+[package]
+name = "my-derive"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn   = { version = "2", features = ["full"] }
+quote = "1"
+proc-macro2 = "1"
+</code></pre>
+                <p>The essential helper crates:</p>
+                <ul>
+                    <li><strong>syn</strong> — parses Rust source into an AST (<code>DeriveInput</code>, <code>ItemFn</code>, etc.)</li>
+                    <li><strong>quote</strong> — quasi-quotes Rust code back into a <code>TokenStream</code></li>
+                    <li><strong>proc-macro2</strong> — a re-export of proc-macro types usable in non-proc-macro contexts (testing)</li>
+                </ul>
+            </section>
+
+            <!-- 2. Custom Derive -->
+            <section>
+                <h2>2. Custom Derive Macros</h2>
+                <p>A derive macro receives the struct/enum definition and generates additional code — typically a trait implementation.</p>
+                <pre><code class="language-rust">// my-derive/src/lib.rs
+use proc_macro::TokenStream;
+use quote::quote;
+use syn::{parse_macro_input, DeriveInput, Data, Fields};
+
+/// Derives a `Describe` trait that prints the struct name and field names.
+#[proc_macro_derive(Describe)]
+pub fn derive_describe(input: TokenStream) -&gt; TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    let name = &amp;input.ident; // the struct name
+
+    // Extract field names (for named structs)
+    let field_names: Vec&lt;String&gt; = match &amp;input.data {
+        Data::Struct(s) =&gt; match &amp;s.fields {
+            Fields::Named(f) =&gt; f.named.iter()
+                .map(|f| f.ident.as_ref().unwrap().to_string())
+                .collect(),
+            _ =&gt; vec![],
+        },
+        _ =&gt; vec![],
+    };
+
+    let field_list = field_names.join(", ");
+
+    // quote! generates the implementation as tokens
+    let expanded = quote! {
+        impl Describe for #name {
+            fn describe(&amp;self) -&gt; String {
+                format!(
+                    "struct {} {{ {} }}",
+                    stringify!(#name),
+                    #field_list
+                )
+            }
+        }
+    };
+
+    expanded.into()
+}
+</code></pre>
+
+                <p>Usage in the user's crate:</p>
+                <pre><code class="language-rust">// user-crate/src/main.rs
+// [dependencies] my-derive = { path = "../my-derive" }
+use my_derive::Describe;
+
+trait Describe {
+    fn describe(&amp;self) -&gt; String;
+}
+
+#[derive(Describe)]
+struct User {
+    name: String,
+    age: u32,
+    email: String,
+}
+
+fn main() {
+    let u = User {
+        name: "Alice".to_string(),
+        age: 30,
+        email: "alice@example.com".to_string(),
+    };
+    println!("{}", u.describe());
+    // struct User { name, age, email }
+}
+</code></pre>
+
+                <h3>2.1 Derive with Helper Attributes</h3>
+                <p>You can define <em>helper attributes</em> that annotate individual fields or variants:</p>
+                <pre><code class="language-rust">// my-derive/src/lib.rs
+use proc_macro::TokenStream;
+use quote::quote;
+use syn::{parse_macro_input, DeriveInput, Data, Fields, Attribute, Meta, Lit};
+
+#[proc_macro_derive(Builder, attributes(builder))]
+pub fn derive_builder(input: TokenStream) -&gt; TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    let name = &amp;input.ident;
+    let builder_name = quote::format_ident!("{}Builder", name);
+
+    let fields = match &amp;input.data {
+        Data::Struct(s) =&gt; match &amp;s.fields {
+            Fields::Named(f) =&gt; f.named.iter().collect::&lt;Vec&lt;_&gt;&gt;(),
+            _ =&gt; panic!("Builder only supports named fields"),
+        },
+        _ =&gt; panic!("Builder only supports structs"),
+    };
+
+    let field_names: Vec&lt;_&gt; = fields.iter().map(|f| &amp;f.ident).collect();
+    let field_types: Vec&lt;_&gt; = fields.iter().map(|f| &amp;f.ty).collect();
+
+    let expanded = quote! {
+        struct #builder_name {
+            #( #field_names: Option&lt;#field_types&gt;, )*
+        }
+
+        impl #builder_name {
+            fn new() -&gt; Self {
+                Self { #( #field_names: None, )* }
+            }
+
+            #(
+                fn #field_names(mut self, v: #field_types) -&gt; Self {
+                    self.#field_names = Some(v);
+                    self
+                }
+            )*
+
+            fn build(self) -&gt; Result&lt;#name, String&gt; {
+                Ok(#name {
+                    #(
+                        #field_names: self.#field_names.ok_or_else(||
+                            format!("missing field: {}", stringify!(#field_names))
+                        )?,
+                    )*
+                })
+            }
+        }
+
+        impl #name {
+            fn builder() -&gt; #builder_name {
+                #builder_name::new()
+            }
+        }
+    };
+
+    expanded.into()
+}
+</code></pre>
+
+                <p>Usage:</p>
+                <pre><code class="language-rust">use my_derive::Builder;
+
+#[derive(Builder, Debug)]
+struct Config {
+    host: String,
+    port: u16,
+    max_connections: u32,
+}
+
+fn main() {
+    let config = Config::builder()
+        .host("localhost".to_string())
+        .port(8080)
+        .max_connections(100)
+        .build()
+        .expect("invalid config");
+
+    println!("{config:?}");
+    // Config { host: "localhost", port: 8080, max_connections: 100 }
+}
+</code></pre>
+            </section>
+
+            <!-- 3. Attribute macros -->
+            <section>
+                <h2>3. Attribute Macros</h2>
+                <p>Attribute macros receive two token streams: the macro's arguments and the item it is applied to. They replace the entire item with their output.</p>
+                <pre><code class="language-rust">// my-derive/src/lib.rs (same crate)
+use proc_macro::TokenStream;
+use quote::quote;
+use syn::{parse_macro_input, ItemFn};
+
+/// Wraps a function to log entry and exit with timing.
+/// Usage: #[timed]
+#[proc_macro_attribute]
+pub fn timed(args: TokenStream, input: TokenStream) -&gt; TokenStream {
+    let _ = args; // no arguments for this macro
+    let func = parse_macro_input!(input as ItemFn);
+
+    let func_name = &amp;func.sig.ident;
+    let func_vis  = &amp;func.vis;
+    let func_sig  = &amp;func.sig;
+    let func_body = &amp;func.block;
+
+    let expanded = quote! {
+        #func_vis #func_sig {
+            let __start = std::time::Instant::now();
+            println!("[{}] entering", stringify!(#func_name));
+            let __result = (|| #func_body)();
+            println!("[{}] exited in {:?}", stringify!(#func_name), __start.elapsed());
+            __result
+        }
+    };
+
+    expanded.into()
+}
+</code></pre>
+
+                <p>Usage:</p>
+                <pre><code class="language-rust">use my_derive::timed;
+
+#[timed]
+fn compute(n: u64) -&gt; u64 {
+    (1..=n).sum()
+}
+
+fn main() {
+    let result = compute(1_000_000);
+    println!("result: {result}");
+    // [compute] entering
+    // [compute] exited in 1.2ms
+    // result: 500000500000
+}
+</code></pre>
+
+                <h3>3.1 Attribute with Arguments</h3>
+                <pre><code class="language-rust">/// Retry a function up to N times on failure.
+/// Usage: #[retry(3)]
+#[proc_macro_attribute]
+pub fn retry(args: TokenStream, input: TokenStream) -&gt; TokenStream {
+    let retries: usize = if args.is_empty() {
+        3
+    } else {
+        // parse the literal argument
+        let lit: syn::LitInt = syn::parse(args).expect("expected integer");
+        lit.base10_parse().unwrap()
+    };
+
+    let func = parse_macro_input!(input as ItemFn);
+    let func_name = &amp;func.sig.ident;
+    let func_vis  = &amp;func.vis;
+    let func_sig  = &amp;func.sig;
+    let func_body = &amp;func.block;
+
+    let expanded = quote! {
+        #func_vis #func_sig {
+            let mut __attempts = 0usize;
+            loop {
+                let __result: Result&lt;_, _&gt; = (|| { Ok(#func_body) })()
+                    .and_then(|v: Result&lt;_, _&gt;| v);
+                match __result {
+                    Ok(v) =&gt; return Ok(v),
+                    Err(e) if __attempts &lt; #retries =&gt; {
+                        __attempts += 1;
+                        eprintln!("[{}] attempt {} failed: {:?}", stringify!(#func_name), __attempts, e);
+                    }
+                    Err(e) =&gt; return Err(e),
+                }
+            }
+        }
+    };
+
+    expanded.into()
+}
+</code></pre>
+            </section>
+
+            <!-- 4. Function-like proc macros -->
+            <section>
+                <h2>4. Function-Like Proc Macros</h2>
+                <p>Function-like proc macros look like <code>macro_rules!</code> invocations but are implemented as Rust functions. They receive the tokens inside the parentheses.</p>
+                <pre><code class="language-rust">// my-derive/src/lib.rs
+use proc_macro::TokenStream;
+
+/// Compile-time SQL validation (simplified illustration).
+/// sql!("SELECT * FROM users WHERE id = ?")
+#[proc_macro]
+pub fn sql(input: TokenStream) -&gt; TokenStream {
+    let sql_str = input.to_string();
+    let sql_str = sql_str.trim_matches('"');
+
+    // In a real implementation you'd parse and validate the SQL here
+    if sql_str.to_uppercase().contains("DROP TABLE") {
+        panic!("SQL validation failed: DROP TABLE is not allowed");
+    }
+
+    // Return a string constant (in practice you'd build a typed query)
+    let quoted = format!("\"{}\"", sql_str);
+    quoted.parse().unwrap()
+}
+</code></pre>
+
+                <h3>4.1 Compile-Time Checked Regex</h3>
+                <pre><code class="language-rust">// A realistic function-like proc macro that compiles a regex at build time
+// so the pattern is validated before the binary runs.
+// (See the `regex` and `lazy-regex` crates for real implementations.)
+
+// In user code:
+// let re = regex!(r"\d{4}-\d{2}-\d{2}");
+// The macro validates the pattern at compile time and emits an
+// expression that builds the compiled Regex object.
+</code></pre>
+            </section>
+
+            <!-- 5. syn deep dive -->
+            <section>
+                <h2>5. Working with syn</h2>
+                <p><code>syn</code> parses Rust tokens into a rich AST. The most common entry points:</p>
+                <pre><code class="language-rust">// Parse a struct/enum for derive macros
+let input = parse_macro_input!(input as DeriveInput);
+// input.ident    — struct/enum name
+// input.generics — generic parameters
+// input.data     — Data::Struct / Data::Enum / Data::Union
+
+// Parse a function for attribute macros
+let func = parse_macro_input!(input as ItemFn);
+// func.sig.ident  — function name
+// func.sig.inputs — parameters
+// func.sig.output — return type
+// func.block      — function body
+
+// Parse arbitrary expressions
+let expr = parse_macro_input!(input as syn::Expr);
+
+// Iterate enum variants
+if let Data::Enum(ref data) = input.data {
+    for variant in &amp;data.variants {
+        let vname = &amp;variant.ident;
+        // variant.fields — Fields::Named / Fields::Unnamed / Fields::Unit
+        // variant.discriminant — explicit discriminant (e.g., = 42)
+    }
+}
+
+// Reading attributes on fields
+for field in &amp;named_fields.named {
+    for attr in &amp;field.attrs {
+        if attr.path().is_ident("serde") {
+            // parse the attribute arguments...
+        }
+    }
+}
+</code></pre>
+
+                <h3>5.1 Handling Generics</h3>
+                <p>Properly handling generic types is the trickiest part of proc macros:</p>
+                <pre><code class="language-rust">use syn::{DeriveInput, Generics, GenericParam, WhereClause};
+use quote::quote;
+
+fn add_trait_bounds(mut generics: Generics, bound: syn::TypeParamBound) -&gt; Generics {
+    for param in &amp;mut generics.params {
+        if let GenericParam::Type(type_param) = param {
+            type_param.bounds.push(bound.clone());
+        }
+    }
+    generics
+}
+
+#[proc_macro_derive(MyClone)]
+pub fn derive_my_clone(input: proc_macro::TokenStream) -&gt; proc_macro::TokenStream {
+    let input = syn::parse_macro_input!(input as DeriveInput);
+    let name = &amp;input.ident;
+
+    // Add `: Clone` bound to every generic type parameter
+    let generics = add_trait_bounds(
+        input.generics.clone(),
+        syn::parse_quote!(Clone),
+    );
+
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
+    let expanded = quote! {
+        impl #impl_generics MyClone for #name #ty_generics #where_clause {
+            fn my_clone(&amp;self) -&gt; Self {
+                self.clone()
+            }
+        }
+    };
+
+    expanded.into()
+}
+</code></pre>
+            </section>
+
+            <!-- 6. Testing proc macros -->
+            <section>
+                <h2>6. Testing Procedural Macros</h2>
+                <p>Use the <code>trybuild</code> crate to test that your macro compiles correct inputs and rejects invalid inputs with the right error messages.</p>
+                <pre><code class="language-toml"># my-derive/Cargo.toml
+[dev-dependencies]
+trybuild = "1"
+</code></pre>
+                <pre><code class="language-rust">// my-derive/tests/integration.rs
+#[test]
+fn test_ui() {
+    let t = trybuild::TestCases::new();
+    t.pass("tests/ui/pass-*.rs");   // these must compile
+    t.compile_fail("tests/ui/fail-*.rs"); // these must fail with expected errors
+}
+
+// tests/ui/pass-basic.rs
+// use my_derive::Describe;
+// trait Describe { fn describe(&amp;self) -&gt; String; }
+// #[derive(Describe)]
+// struct Foo { x: i32, y: String }
+// fn main() { let f = Foo { x: 1, y: "hi".to_string() }; f.describe(); }
+</code></pre>
+
+                <p>You can also test the generated tokens directly using <code>proc-macro2</code>:</p>
+                <pre><code class="language-rust">// my-derive/tests/tokens.rs
+use quote::quote;
+use proc_macro2::TokenStream;
+
+#[test]
+fn test_generated_impl() {
+    // Exercise the macro logic directly without going through the compiler
+    let input: TokenStream = quote! {
+        struct Point { x: f64, y: f64 }
+    };
+
+    // call your implementation function (not the proc_macro entry point)
+    // let output = my_derive_impl(input);
+    // let output_str = output.to_string();
+    // assert!(output_str.contains("impl Describe for Point"));
+}
+</code></pre>
+            </section>
+
+            <!-- 7. Real-world derive macros -->
+            <section>
+                <h2>7. Real-World Proc Macro Crates</h2>
+                <p>Before writing your own proc macro, check if an existing crate already does what you need:</p>
+                <div style="overflow-x: auto; margin: 1.5rem 0;">
+                    <table style="width:100%; border-collapse: collapse; font-size: 14px;">
+                        <thead>
+                            <tr style="background: var(--surface); text-align: left;">
+                                <th style="padding: 10px 14px; border-bottom: 2px solid var(--border);">Crate</th>
+                                <th style="padding: 10px 14px; border-bottom: 2px solid var(--border);">Purpose</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td style="padding:8px 14px;border-bottom:1px solid var(--border)"><code>serde</code></td><td style="padding:8px 14px;border-bottom:1px solid var(--border)">Serialize/Deserialize derive for JSON, TOML, etc.</td></tr>
+                            <tr><td style="padding:8px 14px;border-bottom:1px solid var(--border)"><code>thiserror</code></td><td style="padding:8px 14px;border-bottom:1px solid var(--border)">Error enum derive with Display formatting</td></tr>
+                            <tr><td style="padding:8px 14px;border-bottom:1px solid var(--border)"><code>derive_more</code></td><td style="padding:8px 14px;border-bottom:1px solid var(--border)">Display, From, Into, Add, etc. derive</td></tr>
+                            <tr><td style="padding:8px 14px;border-bottom:1px solid var(--border)"><code>strum</code></td><td style="padding:8px 14px;border-bottom:1px solid var(--border)">Enum iteration, string conversion</td></tr>
+                            <tr><td style="padding:8px 14px;border-bottom:1px solid var(--border)"><code>clap</code></td><td style="padding:8px 14px;border-bottom:1px solid var(--border)">CLI argument parsing derive</td></tr>
+                            <tr><td style="padding:8px 14px;border-bottom:1px solid var(--border)"><code>sqlx</code></td><td style="padding:8px 14px;border-bottom:1px solid var(--border)">Compile-time SQL verification, FromRow derive</td></tr>
+                            <tr><td style="padding:8px 14px;border-bottom:1px solid var(--border)"><code>tokio</code></td><td style="padding:8px 14px;border-bottom:1px solid var(--border)">#[tokio::main], #[tokio::test] attribute macros</td></tr>
+                            <tr><td style="padding:8px 14px"><code>async-trait</code></td><td style="padding:8px 14px">Enables async fn in trait objects</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <h3>7.1 Using serde as a Reference</h3>
+                <pre><code class="language-rust">// serde is the gold standard for derive proc macros
+// Cargo.toml: serde = { version = "1", features = ["derive"] }
+//             serde_json = "1"
+use serde::{Serialize, Deserialize};
+
+#[derive(Debug, Serialize, Deserialize)]
+struct Article {
+    title: String,
+    author: String,
+    #[serde(rename = "published_at")]   // field-level helper attribute
+    date: String,
+    #[serde(default)]                    // use Default if field is missing
+    views: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    subtitle: Option&lt;String&gt;,
+}
+
+fn main() -&gt; serde_json::Result&lt;()&gt; {
+    let json = r#"{
+        "title": "Rust Macros",
+        "author": "Paolo",
+        "published_at": "2026-03-01"
+    }"#;
+
+    let article: Article = serde_json::from_str(json)?;
+    println!("{article:?}");
+
+    let back = serde_json::to_string_pretty(&amp;article)?;
+    println!("{back}");
+
+    Ok(())
+}
+</code></pre>
+            </section>
+
+            <!-- 8. Tips and best practices -->
+            <section>
+                <h2>8. Tips &amp; Best Practices</h2>
+                <ul>
+                    <li><strong>Emit good errors</strong>: use <code>syn::Error::new_spanned(tokens, "message").to_compile_error()</code> to point errors at the right location in user code.</li>
+                    <li><strong>Keep proc macro logic minimal</strong>: put the heavy logic in a separate library crate that the proc macro crate calls; this makes the logic testable without the compiler.</li>
+                    <li><strong>Use <code>cargo expand</code></strong> to inspect generated code during development.</li>
+                    <li><strong>Avoid panicking</strong>: return a <code>compile_error!</code> token stream instead so the compiler reports a friendly error.</li>
+                    <li><strong>Mind compile times</strong>: proc macros run at compile time; keep them fast, avoid heavy computation.</li>
+                </ul>
+                <pre><code class="language-rust">// Emitting a compile error at the right span
+fn check_input(input: &amp;syn::DeriveInput) -&gt; syn::Result&lt;()&gt; {
+    match &amp;input.data {
+        syn::Data::Struct(_) =&gt; Ok(()),
+        _ =&gt; Err(syn::Error::new_spanned(
+            // The error will point at the enum/union keyword
+            &amp;input.ident,
+            "MyDerive can only be applied to structs",
+        )),
+    }
+}
+
+#[proc_macro_derive(MyDerive)]
+pub fn my_derive(input: proc_macro::TokenStream) -&gt; proc_macro::TokenStream {
+    let input = syn::parse_macro_input!(input as syn::DeriveInput);
+
+    check_input(&amp;input)
+        .map(|_| {
+            let name = &amp;input.ident;
+            quote::quote! {
+                impl MyTrait for #name {}
+            }.into()
+        })
+        .unwrap_or_else(|e| e.to_compile_error().into())
+}
+</code></pre>
+            </section>
+                    </div><!-- /article-body -->
+                </div><!-- /article-main -->
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+
+                    <div class="sidebar-box">
+                        <h4>Rust Series &mdash; Module 6</h4>
+                        <a href="rust-macros-declarative.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Declarative Macros</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                        <a href="rust-macros-procedural.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Procedural Macros</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                        <a href="rust-testing.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Testing &amp; Benchmarking</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                        <a href="rust-cargo-workspaces.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Cargo Workspaces &amp; Build Scripts</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-rust.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+    <script>
+        const toggle = document.querySelector('.nav-toggle');
+        const navLinks = document.querySelector('.nav-links');
+        toggle.addEventListener('click', () => {
+            navLinks.classList.toggle('active');
+            toggle.classList.toggle('active');
+        });
+    </script>
+</body>
+</html>

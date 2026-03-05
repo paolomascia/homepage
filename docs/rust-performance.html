@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Performance in Rust &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="rust-tech-insights.html">Rust</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+            <button class="nav-toggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+            <header class="article-header">
+                        <a href="rust-tech-insights.html" class="back-link">&larr; Back to Rust Tech Insights</a>
+                <div class="post-meta">
+                    <span class="post-date">Mar 2026</span>
+                    <span class="post-reading">17 min read</span>
+                </div>
+                <h1>Performance in Rust</h1>
+                <div class="post-tags">
+                    <span>Rust</span>
+                    <span>Performance</span>
+                    <span>Optimization</span>
+                </div>
+            </header>
+
+                    <div class="article-body">
+
+            <!-- 1. Measure first -->
+            <section>
+                <h2>1. Measure Before Optimizing</h2>
+                <p>Premature optimization is the root of all evil. Always profile first to find the actual bottleneck — intuition is often wrong.</p>
+                <pre><code class="language-bash"># Build a release binary with debug symbols for profiling
+# .cargo/config.toml:
+# [profile.release]
+# debug = true
+
+cargo build --release
+
+# ── Linux: perf ───────────────────────────────────────────────────────────
+perf record --call-graph dwarf ./target/release/my-binary
+perf report
+
+# Generate a flamegraph (install cargo-flamegraph)
+cargo install flamegraph
+cargo flamegraph -- --arg value
+# produces flamegraph.svg in current directory
+
+# ── macOS: Instruments ────────────────────────────────────────────────────
+# Open Instruments.app → Time Profiler, attach to process
+
+# ── Cross-platform: samply ────────────────────────────────────────────────
+cargo install samply
+samply record ./target/release/my-binary
+# opens a browser with an interactive flamegraph
+
+# ── Heap profiling: heaptrack / dhat ─────────────────────────────────────
+# Cargo.toml: [dev-dependencies] dhat = "0.3"
+# Annotate main with #[global_allocator] dhat::Dhat
+</code></pre>
+
+                <h3>1.1 dhat — Heap Profiling</h3>
+                <pre><code class="language-rust">// Cargo.toml: dhat = "0.3"
+#[cfg(feature = "dhat-heap")]
+#[global_allocator]
+static ALLOC: dhat::Alloc = dhat::Alloc;
+
+fn main() {
+    #[cfg(feature = "dhat-heap")]
+    let _profiler = dhat::Profiler::new_heap();
+
+    // your code here — dhat tracks every allocation
+    let v: Vec&lt;u32&gt; = (0..10_000).collect();
+    let sum: u32 = v.iter().sum();
+    println!("{sum}");
+    // on drop, _profiler writes dhat-heap.json — open with kcachegrind or DHAT viewer
+}
+</code></pre>
+            </section>
+
+            <!-- 2. Allocation strategies -->
+            <section>
+                <h2>2. Allocation Strategies</h2>
+                <p>Heap allocation is expensive. Common strategies to reduce it:</p>
+
+                <h3>2.1 Pre-allocate with with_capacity</h3>
+                <pre><code class="language-rust">fn slow_collect(n: usize) -&gt; Vec&lt;u32&gt; {
+    let mut v = Vec::new(); // starts empty, reallocates multiple times
+    for i in 0..n as u32 { v.push(i * i); }
+    v
+}
+
+fn fast_collect(n: usize) -&gt; Vec&lt;u32&gt; {
+    let mut v = Vec::with_capacity(n); // one allocation, no reallocs
+    for i in 0..n as u32 { v.push(i * i); }
+    v
+}
+
+fn fastest_collect(n: usize) -&gt; Vec&lt;u32&gt; {
+    // Iterator collect already knows size via size_hint
+    (0..n as u32).map(|i| i * i).collect()
+}
+
+fn main() {
+    let _ = fast_collect(1_000_000);
+    let _ = fastest_collect(1_000_000);
+}
+</code></pre>
+
+                <h3>2.2 Reuse Buffers</h3>
+                <pre><code class="language-rust">// Instead of allocating a new buffer every call, reuse one
+struct Processor {
+    buffer: Vec&lt;u8&gt;,
+}
+
+impl Processor {
+    fn new() -&gt; Self { Processor { buffer: Vec::with_capacity(4096) } }
+
+    fn process(&amp;mut self, input: &amp;[u8]) -&gt; &amp;[u8] {
+        self.buffer.clear(); // reset length but keep capacity
+        for &amp;b in input {
+            self.buffer.push(b.to_ascii_uppercase());
+        }
+        &amp;self.buffer
+    }
+}
+
+fn main() {
+    let mut proc = Processor::new();
+    for chunk in [b"hello".as_slice(), b"world"] {
+        let result = proc.process(chunk);
+        println!("{}", std::str::from_utf8(result).unwrap());
+    }
+    // Single allocation, reused for every call
+}
+</code></pre>
+
+                <h3>2.3 Small String Optimization with SmallVec / Smallstr</h3>
+                <pre><code class="language-rust">// Cargo.toml: smallvec = "1"
+use smallvec::{SmallVec, smallvec};
+
+fn main() {
+    // Stores up to 8 elements on the stack — no heap allocation for small vecs
+    let mut v: SmallVec&lt;[u32; 8]&gt; = smallvec![1, 2, 3, 4];
+    v.push(5); // still on stack
+    v.extend(6..14); // spills to heap only when needed
+
+    println!("inline: {}", v.spilled()); // false while &lt;= 8 elements
+
+    // Cargo.toml: tinyvec = "1" — safe alternative without unsafe
+    // Cargo.toml: arrayvec = "0.7" — fixed max capacity, no heap fallback
+}
+</code></pre>
+            </section>
+
+            <!-- 3. Zero-copy parsing -->
+            <section>
+                <h2>3. Zero-Copy Parsing</h2>
+                <p>Avoid allocating new strings when parsing — borrow slices of the input instead.</p>
+                <pre><code class="language-rust">// Zero-copy CSV parser — borrows from the input string
+#[derive(Debug)]
+struct Record&lt;'a&gt; {
+    name: &amp;'a str,
+    age: u32,
+    city: &amp;'a str,
+}
+
+fn parse_csv&lt;'a&gt;(input: &amp;'a str) -&gt; Vec&lt;Record&lt;'a&gt;&gt; {
+    input.lines()
+        .skip(1) // header
+        .filter_map(|line| {
+            let mut parts = line.splitn(3, ',');
+            let name = parts.next()?.trim();
+            let age  = parts.next()?.trim().parse().ok()?;
+            let city = parts.next()?.trim();
+            Some(Record { name, age, city })
+        })
+        .collect()
+}
+
+fn main() {
+    let csv = "name,age,city\nAlice,30,Rome\nBob,25,Milan\nCarol,35,Turin";
+    let records = parse_csv(csv); // zero heap allocations for strings!
+    for r in &amp;records {
+        println!("{} ({}) from {}", r.name, r.age, r.city);
+    }
+}
+</code></pre>
+
+                <h3>3.1 nom for Zero-Copy Parsing</h3>
+                <pre><code class="language-rust">// Cargo.toml: nom = "7"
+use nom::{
+    bytes::complete::{tag, take_until},
+    character::complete::{char, u32},
+    sequence::separated_pair,
+    IResult,
+};
+
+// Parse "key=value" pairs without allocation
+fn parse_pair(input: &amp;str) -&gt; IResult&lt;&amp;str, (&amp;str, &amp;str)&gt; {
+    separated_pair(
+        take_until("="),
+        char('='),
+        take_until("\n"),
+    )(input)
+}
+
+fn main() {
+    let input = "name=Alice\nage=30\n";
+    match parse_pair(input) {
+        Ok((_rest, (key, val))) =&gt; println!("{key} = {val}"),
+        Err(e) =&gt; eprintln!("parse error: {e}"),
+    }
+}
+</code></pre>
+            </section>
+
+            <!-- 4. Inlining and monomorphization -->
+            <section>
+                <h2>4. Inlining and Monomorphization</h2>
+                <pre><code class="language-rust">// #[inline] hints that a function should be inlined at call sites
+// Use sparingly — the compiler usually makes the right decision
+#[inline]
+fn add(a: i32, b: i32) -&gt; i32 { a + b }
+
+// #[inline(always)] forces inlining — use only for proven hot paths
+#[inline(always)]
+fn fast_min(a: f32, b: f32) -&gt; f32 {
+    if a &lt; b { a } else { b }
+}
+
+// #[inline(never)] prevents inlining — useful for debugging or
+// code size reduction when a large function is called in many places
+#[inline(never)]
+fn complex_error_handler(err: &amp;str) {
+    eprintln!("error: {err}");
+}
+
+// Monomorphization: generic functions get specialized copies per concrete type
+// Faster than dynamic dispatch, but increases binary size
+fn max_generic&lt;T: PartialOrd&gt;(a: T, b: T) -&gt; T {
+    if a &gt; b { a } else { b }
+}
+
+// The compiler generates separate max_generic::&lt;i32&gt; and max_generic::&lt;f64&gt; versions
+fn main() {
+    println!("{}", max_generic(1i32, 2));
+    println!("{}", max_generic(1.0f64, 2.0));
+}
+</code></pre>
+
+                <h3>4.1 Link-Time Optimization (LTO)</h3>
+                <pre><code class="language-toml"># Cargo.toml
+[profile.release]
+lto = "thin"     # cross-crate inlining (faster than full LTO)
+# lto = true     # full LTO (maximum optimization, slow link)
+codegen-units = 1 # single codegen unit for better whole-program optimization
+</code></pre>
+            </section>
+
+            <!-- 5. Cache locality -->
+            <section>
+                <h2>5. Cache Locality — Data-Oriented Design</h2>
+                <p>Memory access patterns matter as much as algorithm complexity. Array-of-Structs (AoS) is intuitive; Struct-of-Arrays (SoA) is often faster for bulk processing because it maximizes cache use.</p>
+                <pre><code class="language-rust">// Array-of-Structs (AoS) — intuitive, poor cache behavior for single-field access
+struct ParticleAoS {
+    x: f32, y: f32, z: f32,
+    vx: f32, vy: f32, vz: f32,
+    mass: f32,
+}
+
+fn update_positions_aos(particles: &amp;mut [ParticleAoS], dt: f32) {
+    for p in particles {
+        // Accessing x, y, z: good. But we also drag mass, vx, vy, vz into cache.
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.z += p.vz * dt;
+    }
+}
+
+// Struct-of-Arrays (SoA) — cache-friendly: x array is contiguous
+struct ParticlesSoA {
+    x: Vec&lt;f32&gt;, y: Vec&lt;f32&gt;, z: Vec&lt;f32&gt;,
+    vx: Vec&lt;f32&gt;, vy: Vec&lt;f32&gt;, vz: Vec&lt;f32&gt;,
+    mass: Vec&lt;f32&gt;,
+}
+
+impl ParticlesSoA {
+    fn update_positions(&amp;mut self, dt: f32) {
+        // Only x, vx touched here — both arrays fit in L1 cache together
+        for i in 0..self.x.len() {
+            self.x[i] += self.vx[i] * dt;
+            self.y[i] += self.vy[i] * dt;
+            self.z[i] += self.vz[i] * dt;
+        }
+    }
+
+    // SIMD-friendly: compiler can auto-vectorize contiguous f32 arrays
+    fn total_kinetic_energy(&amp;self) -&gt; f64 {
+        self.vx.iter().zip(self.mass.iter())
+            .zip(self.vy.iter())
+            .zip(self.vz.iter())
+            .map(|(((vx, m), vy), vz)| {
+                let v2 = (vx * vx + vy * vy + vz * vz) as f64;
+                0.5 * (*m as f64) * v2
+            })
+            .sum()
+    }
+}
+
+fn main() {
+    let n = 100_000;
+    let mut particles = ParticlesSoA {
+        x: vec![0.0f32; n], y: vec![0.0; n], z: vec![0.0; n],
+        vx: (0..n).map(|i| i as f32 * 0.001).collect(),
+        vy: vec![0.5f32; n], vz: vec![0.0; n],
+        mass: vec![1.0f32; n],
+    };
+
+    particles.update_positions(0.016); // one frame at 60fps
+    println!("KE = {:.2}", particles.total_kinetic_energy());
+}
+</code></pre>
+            </section>
+
+            <!-- 6. SIMD -->
+            <section>
+                <h2>6. SIMD — Portable Simd</h2>
+                <p>SIMD (Single Instruction, Multiple Data) processes multiple values in one CPU instruction. Rust's <code>std::simd</code> (nightly) provides a safe portable API; on stable, use <code>wide</code> or platform intrinsics.</p>
+                <pre><code class="language-rust">// Auto-vectorization: write scalar, let the compiler vectorize
+// Release mode with -C target-cpu=native enables AVX2 auto-vec
+fn sum_floats(slice: &amp;[f32]) -&gt; f32 {
+    // The compiler will typically auto-vectorize this with SIMD
+    slice.iter().sum()
+}
+
+// Manual SIMD with the `wide` crate (stable)
+// Cargo.toml: wide = "0.7"
+use wide::f32x8;
+
+fn dot_product_simd(a: &amp;[f32], b: &amp;[f32]) -&gt; f32 {
+    assert_eq!(a.len(), b.len());
+    let chunks = a.len() / 8;
+
+    let mut acc = f32x8::ZERO;
+    for i in 0..chunks {
+        let va = f32x8::from(&amp;a[i * 8..i * 8 + 8]);
+        let vb = f32x8::from(&amp;b[i * 8..i * 8 + 8]);
+        acc += va * vb;
+    }
+
+    // Sum the 8 lanes
+    let mut result: f32 = acc.as_array_ref().iter().sum();
+
+    // Handle remaining elements
+    for i in (chunks * 8)..a.len() {
+        result += a[i] * b[i];
+    }
+
+    result
+}
+
+fn main() {
+    let a: Vec&lt;f32&gt; = (0..64).map(|x| x as f32).collect();
+    let b: Vec&lt;f32&gt; = (0..64).map(|x| x as f32 * 2.0).collect();
+
+    let scalar: f32 = a.iter().zip(b.iter()).map(|(x, y)| x * y).sum();
+    let simd = dot_product_simd(&amp;a, &amp;b);
+
+    println!("scalar: {scalar}, simd: {simd}");
+    assert!((scalar - simd).abs() &lt; 0.01);
+}
+</code></pre>
+
+                <h3>6.1 Enabling Target Features</h3>
+                <pre><code class="language-bash"># Build for the current CPU with all available instructions
+RUSTFLAGS="-C target-cpu=native" cargo build --release
+
+# Build for a specific target CPU
+RUSTFLAGS="-C target-feature=+avx2,+fma" cargo build --release
+
+# Check what features the current CPU supports
+rustc --print target-features | grep avx
+</code></pre>
+                <pre><code class="language-rust">// Runtime CPU feature detection — choose the best implementation at startup
+fn process(data: &amp;mut [f32]) {
+    #[cfg(target_arch = "x86_64")]
+    if is_x86_feature_detected!("avx2") {
+        // Safety: we just verified AVX2 is available
+        return unsafe { process_avx2(data) };
+    }
+    process_scalar(data)
+}
+
+fn process_scalar(data: &amp;mut [f32]) {
+    for x in data { *x *= 2.0; }
+}
+
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2")]
+unsafe fn process_avx2(data: &amp;mut [f32]) {
+    // AVX2 intrinsics here — 8 floats at a time
+    for chunk in data.chunks_exact_mut(8) {
+        // use std::arch::x86_64::* intrinsics
+        for x in chunk { *x *= 2.0; } // simplified; real code uses _mm256_*
+    }
+}
+</code></pre>
+            </section>
+
+            <!-- 7. String performance -->
+            <section>
+                <h2>7. String and I/O Performance</h2>
+                <pre><code class="language-rust">use std::fmt::Write as FmtWrite;
+use std::io::{self, Write, BufWriter};
+
+// BAD: format! + push_str creates multiple intermediate allocations
+fn build_string_slow(n: usize) -&gt; String {
+    let mut s = String::new();
+    for i in 0..n {
+        s += &amp;format!("item-{i}\n"); // allocates a new String each iteration
+    }
+    s
+}
+
+// GOOD: write! into a String avoids intermediate allocations
+fn build_string_fast(n: usize) -&gt; String {
+    let mut s = String::with_capacity(n * 10); // estimate capacity
+    for i in 0..n {
+        write!(&amp;mut s, "item-{i}\n").unwrap(); // no allocation
+    }
+    s
+}
+
+// FAST stdout: use BufWriter to batch syscalls
+fn print_many_lines(n: usize) {
+    let stdout = io::stdout();
+    let mut out = BufWriter::new(stdout.lock()); // buffer writes
+    for i in 0..n {
+        writeln!(out, "line {i}").unwrap();
+    }
+    // BufWriter flushes on drop
+}
+
+fn main() {
+    let s = build_string_fast(1000);
+    println!("built {} chars", s.len());
+    print_many_lines(100);
+}
+</code></pre>
+            </section>
+
+            <!-- 8. Lazy initialization -->
+            <section>
+                <h2>8. Lazy Initialization</h2>
+                <pre><code class="language-rust">use std::sync::OnceLock;
+
+// Initialize once, read many times — thread-safe, zero overhead after init
+static CONFIG: OnceLock&lt;Config&gt; = OnceLock::new();
+
+#[derive(Debug)]
+struct Config { db_url: String, pool_size: u32 }
+
+fn get_config() -&gt; &amp;'static Config {
+    CONFIG.get_or_init(|| {
+        println!("initializing config (once)");
+        Config {
+            db_url: std::env::var("DATABASE_URL")
+                .unwrap_or_else(|_| "postgres://localhost/mydb".to_string()),
+            pool_size: 10,
+        }
+    })
+}
+
+// Lazy cell for non-Send types (single-threaded)
+use std::cell::OnceCell;
+
+struct Parser {
+    regex_cache: OnceCell&lt;String&gt;, // expensive to compile
+}
+
+impl Parser {
+    fn new() -&gt; Self { Parser { regex_cache: OnceCell::new() } }
+
+    fn get_pattern(&amp;self) -&gt; &amp;str {
+        self.regex_cache.get_or_init(|| {
+            // expensive compilation happens only on first call
+            r"\d{4}-\d{2}-\d{2}".to_string()
+        })
+    }
+}
+
+// Cargo.toml: once_cell = "1" (or use std::sync::LazyLock on Rust 1.80+)
+// use once_cell::sync::Lazy;
+// static COMPILED_REGEX: Lazy&lt;regex::Regex&gt; = Lazy::new(|| {
+//     regex::Regex::new(r"\d{4}-\d{2}-\d{2}").unwrap()
+// });
+
+fn main() {
+    println!("{:?}", get_config()); // initializing config (once)
+    println!("{:?}", get_config()); // reuses existing
+}
+</code></pre>
+            </section>
+
+            <!-- 9. Optimize hot loops -->
+            <section>
+                <h2>9. Optimizing Hot Loops</h2>
+                <pre><code class="language-rust">// Technique 1: bounds check elimination
+fn sum_with_bounds_check(data: &amp;[i32]) -&gt; i64 {
+    let mut total = 0i64;
+    for i in 0..data.len() {
+        total += data[i] as i64; // bounds check on each access
+    }
+    total
+}
+
+fn sum_no_bounds_check(data: &amp;[i32]) -&gt; i64 {
+    // Iterator avoids bounds checks — compiler knows we're always in-bounds
+    data.iter().map(|&amp;x| x as i64).sum()
+}
+
+// Technique 2: chunk processing
+fn process_chunks(data: &amp;[u8]) -&gt; u32 {
+    let (chunks, remainder) = data.as_chunks::&lt;16&gt;(); // nightly
+    let mut sum = 0u32;
+    for chunk in chunks {
+        for &amp;b in chunk { sum += b as u32; }
+    }
+    for &amp;b in remainder { sum += b as u32; }
+    sum
+}
+
+// Technique 3: hint::unreachable_unchecked for impossible branches
+fn classify(x: u8) -&gt; &amp;'static str {
+    match x {
+        0..=9   =&gt; "single digit",
+        10..=99 =&gt; "double digit",
+        _       =&gt; "triple digit",
+    }
+}
+
+// Technique 4: use iterator adapters instead of explicit loops
+fn efficient_pipeline(data: &amp;[i32]) -&gt; f64 {
+    data.iter()
+        .copied()
+        .filter(|&amp;x| x &gt; 0)
+        .map(|x| x as f64)
+        .map(|x| x.sqrt())
+        .sum::&lt;f64&gt;()
+        / data.len() as f64
+}
+
+fn main() {
+    let data: Vec&lt;i32&gt; = (1..=1000).collect();
+    println!("{:.4}", efficient_pipeline(&amp;data));
+}
+</code></pre>
+            </section>
+
+            <!-- 10. Performance checklist -->
+            <section>
+                <h2>10. Performance Checklist</h2>
+                <ol>
+                    <li><strong>Profile first</strong> — find the real bottleneck with a flamegraph or perf.</li>
+                    <li><strong>Build in release mode</strong> — debug mode is 10-100x slower.</li>
+                    <li><strong>Enable LTO and <code>codegen-units=1</code></strong> for production binaries.</li>
+                    <li><strong>RUSTFLAGS="-C target-cpu=native"</strong> for local benchmarks.</li>
+                    <li><strong>Pre-allocate</strong> with <code>with_capacity</code> when you know the size.</li>
+                    <li><strong>Reuse buffers</strong> instead of allocating on every call.</li>
+                    <li><strong>Prefer iterators</strong> over index loops — bounds checks are eliminated.</li>
+                    <li><strong>Use <code>&amp;str</code> and slices</strong> instead of <code>String</code> / <code>Vec</code> where possible.</li>
+                    <li><strong>Check allocation counts</strong> with dhat — minimizing allocations often beats algorithmic improvements for hot paths.</li>
+                    <li><strong>Benchmark with Criterion</strong> — wall clock time is noisy, use statistical benchmarks.</li>
+                </ol>
+                <pre><code class="language-bash"># Quick performance checklist commands
+cargo build --release                         # always benchmark release
+cargo flamegraph -- args                      # find hot functions
+cargo bloat --release -n 20                   # find large functions
+cargo bench                                   # run Criterion benchmarks
+RUSTFLAGS="-C target-cpu=native" cargo bench  # with native CPU instructions
+</code></pre>
+            </section>
+                    </div><!-- /article-body -->
+                </div><!-- /article-main -->
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+
+                    <div class="sidebar-box">
+                        <h4>Rust Series &mdash; Module 7</h4>
+                        <a href="rust-patterns.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Design Patterns in Rust</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                        <a href="rust-performance.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Performance &amp; Optimization</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                        <a href="rust-wasm.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">WebAssembly with Rust</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                        <a href="rust-cli.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">CLI Applications</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-rust.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+    <script>
+        const toggle = document.querySelector('.nav-toggle');
+        const navLinks = document.querySelector('.nav-links');
+        toggle.addEventListener('click', () => {
+            navLinks.classList.toggle('active');
+            toggle.classList.toggle('active');
+        });
+    </script>
+</body>
+</html>

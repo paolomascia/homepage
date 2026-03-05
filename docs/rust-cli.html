@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CLI Applications in Rust &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="rust-tech-insights.html">Rust</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+            <button class="nav-toggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+            <header class="article-header">
+                        <a href="rust-tech-insights.html" class="back-link">&larr; Back to Rust Tech Insights</a>
+                <div class="post-meta">
+                    <span class="post-date">Mar 2026</span>
+                    <span class="post-reading">16 min read</span>
+                </div>
+                <h1>CLI Applications in Rust</h1>
+                <div class="post-tags">
+                    <span>Rust</span>
+                    <span>CLI</span>
+                    <span>clap</span>
+                </div>
+            </header>
+
+                    <div class="article-body">
+
+            <!-- 1. clap basics -->
+            <section>
+                <h2>1. Argument Parsing with clap</h2>
+                <p><a href="https://docs.rs/clap" target="_blank">clap</a> is the de-facto standard for CLI argument parsing in Rust. The derive API lets you define your CLI as a struct.</p>
+                <pre><code class="language-toml"># Cargo.toml
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+</code></pre>
+                <pre><code class="language-rust">use clap::{Parser, Subcommand, Args, ValueEnum};
+use std::path::PathBuf;
+
+/// A fast text search tool.
+#[derive(Parser, Debug)]
+#[command(
+    name = "rgrep",
+    version,          // reads from Cargo.toml
+    author,           // reads from Cargo.toml
+    about,            // reads from the doc comment above
+    long_about = None,
+)]
+struct Cli {
+    #[command(subcommand)]
+    command: Commands,
+
+    /// Enable verbose output
+    #[arg(short, long, global = true)]
+    verbose: bool,
+}
+
+#[derive(Subcommand, Debug)]
+enum Commands {
+    /// Search for a pattern in files
+    Search(SearchArgs),
+    /// Count lines matching a pattern
+    Count(SearchArgs),
+    /// List all unique matches
+    List {
+        #[arg(value_name = "PATTERN")]
+        pattern: String,
+        #[arg(value_name = "FILE")]
+        files: Vec&lt;PathBuf&gt;,
+    },
+}
+
+#[derive(Args, Debug)]
+struct SearchArgs {
+    /// The regex pattern to search for
+    #[arg(value_name = "PATTERN")]
+    pattern: String,
+
+    /// Files to search (reads from stdin if empty)
+    #[arg(value_name = "FILE")]
+    files: Vec&lt;PathBuf&gt;,
+
+    /// Ignore case when matching
+    #[arg(short = 'i', long)]
+    ignore_case: bool,
+
+    /// Print line numbers
+    #[arg(short = 'n', long)]
+    line_numbers: bool,
+
+    /// Maximum matches to return
+    #[arg(short = 'm', long, default_value_t = usize::MAX)]
+    max_matches: usize,
+
+    /// Output format
+    #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
+    format: OutputFormat,
+}
+
+#[derive(ValueEnum, Clone, Debug)]
+enum OutputFormat {
+    Text,
+    Json,
+    Csv,
+}
+
+fn main() {
+    let cli = Cli::parse();
+
+    if cli.verbose {
+        eprintln!("[verbose] cli: {cli:?}");
+    }
+
+    match cli.command {
+        Commands::Search(args) =&gt; run_search(&amp;args),
+        Commands::Count(args)  =&gt; run_count(&amp;args),
+        Commands::List { pattern, files } =&gt; {
+            eprintln!("listing unique matches of {pattern:?} in {files:?}");
+        }
+    }
+}
+
+fn run_search(args: &amp;SearchArgs) {
+    println!("searching for {:?}, ignore_case={}", args.pattern, args.ignore_case);
+}
+
+fn run_count(args: &amp;SearchArgs) {
+    println!("counting matches of {:?}", args.pattern);
+}
+</code></pre>
+                <pre><code class="language-bash"># Generated help text
+rgrep --help
+rgrep search --help
+rgrep search 'fn main' src/ --line-numbers --format json
+rgrep count 'TODO' src/ --max-matches 100
+</code></pre>
+            </section>
+
+            <!-- 2. Advanced clap -->
+            <section>
+                <h2>2. Advanced clap Features</h2>
+
+                <h3>2.1 Validation and Custom Types</h3>
+                <pre><code class="language-rust">use clap::Parser;
+use std::net::SocketAddr;
+
+fn parse_port(s: &amp;str) -&gt; Result&lt;u16, String&gt; {
+    let port: u16 = s.parse().map_err(|_| format!("{s:?} is not a valid port"))?;
+    if port == 0 {
+        return Err("port cannot be 0".to_string());
+    }
+    Ok(port)
+}
+
+#[derive(Parser, Debug)]
+struct ServerArgs {
+    /// Server listen address (e.g. 0.0.0.0:8080)
+    #[arg(long, default_value = "127.0.0.1:8080")]
+    bind: SocketAddr,
+
+    /// Number of worker threads (0 = CPU count)
+    #[arg(long, default_value_t = 0, value_parser = clap::value_parser!(usize))]
+    workers: usize,
+
+    /// Port (validated)
+    #[arg(long, default_value_t = 8080, value_parser = parse_port)]
+    port: u16,
+
+    /// Config file path (must exist)
+    #[arg(long, value_name = "FILE")]
+    config: Option&lt;std::path::PathBuf&gt;,
+
+    /// Key=Value pairs as environment overrides
+    #[arg(long = "env", value_name = "KEY=VALUE", num_args = 0..)]
+    env_overrides: Vec&lt;String&gt;,
+}
+</code></pre>
+
+                <h3>2.2 Mutually Exclusive Arguments</h3>
+                <pre><code class="language-rust">use clap::{Parser, ArgGroup};
+
+#[derive(Parser, Debug)]
+#[command(group(
+    ArgGroup::new("output")
+        .required(false)
+        .args(["json", "csv", "quiet"])
+))]
+struct Cli {
+    /// Output as JSON (mutually exclusive with --csv and --quiet)
+    #[arg(long)]
+    json: bool,
+
+    /// Output as CSV
+    #[arg(long)]
+    csv: bool,
+
+    /// Suppress all output
+    #[arg(short, long)]
+    quiet: bool,
+
+    #[arg(value_name = "INPUT")]
+    input: String,
+}
+</code></pre>
+            </section>
+
+            <!-- 3. Configuration -->
+            <section>
+                <h2>3. Configuration Files</h2>
+                <p>Combine config files, environment variables, and CLI arguments in a layered system.</p>
+                <pre><code class="language-toml"># Cargo.toml
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+dirs = "5"
+</code></pre>
+                <pre><code class="language-rust">use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
+
+#[derive(Debug, Serialize, Deserialize, Default)]
+struct Config {
+    #[serde(default = "default_host")]
+    host: String,
+    #[serde(default = "default_port")]
+    port: u16,
+    #[serde(default)]
+    verbose: bool,
+    #[serde(default)]
+    output_dir: Option&lt;PathBuf&gt;,
+}
+
+fn default_host() -&gt; String { "localhost".to_string() }
+fn default_port() -&gt; u16 { 8080 }
+
+fn config_path() -&gt; Option&lt;PathBuf&gt; {
+    // Platform-appropriate config directory
+    let mut path = dirs::config_dir()?; // ~/.config on Linux, ~/Library on macOS
+    path.push("rgrep");
+    path.push("config.toml");
+    Some(path)
+}
+
+fn load_config() -&gt; Config {
+    let path = config_path().unwrap_or_else(|| PathBuf::from("config.toml"));
+
+    let file_config: Config = if path.exists() {
+        let contents = std::fs::read_to_string(&amp;path)
+            .unwrap_or_else(|e| { eprintln!("warning: cannot read config: {e}"); String::new() });
+        toml::from_str(&amp;contents)
+            .unwrap_or_else(|e| { eprintln!("warning: invalid config: {e}"); Config::default() })
+    } else {
+        Config::default()
+    };
+
+    // Environment variable overrides
+    Config {
+        host: std::env::var("RGREP_HOST").unwrap_or(file_config.host),
+        port: std::env::var("RGREP_PORT")
+            .ok()
+            .and_then(|p| p.parse().ok())
+            .unwrap_or(file_config.port),
+        verbose: std::env::var("RGREP_VERBOSE").is_ok() || file_config.verbose,
+        output_dir: file_config.output_dir,
+    }
+}
+
+fn main() {
+    let config = load_config();
+    println!("config: {config:?}");
+}
+</code></pre>
+            </section>
+
+            <!-- 4. Terminal output -->
+            <section>
+                <h2>4. Coloured Terminal Output</h2>
+                <pre><code class="language-toml"># Cargo.toml
+[dependencies]
+colored = "2"
+# or: owo-colors = "3" (zero-allocation, compile-time styles)
+# or: termcolor = "1" (low-level, cross-platform)
+</code></pre>
+                <pre><code class="language-rust">use colored::Colorize;
+
+fn print_results(matches: &amp;[(&amp;str, usize, &amp;str)], pattern: &amp;str) {
+    if matches.is_empty() {
+        println!("{}", "No matches found.".yellow());
+        return;
+    }
+
+    for (file, line_num, content) in matches {
+        // File name in cyan, line number in green, highlight pattern in red
+        let highlighted = content.replace(pattern, &amp;pattern.red().bold().to_string());
+        println!(
+            "{}:{}: {}",
+            file.cyan(),
+            line_num.to_string().green(),
+            highlighted,
+        );
+    }
+
+    println!("\n{} {} found", matches.len().to_string().bold(), "match(es)".bold());
+}
+
+fn print_status(msg: &amp;str, kind: &amp;str) {
+    let prefix = match kind {
+        "ok"    =&gt; "✓".green().bold(),
+        "warn"  =&gt; "⚠".yellow().bold(),
+        "error" =&gt; "✗".red().bold(),
+        _       =&gt; "•".white(),
+    };
+    println!("{prefix} {msg}");
+}
+
+fn main() {
+    print_status("Connected to database", "ok");
+    print_status("Deprecated config key found", "warn");
+    print_status("Failed to open file", "error");
+
+    let matches = vec![
+        ("src/main.rs", 42, "fn main() {"),
+        ("src/lib.rs",  17, "// TODO: main refactor"),
+    ];
+    print_results(&amp;matches, "main");
+}
+</code></pre>
+
+                <h3>4.1 Detect Terminal Capabilities</h3>
+                <pre><code class="language-rust">// Respect NO_COLOR and non-TTY environments (e.g., piped output)
+fn supports_color() -&gt; bool {
+    // colored respects NO_COLOR automatically
+    // For manual check:
+    std::env::var("NO_COLOR").is_err()
+        &amp;&amp; std::io::IsTerminal::is_terminal(&amp;std::io::stdout())
+}
+
+fn main() {
+    // colored auto-detects — this is for illustration
+    colored::control::set_override(supports_color());
+    println!("{}", "red text".red());
+}
+</code></pre>
+            </section>
+
+            <!-- 5. Progress bars -->
+            <section>
+                <h2>5. Progress Bars and Spinners</h2>
+                <pre><code class="language-toml"># Cargo.toml
+[dependencies]
+indicatif = "0.17"
+</code></pre>
+                <pre><code class="language-rust">use indicatif::{ProgressBar, ProgressStyle, MultiProgress, HumanBytes, HumanDuration};
+use std::time::Duration;
+
+fn download_example() {
+    let total_bytes = 50_000_000u64;
+
+    let pb = ProgressBar::new(total_bytes);
+    pb.set_style(
+        ProgressStyle::with_template(
+            "{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({eta})"
+        )
+        .unwrap()
+        .progress_chars("#&gt;-"),
+    );
+
+    // Simulate download
+    let chunk_size = 1_000_000u64;
+    let mut downloaded = 0u64;
+    while downloaded &lt; total_bytes {
+        std::thread::sleep(Duration::from_millis(30));
+        downloaded = (downloaded + chunk_size).min(total_bytes);
+        pb.set_position(downloaded);
+    }
+
+    pb.finish_with_message("download complete");
+}
+
+fn multi_progress_example() {
+    let mp = MultiProgress::new();
+
+    let style = ProgressStyle::with_template("{prefix:.bold.dim} {bar:40.cyan/blue} {pos}/{len}")
+        .unwrap();
+
+    let handles: Vec&lt;_&gt; = (0..4).map(|i| {
+        let pb = mp.add(ProgressBar::new(100));
+        pb.set_style(style.clone());
+        pb.set_prefix(format!("task {i}"));
+
+        std::thread::spawn(move || {
+            for _ in 0..100 {
+                std::thread::sleep(Duration::from_millis((i + 1) as u64 * 10));
+                pb.inc(1);
+            }
+            pb.finish_with_message("done");
+        })
+    }).collect();
+
+    for h in handles { h.join().unwrap(); }
+}
+
+// Spinner for indeterminate operations
+fn spinner_example() {
+    let spinner = ProgressBar::new_spinner();
+    spinner.set_style(
+        ProgressStyle::with_template("{spinner:.blue} {msg}")
+            .unwrap()
+            .tick_chars("⠁⠂⠄⡀⢀⠠⠐⠈ "),
+    );
+    spinner.set_message("connecting to server...");
+    spinner.enable_steady_tick(Duration::from_millis(100));
+
+    std::thread::sleep(Duration::from_millis(500));
+    spinner.finish_with_message("connected!");
+}
+
+fn main() {
+    download_example();
+    spinner_example();
+}
+</code></pre>
+            </section>
+
+            <!-- 6. stdin/stdout pipelines -->
+            <section>
+                <h2>6. stdin / stdout Pipelines</h2>
+                <pre><code class="language-rust">use std::io::{self, BufRead, BufWriter, Write};
+
+// Good Unix citizen: reads from files OR stdin if no files given
+fn process_input(files: &amp;[std::path::PathBuf], transform: impl Fn(&amp;str) -&gt; String) {
+    let stdout = io::stdout();
+    let mut out = BufWriter::new(stdout.lock()); // buffer all output
+
+    if files.is_empty() {
+        // No files: read from stdin
+        let stdin = io::stdin();
+        for line in stdin.lock().lines() {
+            let line = line.expect("stdin read error");
+            writeln!(out, "{}", transform(&amp;line)).unwrap();
+        }
+    } else {
+        for path in files {
+            let file = std::fs::File::open(path)
+                .unwrap_or_else(|e| { eprintln!("error opening {:?}: {e}", path); std::process::exit(1); });
+            for line in io::BufReader::new(file).lines() {
+                let line = line.unwrap_or_else(|e| { eprintln!("read error: {e}"); String::new() });
+                writeln!(out, "{}", transform(&amp;line)).unwrap();
+            }
+        }
+    }
+}
+
+// Detect if stdin is a pipe (not an interactive terminal)
+fn is_piped() -&gt; bool {
+    use std::io::IsTerminal;
+    !io::stdin().is_terminal()
+}
+
+fn main() {
+    let files: Vec&lt;std::path::PathBuf&gt; = std::env::args().skip(1)
+        .map(Into::into)
+        .collect();
+
+    if files.is_empty() &amp;&amp; !is_piped() {
+        eprintln!("usage: mytool [FILE]... or pipe data via stdin");
+        std::process::exit(1);
+    }
+
+    process_input(&amp;files, |line| line.to_uppercase());
+}
+</code></pre>
+            </section>
+
+            <!-- 7. Error handling in CLIs -->
+            <section>
+                <h2>7. Error Handling in CLI Applications</h2>
+                <pre><code class="language-toml"># Cargo.toml
+[dependencies]
+anyhow = "1"
+</code></pre>
+                <pre><code class="language-rust">use anyhow::{Context, Result, bail};
+use std::path::Path;
+
+fn process_file(path: &amp;Path) -&gt; Result&lt;Vec&lt;String&gt;&gt; {
+    let contents = std::fs::read_to_string(path)
+        .with_context(|| format!("failed to read {:?}", path))?;
+
+    if contents.is_empty() {
+        bail!("file {:?} is empty", path);
+    }
+
+    Ok(contents.lines().map(String::from).collect())
+}
+
+fn run() -&gt; Result&lt;()&gt; {
+    let args: Vec&lt;String&gt; = std::env::args().skip(1).collect();
+
+    if args.is_empty() {
+        bail!("no files specified — run with --help for usage");
+    }
+
+    for arg in &amp;args {
+        let path = Path::new(arg);
+        let lines = process_file(path)
+            .with_context(|| format!("while processing {arg}"))?;
+        println!("{}: {} lines", arg, lines.len());
+    }
+
+    Ok(())
+}
+
+fn main() {
+    if let Err(e) = run() {
+        // Print the full error chain
+        eprintln!("error: {e:#}");  // {:#} uses alternate format with chain
+        std::process::exit(1);
+    }
+}
+
+// For fancier error display:
+// Cargo.toml: miette = { version = "5", features = ["fancy"] }
+// fn main() { miette::set_hook(...); ... }
+</code></pre>
+            </section>
+
+            <!-- 8. Interactive prompts -->
+            <section>
+                <h2>8. Interactive Prompts</h2>
+                <pre><code class="language-toml"># Cargo.toml
+[dependencies]
+dialoguer = "0.11"
+</code></pre>
+                <pre><code class="language-rust">use dialoguer::{Input, Password, Select, MultiSelect, Confirm, theme::ColorfulTheme};
+
+fn interactive_setup() -&gt; anyhow::Result&lt;()&gt; {
+    let theme = ColorfulTheme::default();
+
+    let name: String = Input::with_theme(&amp;theme)
+        .with_prompt("Your name")
+        .default("anonymous".to_string())
+        .interact_text()?;
+
+    let password = Password::with_theme(&amp;theme)
+        .with_prompt("Password")
+        .with_confirmation("Confirm password", "Passwords do not match")
+        .interact()?;
+
+    let options = &amp;["Development", "Staging", "Production"];
+    let env_idx = Select::with_theme(&amp;theme)
+        .with_prompt("Target environment")
+        .items(options)
+        .default(0)
+        .interact()?;
+
+    let features = &amp;["logging", "metrics", "tracing", "hot-reload"];
+    let selected = MultiSelect::with_theme(&amp;theme)
+        .with_prompt("Enable features")
+        .items(features)
+        .interact()?;
+
+    let confirmed = Confirm::with_theme(&amp;theme)
+        .with_prompt("Save configuration?")
+        .default(true)
+        .interact()?;
+
+    if confirmed {
+        println!("Saving config for {name} in {} env", options[env_idx]);
+        for i in selected {
+            println!("  enabled: {}", features[i]);
+        }
+    }
+
+    Ok(())
+}
+</code></pre>
+            </section>
+
+            <!-- 9. Logging -->
+            <section>
+                <h2>9. Logging with env_logger / tracing</h2>
+                <pre><code class="language-toml"># Cargo.toml
+[dependencies]
+log        = "0.4"
+env_logger = "0.11"
+# or for structured logging:
+# tracing = "0.1"
+# tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+</code></pre>
+                <pre><code class="language-rust">use log::{error, warn, info, debug, trace};
+
+fn main() {
+    // RUST_LOG=debug ./my-tool
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn"))
+        .format_timestamp_millis()
+        .init();
+
+    info!("application starting");
+    debug!("debug information: x={}", 42);
+    warn!("this is a warning");
+    error!("something went wrong: {}", "file not found");
+
+    // Structured logging with tracing
+    use tracing::{info_span, instrument};
+    // ...
+}
+</code></pre>
+            </section>
+
+            <!-- 10. Distribution -->
+            <section>
+                <h2>10. Distributing CLI Binaries</h2>
+                <pre><code class="language-bash"># Build a static binary (Linux, fully portable)
+rustup target add x86_64-unknown-linux-musl
+cargo build --release --target x86_64-unknown-linux-musl
+# Result: statically linked binary, no glibc dependency
+
+# Cross-compile for Windows from Linux
+rustup target add x86_64-pc-windows-gnu
+cargo install cross  # docker-based cross compilation
+cross build --release --target x86_64-pc-windows-gnu
+
+# Cross-compile for macOS (requires macOS SDK)
+rustup target add aarch64-apple-darwin  # Apple Silicon
+rustup target add x86_64-apple-darwin
+
+# Install locally
+cargo install --path .
+
+# Publish to crates.io (users install with cargo install)
+cargo publish
+
+# Create a .deb package
+cargo install cargo-deb
+cargo deb
+
+# Create a Homebrew formula
+# Create a release on GitHub, then add to Homebrew tap
+</code></pre>
+
+                <pre><code class="language-yaml"># .github/workflows/release.yml — build binaries for all platforms on tag push
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+          - target: x86_64-apple-darwin
+            os: macos-latest
+          - target: aarch64-apple-darwin
+            os: macos-latest
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - run: cargo build --release --target ${{ matrix.target }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/my-tool*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: '**/*'
+</code></pre>
+            </section>
+                    </div><!-- /article-body -->
+                </div><!-- /article-main -->
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+
+                    <div class="sidebar-box">
+                        <h4>Rust Series &mdash; Module 7</h4>
+                        <a href="rust-patterns.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Design Patterns in Rust</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                        <a href="rust-performance.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Performance &amp; Optimization</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                        <a href="rust-wasm.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">WebAssembly with Rust</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                        <a href="rust-cli.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">CLI Applications</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-rust.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+    <script>
+        const toggle = document.querySelector('.nav-toggle');
+        const navLinks = document.querySelector('.nav-links');
+        toggle.addEventListener('click', () => {
+            navLinks.classList.toggle('active');
+            toggle.classList.toggle('active');
+        });
+    </script>
+</body>
+</html>

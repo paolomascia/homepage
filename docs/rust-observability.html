@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Observability in Rust &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="rust-tech-insights.html">Rust</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+            <button class="nav-toggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+            <header class="article-header">
+                        <a href="rust-tech-insights.html" class="back-link">&larr; Back to Rust Tech Insights</a>
+                <div class="post-meta">
+                    <span class="post-date">Mar 2026</span>
+                    <span class="post-reading">16 min read</span>
+                </div>
+                <h1>Observability in Rust</h1>
+                <div class="post-tags">
+                    <span>Rust</span>
+                    <span>Tracing</span>
+                    <span>Observability</span>
+                </div>
+            </header>
+
+                    <div class="article-body">
+
+            <section>
+                <h2>1. Structured Logging with tracing</h2>
+                <pre><code class="language-toml">[dependencies]
+tracing            = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+tracing-appender   = "0.2"   # non-blocking file output
+</code></pre>
+                <pre><code class="language-rust">use tracing::{info, warn, error, debug, trace, instrument, span, Level, Span};
+use tracing_subscriber::{fmt, EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
+
+fn init_tracing() {
+    tracing_subscriber::registry()
+        .with(EnvFilter::from_default_env()
+            .add_directive("my_app=debug".parse().unwrap())
+            .add_directive("tower_http=info".parse().unwrap()))
+        .with(fmt::layer()
+            .with_target(true)
+            .with_thread_ids(true)
+            .with_file(true)
+            .with_line_number(true))
+        .init();
+}
+
+// #[instrument] automatically creates a span with function name and args
+#[instrument(fields(user.id = %user_id, result))]
+async fn process_payment(user_id: u64, amount_cents: u64) -&gt; Result&lt;String, String&gt; {
+    info!(amount = amount_cents, "processing payment");
+
+    if amount_cents == 0 {
+        warn!("zero-amount payment requested");
+        return Err("amount must be positive".to_string());
+    }
+
+    // Record a value on the current span at any point
+    Span::current().record("result", "approved");
+
+    debug!("payment approved");
+    Ok(format!("txn-{user_id}-{amount_cents}"))
+}
+
+// Structured fields — prefer key=value over string formatting
+fn log_examples() {
+    let user_id = 42u64;
+    let duration_ms = 150u64;
+
+    // Good: structured fields allow filtering and aggregation
+    info!(user_id, duration_ms, status = "ok", "request completed");
+
+    // Explicit field names
+    info!(
+        user.id = user_id,
+        http.status_code = 200u16,
+        http.method = "GET",
+        http.path = "/api/users",
+        "incoming request"
+    );
+
+    // Error with full chain
+    let err = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
+    error!(error = %err, path = "/etc/config.toml", "failed to read config");
+}
+</code></pre>
+            </section>
+
+            <section>
+                <h2>2. Span Context and Propagation</h2>
+                <pre><code class="language-rust">use tracing::{info_span, instrument, Instrument};
+
+// Manual span creation
+async fn manual_span_example() {
+    let span = info_span!("database_query",
+        db.system = "postgresql",
+        db.operation = "SELECT",
+        db.table = "users",
+    );
+
+    // Attach the span to an async block
+    async {
+        // Do the actual query here
+        tokio::time::sleep(tokio::time::Duration::from_millis(5)).await;
+        info!("query executed");
+    }
+    .instrument(span)
+    .await;
+}
+
+// Nested spans show call hierarchy in trace viewers
+#[instrument]
+async fn outer() {
+    info!("outer start");
+    inner("param").await;
+    info!("outer end");
+}
+
+#[instrument(skip(secret))] // skip sensitive fields from the span
+async fn inner(secret: &amp;str) {
+    info!("inner executing");
+    tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+}
+
+// Async tasks inherit the current span
+async fn spawn_with_context() {
+    let span = info_span!("parent_task");
+    let _guard = span.enter();
+
+    tokio::spawn(
+        async {
+            // This task's trace links back to parent_task
+            info!("child task executing within parent span");
+        }
+        .in_current_span()  // propagate current span to spawned task
+    );
+}
+</code></pre>
+            </section>
+
+            <section>
+                <h2>3. JSON Output and Log Files</h2>
+                <pre><code class="language-rust">use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+
+fn init_json_tracing() {
+    // Non-blocking file writer (writes on a background thread)
+    let file_appender = tracing_appender::rolling::daily("logs", "app.log");
+    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+    // _guard must be kept alive for the duration of the program
+
+    tracing_subscriber::registry()
+        .with(EnvFilter::from_default_env())
+        // JSON to file
+        .with(fmt::layer()
+            .json()
+            .with_writer(non_blocking)
+            .with_current_span(true)
+            .with_span_list(true))
+        // Human-readable to stdout
+        .with(fmt::layer()
+            .pretty()
+            .with_writer(std::io::stdout))
+        .init();
+}
+
+// Sample JSON output:
+// {
+//   "timestamp": "2026-03-01T10:00:00.123Z",
+//   "level": "INFO",
+//   "target": "my_app::service",
+//   "span": {"name": "process_payment", "user.id": "42"},
+//   "fields": {"amount": 500, "message": "processing payment"}
+// }
+</code></pre>
+            </section>
+
+            <section>
+                <h2>4. Prometheus Metrics</h2>
+                <pre><code class="language-toml">[dependencies]
+metrics              = "0.23"
+metrics-exporter-prometheus = "0.15"
+</code></pre>
+                <pre><code class="language-rust">use metrics::{counter, gauge, histogram, describe_counter, describe_gauge, describe_histogram};
+use metrics_exporter_prometheus::PrometheusBuilder;
+
+fn init_metrics() {
+    // Set up the Prometheus exporter — exposes /metrics endpoint
+    PrometheusBuilder::new()
+        .with_http_listener(([0, 0, 0, 0], 9090))
+        .install()
+        .expect("failed to install Prometheus exporter");
+
+    // Describe metrics for documentation in Prometheus
+    describe_counter!("http_requests_total",     "Total number of HTTP requests");
+    describe_histogram!("http_request_duration_seconds", "HTTP request latency");
+    describe_gauge!("active_connections",         "Number of active connections");
+    describe_counter!("db_queries_total",         "Total database queries");
+    describe_histogram!("db_query_duration_seconds", "Database query latency");
+}
+
+// Record metrics throughout your application
+async fn handle_request(method: &amp;str, path: &amp;str) {
+    let start = std::time::Instant::now();
+
+    // Increment a counter with labels
+    counter!("http_requests_total",
+        "method" =&gt; method.to_string(),
+        "path" =&gt; path.to_string(),
+    ).increment(1);
+
+    // Simulate request processing
+    tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+
+    // Record latency as a histogram
+    histogram!("http_request_duration_seconds",
+        "method" =&gt; method.to_string(),
+        "path" =&gt; path.to_string(),
+    ).record(start.elapsed().as_secs_f64());
+}
+
+fn update_connection_count(delta: i64) {
+    // Gauge: can go up or down
+    if delta &gt; 0 {
+        gauge!("active_connections").increment(delta as f64);
+    } else {
+        gauge!("active_connections").decrement(-delta as f64);
+    }
+}
+</code></pre>
+
+                <h3>4.1 Metrics in an Axum Handler</h3>
+                <pre><code class="language-rust">use axum::{middleware::Next, extract::Request, response::Response};
+use std::time::Instant;
+
+async fn metrics_middleware(request: Request, next: Next) -&gt; Response {
+    let method = request.method().to_string();
+    let path   = request.uri().path().to_string();
+    let start  = Instant::now();
+
+    let response = next.run(request).await;
+
+    let status = response.status().as_u16().to_string();
+    let duration = start.elapsed().as_secs_f64();
+
+    counter!("http_requests_total",
+        "method" =&gt; method.clone(),
+        "path" =&gt; path.clone(),
+        "status" =&gt; status,
+    ).increment(1);
+
+    histogram!("http_request_duration_seconds",
+        "method" =&gt; method,
+        "path" =&gt; path,
+    ).record(duration);
+
+    response
+}
+
+// Add to your Axum router:
+// .layer(axum::middleware::from_fn(metrics_middleware))
+</code></pre>
+            </section>
+
+            <section>
+                <h2>5. OpenTelemetry Distributed Tracing</h2>
+                <pre><code class="language-toml">[dependencies]
+opentelemetry        = "0.26"
+opentelemetry_sdk    = { version = "0.26", features = ["rt-tokio"] }
+opentelemetry-otlp   = { version = "0.26", features = ["tonic"] }
+tracing-opentelemetry = "0.27"
+</code></pre>
+                <pre><code class="language-rust">use opentelemetry::{global, trace::TracerProvider};
+use opentelemetry_otlp::WithExportConfig;
+use opentelemetry_sdk::{runtime, trace as sdktrace};
+use tracing_opentelemetry::OpenTelemetryLayer;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+
+async fn init_opentelemetry() -&gt; anyhow::Result&lt;()&gt; {
+    // Send traces to an OTLP collector (Jaeger, Tempo, etc.)
+    let exporter = opentelemetry_otlp::new_exporter()
+        .tonic()
+        .with_endpoint("http://localhost:4317"); // OTLP gRPC endpoint
+
+    let tracer_provider = opentelemetry_otlp::new_pipeline()
+        .tracing()
+        .with_exporter(exporter)
+        .with_trace_config(
+            sdktrace::Config::default()
+                .with_resource(opentelemetry_sdk::Resource::new(vec![
+                    opentelemetry::KeyValue::new("service.name", "my-rust-service"),
+                    opentelemetry::KeyValue::new("service.version", env!("CARGO_PKG_VERSION")),
+                    opentelemetry::KeyValue::new("deployment.environment", "production"),
+                ]))
+        )
+        .install_batch(runtime::Tokio)?;
+
+    let tracer = tracer_provider.tracer("my-rust-service");
+
+    // Bridge tracing spans to OpenTelemetry
+    tracing_subscriber::registry()
+        .with(EnvFilter::from_default_env())
+        .with(tracing_subscriber::fmt::layer())
+        .with(OpenTelemetryLayer::new(tracer))
+        .init();
+
+    global::set_tracer_provider(tracer_provider);
+    Ok(())
+}
+
+// Shutdown cleanly (flush pending spans before exit)
+async fn shutdown_telemetry() {
+    global::shutdown_tracer_provider();
+}
+</code></pre>
+
+                <h3>5.1 Propagating Trace Context over HTTP</h3>
+                <pre><code class="language-rust">use opentelemetry::propagation::{Extractor, Injector, TextMapPropagator};
+use opentelemetry_sdk::propagation::TraceContextPropagator;
+use axum::http::{HeaderMap, HeaderName, HeaderValue};
+
+// Extract trace context from incoming HTTP headers (server side)
+struct HeaderExtractor&lt;'a&gt;(&amp;'a HeaderMap);
+
+impl&lt;'a&gt; Extractor for HeaderExtractor&lt;'a&gt; {
+    fn get(&amp;self, key: &amp;str) -&gt; Option&lt;&amp;str&gt; {
+        self.0.get(key).and_then(|v| v.to_str().ok())
+    }
+    fn keys(&amp;self) -&gt; Vec&lt;&amp;str&gt; {
+        self.0.keys().map(|k| k.as_str()).collect()
+    }
+}
+
+// Inject trace context into outgoing HTTP headers (client side)
+struct HeaderInjector(HeaderMap);
+
+impl Injector for HeaderInjector {
+    fn set(&amp;mut self, key: &amp;str, value: String) {
+        if let (Ok(k), Ok(v)) = (
+            HeaderName::from_bytes(key.as_bytes()),
+            HeaderValue::from_str(&amp;value)
+        ) {
+            self.0.insert(k, v);
+        }
+    }
+}
+
+// Use tower-http's built-in OpenTelemetry middleware (simpler)
+// Cargo.toml: tower-http = { version = "0.5", features = ["trace"] }
+// The TraceLayer from tower-http auto-propagates W3C trace context headers
+use tower_http::trace::TraceLayer;
+let app = axum::Router::new()
+    // ...routes...
+    .layer(TraceLayer::new_for_http());
+</code></pre>
+            </section>
+
+            <section>
+                <h2>6. tracing-flame — CPU Flamegraphs</h2>
+                <pre><code class="language-toml">[dev-dependencies]
+tracing-flame = "0.2"
+</code></pre>
+                <pre><code class="language-rust">use tracing_flame::FlameLayer;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+
+fn init_flame() {
+    let (flame_layer, _guard) = FlameLayer::with_file("./tracing.folded").unwrap();
+    // _guard flushes on drop
+
+    tracing_subscriber::registry()
+        .with(flame_layer)
+        .init();
+}
+
+// After the program runs:
+// cargo install inferno
+// inferno-flamegraph tracing.folded &gt; flamegraph.svg
+// open flamegraph.svg
+</code></pre>
+            </section>
+
+            <section>
+                <h2>7. Complete Observability Setup</h2>
+                <pre><code class="language-rust">use axum::{Router, routing::get, middleware};
+use std::time::Duration;
+
+async fn health() -&gt; &amp;'static str { "ok" }
+
+async fn full_observability_app() -&gt; anyhow::Result&lt;()&gt; {
+    // 1. Init tracing (logs + OTel traces)
+    init_opentelemetry().await?;
+
+    // 2. Init Prometheus metrics (exposed on :9090/metrics)
+    init_metrics();
+
+    // 3. Build the app with observability middleware
+    let app = Router::new()
+        .route("/health", get(health))
+        .route("/users",  get(|| async { "[]" }))
+        // Metrics middleware (custom, records per-route counters)
+        .layer(middleware::from_fn(metrics_middleware))
+        // Tower-http tracing (structured request/response logs + OTel spans)
+        .layer(
+            tower_http::trace::TraceLayer::new_for_http()
+                .make_span_with(|request: &amp;axum::http::Request&lt;_&gt;| {
+                    tracing::info_span!(
+                        "http_request",
+                        method   = %request.method(),
+                        uri      = %request.uri(),
+                        version  = ?request.version(),
+                    )
+                })
+        )
+        // Timeout
+        .layer(tower_http::timeout::TimeoutLayer::new(Duration::from_secs(30)));
+
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
+    tracing::info!("server listening on :3000, metrics on :9090/metrics");
+
+    axum::serve(listener, app).await?;
+
+    // 4. Flush traces on shutdown
+    shutdown_telemetry().await;
+    Ok(())
+}
+</code></pre>
+            </section>
+
+            <section>
+                <h2>8. Alerting and Dashboards</h2>
+                <pre><code class="language-yaml"># docker-compose.yml — full observability stack
+services:
+  app:
+    build: .
+    ports: ["3000:3000", "9090:9090"]
+    environment:
+      - RUST_LOG=info
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+
+  prometheus:
+    image: prom/prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports: ["9091:9090"]
+
+  grafana:
+    image: grafana/grafana
+    ports: ["3001:3000"]
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    ports: ["16686:16686", "4317:4317"]
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib
+    ports: ["4317:4317"]
+</code></pre>
+                <pre><code class="language-yaml"># prometheus.yml
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'rust-app'
+    static_configs:
+      - targets: ['app:9090']
+</code></pre>
+                <p>Key dashboards to build in Grafana:</p>
+                <ul>
+                    <li><strong>RED metrics</strong>: Rate (requests/sec), Errors (%), Duration (latency percentiles)</li>
+                    <li><strong>Saturation</strong>: active connections, thread pool queue depth</li>
+                    <li><strong>Resource usage</strong>: CPU, memory, heap allocations</li>
+                    <li><strong>Traces</strong>: link directly to Jaeger from slow-request panels</li>
+                </ul>
+            </section>
+                    </div><!-- /article-body -->
+                </div><!-- /article-main -->
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+
+                    <div class="sidebar-box">
+                        <h4>Rust Series &mdash; Module 9</h4>
+                        <a href="rust-grpc.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">gRPC with Tonic</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                        <a href="rust-observability.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Observability</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                        <a href="rust-serde-advanced.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Advanced Serde</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                        <a href="rust-deployment.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Deploying Rust in Production</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-rust.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+    <script>
+        const toggle = document.querySelector('.nav-toggle');
+        const navLinks = document.querySelector('.nav-links');
+        toggle.addEventListener('click', () => {
+            navLinks.classList.toggle('active');
+            toggle.classList.toggle('active');
+        });
+    </script>
+</body>
+</html>

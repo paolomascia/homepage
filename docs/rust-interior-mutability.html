@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interior Mutability: Cell, RefCell, Mutex &amp; RwLock in Rust &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="rust-tech-insights.html">Rust</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+            <button class="nav-toggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="rust-tech-insights.html" class="back-link">&larr; Back to Rust Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Feb 2026</span>
+                            <span class="post-reading">15 min read</span>
+                        </div>
+                        <h1>Interior Mutability: Cell, RefCell, Mutex &amp; RwLock</h1>
+                        <div class="post-tags">
+                            <span>Rust</span>
+                            <span>Interior Mutability</span>
+                            <span>Concurrency</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Rust's borrow checker enforces a simple rule: you can have many immutable references or exactly one mutable reference, never both. <em>Interior mutability</em> is a design pattern that lets you mutate data through a shared (<code>&amp;T</code>) reference by moving the borrow-checking rules from compile time to runtime. This is not a hack &mdash; it is a deliberate escape hatch for the cases where static analysis is too conservative, and every interior mutability type documents exactly which invariants it upholds and at what cost.</p>
+
+                        <h2>Cell&lt;T&gt; — Copy Types, No Borrow Overhead</h2>
+                        <p><code>Cell&lt;T&gt;</code> provides interior mutability for types that implement <code>Copy</code>. It works by only ever allowing you to <em>get</em> the value (which copies it out) or <em>set</em> a new value &mdash; you never get a reference to the interior. Because there are no references, there are no aliasing violations: the borrow checker never needs to track anything. <code>Cell</code> is the fastest interior mutability primitive because it has zero runtime overhead: no counters, no locks, no unsafe at the call site.</p>
+                        <p>Use <code>Cell</code> for small, <code>Copy</code> values that need to be mutated through shared references: flags, counters, cached computations in an otherwise immutable struct.</p>
+
+                        <h3>Cell in Practice</h3>
+                        <p><em>A struct with an immutable interface but a lazily-updated internal counter, implemented with <code>Cell</code> to avoid the cost of <code>RefCell</code> for a simple integer.</em></p>
+<pre><code class="language-rust">use std::cell::Cell;
+
+struct HitCounter {
+    name:   String,
+    hits:   Cell&lt;u64&gt;,
+    misses: Cell&lt;u64&gt;,
+}
+
+impl HitCounter {
+    fn new(name: &amp;str) -> Self {
+        HitCounter { name: name.to_string(), hits: Cell::new(0), misses: Cell::new(0) }
+    }
+
+    // &amp;self (not &amp;mut self) -- exterior is immutable, interior is mutable.
+    fn record_hit(&amp;self)  { self.hits.set(self.hits.get() + 1); }
+    fn record_miss(&amp;self) { self.misses.set(self.misses.get() + 1); }
+
+    fn hit_rate(&amp;self) -> f64 {
+        let h = self.hits.get() as f64;
+        let m = self.misses.get() as f64;
+        if h + m == 0.0 { 0.0 } else { h / (h + m) * 100.0 }
+    }
+}
+
+// Cell for memoization: compute once, store the result
+struct Fibonacci {
+    n:    u64,
+    memo: Cell&lt;Option&lt;u64&gt;&gt;,
+}
+
+impl Fibonacci {
+    fn new(n: u64) -> Self { Fibonacci { n, memo: Cell::new(None) } }
+
+    fn value(&amp;self) -> u64 {
+        if let Some(v) = self.memo.get() { return v; }
+        let v = (0..self.n).fold((0u64, 1u64), |(a, b), _| (b, a + b)).0;
+        self.memo.set(Some(v));
+        v
+    }
+}
+
+fn main() {
+    let counter = HitCounter::new("cache");
+    // Multiple shared references can coexist while mutating internals.
+    let r1 = &amp;counter;
+    let r2 = &amp;counter;
+    r1.record_hit(); r1.record_hit(); r2.record_miss();
+    println!("{}: hit rate = {:.1}%", counter.name, counter.hit_rate()); // 66.7%
+
+    let fib = Fibonacci::new(40);
+    println!("fib(40) = {}", fib.value()); // computed
+    println!("fib(40) = {}", fib.value()); // from Cell cache
+}</code></pre>
+
+                        <h2>RefCell&lt;T&gt; — Dynamic Borrow Checking</h2>
+                        <p><code>RefCell&lt;T&gt;</code> moves borrow checking to runtime. It maintains a counter of active borrows: each <code>borrow()</code> call increments a "readers" count and returns a <code>Ref&lt;T&gt;</code> guard; each <code>borrow_mut()</code> sets an exclusive "writer" flag and returns a <code>RefMut&lt;T&gt;</code> guard. If you try to borrow mutably when there is an active shared borrow (or vice versa), <code>RefCell</code> panics at runtime. The <code>try_borrow</code> and <code>try_borrow_mut</code> methods return <code>Result</code> instead of panicking.</p>
+                        <p><code>RefCell</code> is not <code>Sync</code>: it cannot be used from multiple threads. For multi-threaded interior mutability, use <code>Mutex</code> or <code>RwLock</code>. <code>RefCell</code> is the right choice when you know at design time that borrows will not overlap, but the borrow checker cannot verify this due to the structure of the code (for example, a graph algorithm that needs to both traverse and mutate, or a mock in tests).</p>
+
+                        <h3>RefCell Basics and the Borrow Rules at Runtime</h3>
+                        <p><em>Multiple shared borrows, exclusive mutable borrows, the panicking behaviour on borrow violations, and <code>try_borrow</code> for graceful error handling.</em></p>
+<pre><code class="language-rust">use std::cell::RefCell;
+
+fn main() {
+    let data = RefCell::new(vec![1, 2, 3]);
+
+    // Multiple immutable borrows at the same time -- fine.
+    {
+        let r1 = data.borrow();
+        let r2 = data.borrow();
+        println!("r1={:?}, r2={:?}", *r1, *r2);
+    } // r1 and r2 dropped here
+
+    // Mutable borrow after all immutable borrows are released -- fine.
+    {
+        let mut w = data.borrow_mut();
+        w.push(4);
+        println!("after push: {:?}", *w);
+    }
+
+    // try_borrow: no panic, returns Err on violation
+    let r = data.borrow();
+    let result = data.try_borrow_mut(); // Err: immutable borrow active
+    println!("try_borrow_mut while borrowed: {}", result.is_err()); // true
+    drop(r);
+    let result = data.try_borrow_mut(); // Ok: no active borrows
+    println!("try_borrow_mut after drop: {}", result.is_ok()); // true
+
+    // Interior mutation through a shared reference
+    let shared = std::rc::Rc::new(RefCell::new(0i32));
+    let a = std::rc::Rc::clone(&amp;shared);
+    let b = std::rc::Rc::clone(&amp;shared);
+    *a.borrow_mut() += 10;
+    *b.borrow_mut() += 20;
+    println!("shared value: {}", shared.borrow()); // 30
+}</code></pre>
+
+                        <h3>RefCell for Mock Objects in Tests</h3>
+                        <p><em>A classic use case: a test double that records calls through a <code>&amp;self</code> interface using <code>RefCell</code> for interior mutability.</em></p>
+<pre><code class="language-rust">use std::cell::RefCell;
+
+trait Messenger {
+    fn send(&amp;self, msg: &amp;str);
+}
+
+// Real implementation
+struct EmailMessenger;
+impl Messenger for EmailMessenger {
+    fn send(&amp;self, msg: &amp;str) { println!("[email] {msg}"); }
+}
+
+// Test double: records all sent messages
+struct MockMessenger {
+    messages: RefCell&lt;Vec&lt;String&gt;&gt;,
+}
+
+impl MockMessenger {
+    fn new() -> Self { MockMessenger { messages: RefCell::new(Vec::new()) } }
+    fn messages(&amp;self) -> Vec&lt;String&gt; { self.messages.borrow().clone() }
+}
+
+impl Messenger for MockMessenger {
+    // Trait requires &amp;self, but we need to mutate messages -- RefCell enables this.
+    fn send(&amp;self, msg: &amp;str) {
+        self.messages.borrow_mut().push(msg.to_string());
+    }
+}
+
+struct RateLimiter&lt;'a, M: Messenger&gt; {
+    messenger: &amp;'a M,
+    count:     u32,
+    limit:     u32,
+}
+
+impl&lt;'a, M: Messenger&gt; RateLimiter&lt;'a, M&gt; {
+    fn new(messenger: &amp;'a M, limit: u32) -> Self {
+        RateLimiter { messenger, count: 0, limit }
+    }
+
+    fn request(&amp;mut self) {
+        self.count += 1;
+        if self.count == self.limit {
+            self.messenger.send("Warning: at 100% of quota");
+        } else if self.count &gt; self.limit {
+            self.messenger.send("Error: quota exceeded");
+        }
+    }
+}
+
+fn main() {
+    let mock = MockMessenger::new();
+    let mut limiter = RateLimiter::new(&amp;mock, 3);
+    for _ in 0..4 { limiter.request(); }
+
+    let msgs = mock.messages();
+    println!("{msgs:?}");
+    // ["Warning: at 100% of quota", "Error: quota exceeded"]
+}</code></pre>
+
+                        <h2>Mutex&lt;T&gt; — Thread-Safe Exclusive Access</h2>
+                        <p><code>Mutex&lt;T&gt;</code> (mutual exclusion lock) provides thread-safe interior mutability. <code>lock()</code> blocks the calling thread until the lock is acquired, then returns a <code>MutexGuard&lt;T&gt;</code> that gives mutable access to the inner value. When the guard is dropped (at the end of its scope), the lock is released automatically. <code>try_lock()</code> is the non-blocking variant.</p>
+                        <p>A critical detail: if a thread panics while holding a <code>MutexGuard</code>, the mutex enters a <em>poisoned</em> state. Subsequent calls to <code>lock()</code> return <code>Err(PoisonError)</code>. You can recover the inner value via <code>.into_inner()</code> on the error, but it may be in an inconsistent state. Most production code calls <code>.unwrap()</code> on the lock result, which re-panics on a poisoned mutex &mdash; propagating the failure rather than silently proceeding with corrupted data.</p>
+
+                        <h3>Mutex Patterns</h3>
+                        <p><em>Scoped locking, minimising lock hold time, avoiding deadlocks, and a producer-consumer pattern with <code>Mutex</code> + <code>Condvar</code>.</em></p>
+<pre><code class="language-rust">use std::sync::{Arc, Mutex, Condvar};
+use std::thread;
+
+fn main() {
+    // Basic: Arc&lt;Mutex&lt;T&gt;&gt; for shared mutable state
+    let counter = Arc::new(Mutex::new(0u32));
+    let mut handles = Vec::new();
+
+    for _ in 0..10 {
+        let c = Arc::clone(&amp;counter);
+        handles.push(thread::spawn(move || {
+            let mut val = c.lock().unwrap();
+            *val += 1;
+            // Lock released here when `val` (MutexGuard) is dropped
+        }));
+    }
+    for h in handles { h.join().unwrap(); }
+    println!("counter: {}", counter.lock().unwrap()); // 10
+
+    // Minimise lock hold time: compute outside the lock
+    let data = Arc::new(Mutex::new(Vec::&lt;i32&gt;::new()));
+    let d = Arc::clone(&amp;data);
+    thread::spawn(move || {
+        let expensive = (0..1000).sum::&lt;i32&gt;(); // compute WITHOUT holding the lock
+        d.lock().unwrap().push(expensive);        // hold lock only for the push
+    }).join().unwrap();
+
+    // Condvar: block until a condition is met
+    let pair = Arc::new((Mutex::new(false), Condvar::new()));
+    let pair2 = Arc::clone(&amp;pair);
+
+    thread::spawn(move || {
+        thread::sleep(std::time::Duration::from_millis(10));
+        let (lock, cvar) = &amp;*pair2;
+        *lock.lock().unwrap() = true;
+        cvar.notify_one(); // wake up the waiting thread
+    });
+
+    let (lock, cvar) = &amp;*pair;
+    let _guard = cvar.wait_while(lock.lock().unwrap(), |&amp;mut ready| !ready).unwrap();
+    println!("condition met");
+}</code></pre>
+
+                        <h2>RwLock&lt;T&gt; — Concurrent Reads, Exclusive Writes</h2>
+                        <p><code>RwLock&lt;T&gt;</code> is a reader-writer lock. It allows any number of concurrent readers (<code>read()</code> → <code>RwLockReadGuard</code>) as long as there are no writers, and gives exclusive access to a single writer (<code>write()</code> → <code>RwLockWriteGuard</code>). This is the right choice when reads vastly outnumber writes and you want to maximise read concurrency without sacrificing correctness.</p>
+                        <p>The trade-off vs <code>Mutex</code>: <code>RwLock</code> is more complex internally and can be slower than <code>Mutex</code> in write-heavy workloads due to the overhead of tracking reader counts. Benchmark before assuming <code>RwLock</code> is faster.</p>
+
+                        <h3>RwLock for a Read-Heavy Configuration Store</h3>
+                        <p><em>A global configuration object that many threads read concurrently but only an admin thread writes, using <code>RwLock</code> to maximise read throughput.</em></p>
+<pre><code class="language-rust">use std::sync::{Arc, RwLock};
+use std::collections::HashMap;
+use std::thread;
+
+struct ConfigStore {
+    data: RwLock&lt;HashMap&lt;String, String&gt;&gt;,
+}
+
+impl ConfigStore {
+    fn new() -> Self { ConfigStore { data: RwLock::new(HashMap::new()) } }
+
+    fn get(&amp;self, key: &amp;str) -> Option&lt;String&gt; {
+        // Multiple threads can hold read locks simultaneously
+        self.data.read().unwrap().get(key).cloned()
+    }
+
+    fn set(&amp;self, key: &amp;str, value: &amp;str) {
+        // Exclusive write lock: blocks until all readers release
+        self.data.write().unwrap().insert(key.to_string(), value.to_string());
+    }
+}
+
+fn main() {
+    let store = Arc::new(ConfigStore::new());
+    store.set("timeout", "30");
+    store.set("max_connections", "100");
+
+    // Spawn 8 reader threads
+    let mut handles: Vec&lt;_&gt; = (0..8).map(|i| {
+        let s = Arc::clone(&amp;store);
+        thread::spawn(move || {
+            let v = s.get("timeout").unwrap_or_default();
+            println!("reader {i}: timeout={v}");
+        })
+    }).collect();
+
+    // Spawn 1 writer thread
+    handles.push({
+        let s = Arc::clone(&amp;store);
+        thread::spawn(move || {
+            s.set("timeout", "60");
+            println!("writer: updated timeout to 60");
+        })
+    });
+
+    for h in handles { h.join().unwrap(); }
+    println!("final timeout: {:?}", store.get("timeout"));
+
+    // try_read / try_write: non-blocking, returns Err if lock cannot be acquired
+    let lock = Arc::new(RwLock::new(0));
+    let _r = lock.read().unwrap();
+    let result = lock.try_write(); // Err: readers active
+    println!("try_write with reader: {}", result.is_err()); // true
+}</code></pre>
+
+                        <h2>Choosing Interior Mutability</h2>
+                        <p>A decision guide for the four interior mutability primitives:</p>
+                        <ul>
+                            <li><strong><code>Cell&lt;T&gt;</code></strong> — single thread, <code>T: Copy</code>, no references to interior needed. Fastest: zero runtime cost.</li>
+                            <li><strong><code>RefCell&lt;T&gt;</code></strong> — single thread, <code>T</code> may not be <code>Copy</code>, dynamic borrow checking at runtime. Panics on violated borrow rules. Use <code>try_borrow</code>/<code>try_borrow_mut</code> if you need graceful error handling.</li>
+                            <li><strong><code>Mutex&lt;T&gt;</code></strong> — multiple threads, exclusive access. Blocks on contention. Correct for any access pattern (read or write).</li>
+                            <li><strong><code>RwLock&lt;T&gt;</code></strong> — multiple threads, many concurrent readers and infrequent writers. More overhead than <code>Mutex</code>; only beneficial when reads dominate.</li>
+                        </ul>
+                        <p>Outside of these, <code>OnceCell</code> and <code>OnceLock</code> (for one-time initialization), <code>AtomicUsize</code>/<code>AtomicBool</code> (for lock-free counters and flags), and <code>parking_lot</code> crate (faster, feature-richer Mutex/RwLock) are common in production code.</p>
+
+                        <p><em>AtomicUsize for a lock-free hit counter shared across threads.</em></p>
+<pre><code class="language-rust">use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+use std::thread;
+
+fn main() {
+    let counter = Arc::new(AtomicUsize::new(0));
+    let handles: Vec&lt;_&gt; = (0..10).map(|_| {
+        let c = Arc::clone(&amp;counter);
+        thread::spawn(move || {
+            // fetch_add: atomically increment and return previous value
+            c.fetch_add(1, Ordering::Relaxed);
+        })
+    }).collect();
+    for h in handles { h.join().unwrap(); }
+    println!("atomic counter: {}", counter.load(Ordering::Relaxed)); // 10
+
+    // OnceCell: initialize a value exactly once, then read it many times
+    use std::sync::OnceLock;
+    static CONFIG: OnceLock&lt;String&gt; = OnceLock::new();
+    CONFIG.get_or_init(|| "production".to_string());
+    println!("config: {}", CONFIG.get().unwrap());
+}</code></pre>
+
+                    </div>
+                </div>
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>Rust Series &mdash; Module 4</h4>
+                        <a href="rust-smart-pointers.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Smart Pointers: Box, Rc &amp; Arc</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-interior-mutability.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Interior Mutability: Cell, RefCell, Mutex &amp; RwLock</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-slice-deref.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Slices, Deref Coercions &amp; Custom Deref</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-unsafe.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Unsafe Rust: Raw Pointers, unsafe Blocks &amp; FFI</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-rust.min.js"></script>
+    <script>
+        const toggle = document.querySelector('.nav-toggle');
+        const navLinks = document.querySelector('.nav-links');
+        toggle.addEventListener('click', () => {
+            navLinks.classList.toggle('active');
+            toggle.classList.toggle('active');
+        });
+    </script>
+
+</body>
+</html>

@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Design Patterns &amp; Idioms in Rust &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="rust-tech-insights.html">Rust</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+            <button class="nav-toggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+            <header class="article-header">
+                        <a href="rust-tech-insights.html" class="back-link">&larr; Back to Rust Tech Insights</a>
+                <div class="post-meta">
+                    <span class="post-date">Mar 2026</span>
+                    <span class="post-reading">18 min read</span>
+                </div>
+                <h1>Design Patterns &amp; Idioms in Rust</h1>
+                <div class="post-tags">
+                    <span>Rust</span>
+                    <span>Patterns</span>
+                    <span>Idioms</span>
+                </div>
+            </header>
+
+                    <div class="article-body">
+
+            <!-- 1. Newtype -->
+            <section>
+                <h2>1. Newtype Pattern</h2>
+                <p>Wrap a primitive in a single-field tuple struct to create a distinct type. This prevents mixing up values that have the same underlying type but different semantics.</p>
+                <pre><code class="language-rust">// Without newtype: easy to mix up Meters and Kilograms at call sites
+fn speed(distance: f64, time: f64) -&gt; f64 { distance / time }
+
+// With newtype: the type system catches mistakes
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+struct Meters(f64);
+
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+struct Seconds(f64);
+
+#[derive(Debug, Clone, Copy)]
+struct MetersPerSecond(f64);
+
+fn typed_speed(distance: Meters, time: Seconds) -&gt; MetersPerSecond {
+    MetersPerSecond(distance.0 / time.0)
+}
+
+fn main() {
+    let d = Meters(100.0);
+    let t = Seconds(9.58);
+    let v = typed_speed(d, t);
+    println!("{:.2} m/s", v.0); // 10.44 m/s
+
+    // typed_speed(t, d); // compile error: wrong argument order!
+}
+</code></pre>
+
+                <h3>1.1 Newtype with Deref for Ergonomics</h3>
+                <pre><code class="language-rust">use std::ops::{Deref, DerefMut};
+
+/// A non-empty Vec — the invariant is enforced by the constructor.
+pub struct NonEmptyVec&lt;T&gt;(Vec&lt;T&gt;);
+
+impl&lt;T&gt; NonEmptyVec&lt;T&gt; {
+    pub fn new(first: T) -&gt; Self {
+        NonEmptyVec(vec![first])
+    }
+
+    pub fn from_vec(v: Vec&lt;T&gt;) -&gt; Option&lt;Self&gt; {
+        if v.is_empty() { None } else { Some(NonEmptyVec(v)) }
+    }
+
+    pub fn first(&amp;self) -&gt; &amp;T { &amp;self.0[0] } // always safe
+}
+
+// Deref lets NonEmptyVec&lt;T&gt; be used wherever &amp;Vec&lt;T&gt; or &amp;[T&gt; is expected
+impl&lt;T&gt; Deref for NonEmptyVec&lt;T&gt; {
+    type Target = Vec&lt;T&gt;;
+    fn deref(&amp;self) -&gt; &amp;Self::Target { &amp;self.0 }
+}
+
+impl&lt;T&gt; DerefMut for NonEmptyVec&lt;T&gt; {
+    fn deref_mut(&mut self) -&gt; &amp;mut Self::Target { &amp;mut self.0 }
+}
+
+fn main() {
+    let mut v = NonEmptyVec::new(1i32);
+    v.push(2); // works via Deref to Vec
+    v.push(3);
+    println!("first: {}", v.first()); // 1
+    println!("len: {}", v.len());     // 3 — Vec method via Deref
+}
+</code></pre>
+            </section>
+
+            <!-- 2. Typestate -->
+            <section>
+                <h2>2. Typestate Pattern</h2>
+                <p>Encode the state of an object in its type. Invalid state transitions become compile errors — impossible to call <code>send()</code> before <code>connect()</code>, for example.</p>
+                <pre><code class="language-rust">use std::marker::PhantomData;
+
+// State tags — zero-sized types used only as type parameters
+struct Disconnected;
+struct Connected;
+struct Authenticated;
+
+// The connection type carries its state in a phantom type parameter
+struct Connection&lt;State&gt; {
+    host: String,
+    port: u16,
+    _state: PhantomData&lt;State&gt;,
+}
+
+// Methods only available in Disconnected state
+impl Connection&lt;Disconnected&gt; {
+    pub fn new(host: &amp;str, port: u16) -&gt; Self {
+        Connection {
+            host: host.to_string(),
+            port,
+            _state: PhantomData,
+        }
+    }
+
+    // Consumes Disconnected, returns Connected (state transition)
+    pub fn connect(self) -&gt; Result&lt;Connection&lt;Connected&gt;, String&gt; {
+        println!("connecting to {}:{}", self.host, self.port);
+        // real TCP logic here
+        Ok(Connection { host: self.host, port: self.port, _state: PhantomData })
+    }
+}
+
+// Methods only available in Connected state
+impl Connection&lt;Connected&gt; {
+    pub fn authenticate(self, token: &amp;str) -&gt; Result&lt;Connection&lt;Authenticated&gt;, String&gt; {
+        println!("authenticating with token: {token}");
+        if token.is_empty() {
+            Err("empty token".to_string())
+        } else {
+            Ok(Connection { host: self.host, port: self.port, _state: PhantomData })
+        }
+    }
+
+    pub fn ping(&amp;self) -&gt; bool {
+        println!("pinging {}:{}", self.host, self.port);
+        true
+    }
+}
+
+// Methods only available in Authenticated state
+impl Connection&lt;Authenticated&gt; {
+    pub fn send(&amp;self, data: &amp;[u8]) -&gt; usize {
+        println!("sending {} bytes", data.len());
+        data.len()
+    }
+
+    pub fn subscribe(&amp;self, topic: &amp;str) {
+        println!("subscribed to {topic}");
+    }
+}
+
+fn main() {
+    let conn = Connection::&lt;Disconnected&gt;::new("example.com", 443);
+    // conn.send(b"hello"); // compile error: no method `send` on Connection&lt;Disconnected&gt;
+
+    let conn = conn.connect().expect("connection failed");
+    conn.ping(); // ok
+    // conn.send(b"hello"); // compile error: no method `send` on Connection&lt;Connected&gt;
+
+    let conn = conn.authenticate("secret-token").expect("auth failed");
+    conn.send(b"hello world"); // ok
+    conn.subscribe("events");
+}
+</code></pre>
+
+                <h3>2.1 Typestate for Builder Validation</h3>
+                <pre><code class="language-rust">use std::marker::PhantomData;
+
+struct Missing;
+struct Present&lt;T&gt;(T);
+
+struct RequestBuilder&lt;Url, Method&gt; {
+    url: Url,
+    method: Method,
+    headers: Vec&lt;(String, String)&gt;,
+    body: Option&lt;Vec&lt;u8&gt;&gt;,
+}
+
+impl RequestBuilder&lt;Missing, Missing&gt; {
+    fn new() -&gt; Self {
+        RequestBuilder { url: Missing, method: Missing, headers: vec![], body: None }
+    }
+}
+
+impl&lt;M&gt; RequestBuilder&lt;Missing, M&gt; {
+    fn url(self, url: &amp;str) -&gt; RequestBuilder&lt;Present&lt;String&gt;, M&gt; {
+        RequestBuilder {
+            url: Present(url.to_string()),
+            method: self.method,
+            headers: self.headers,
+            body: self.body,
+        }
+    }
+}
+
+impl&lt;U&gt; RequestBuilder&lt;U, Missing&gt; {
+    fn get(self) -&gt; RequestBuilder&lt;U, Present&lt;&amp;'static str&gt;&gt; {
+        RequestBuilder { url: self.url, method: Present("GET"), headers: self.headers, body: self.body }
+    }
+    fn post(self) -&gt; RequestBuilder&lt;U, Present&lt;&amp;'static str&gt;&gt; {
+        RequestBuilder { url: self.url, method: Present("POST"), headers: self.headers, body: self.body }
+    }
+}
+
+// build() only available when both Url and Method are Present
+impl RequestBuilder&lt;Present&lt;String&gt;, Present&lt;&amp;'static str&gt;&gt; {
+    fn build(self) -&gt; String {
+        format!("{} {}", self.method.0, self.url.0)
+    }
+}
+
+fn main() {
+    let req = RequestBuilder::new()
+        .url("https://api.example.com/users")
+        .get()
+        .build(); // compiles: url and method both present
+
+    println!("{req}"); // GET https://api.example.com/users
+
+    // RequestBuilder::new().build(); // compile error: missing url and method
+    // RequestBuilder::new().url("x").build(); // compile error: missing method
+}
+</code></pre>
+            </section>
+
+            <!-- 3. RAII -->
+            <section>
+                <h2>3. RAII — Resource Acquisition Is Initialization</h2>
+                <p>Rust's ownership system makes RAII automatic. Implement <code>Drop</code> to release resources when a value goes out of scope — no manual cleanup, no leaks.</p>
+                <pre><code class="language-rust">use std::sync::{Arc, Mutex};
+
+// A scoped timer that prints elapsed time when dropped
+struct Timer {
+    label: String,
+    start: std::time::Instant,
+}
+
+impl Timer {
+    fn new(label: &amp;str) -&gt; Self {
+        println!("[{label}] started");
+        Timer { label: label.to_string(), start: std::time::Instant::now() }
+    }
+}
+
+impl Drop for Timer {
+    fn drop(&mut self) {
+        println!("[{}] elapsed: {:?}", self.label, self.start.elapsed());
+    }
+}
+
+// A scoped lock that releases a resource when dropped
+struct ScopedLock&lt;'a, T&gt; {
+    guard: std::sync::MutexGuard&lt;'a, T&gt;,
+    label: &amp;'static str,
+}
+
+impl&lt;'a, T&gt; ScopedLock&lt;'a, T&gt; {
+    fn acquire(mutex: &amp;'a Mutex&lt;T&gt;, label: &amp;'static str) -&gt; Self {
+        println!("[lock] acquiring {label}");
+        ScopedLock { guard: mutex.lock().unwrap(), label }
+    }
+}
+
+impl&lt;T&gt; Drop for ScopedLock&lt;'_, T&gt; {
+    fn drop(&mut self) {
+        println!("[lock] releasing {}", self.label);
+    }
+}
+
+impl&lt;T&gt; std::ops::Deref for ScopedLock&lt;'_, T&gt; {
+    type Target = T;
+    fn deref(&amp;self) -&gt; &amp;T { &amp;self.guard }
+}
+
+fn main() {
+    {
+        let _t = Timer::new("operation");
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        println!("doing work...");
+        // _t dropped here — prints elapsed time
+    }
+
+    let data = Mutex::new(vec![1, 2, 3]);
+    {
+        let lock = ScopedLock::acquire(&amp;data, "data");
+        println!("data len: {}", lock.len()); // via Deref
+        // lock dropped here — releases mutex
+    }
+    println!("mutex free again");
+}
+</code></pre>
+            </section>
+
+            <!-- 4. Extension traits -->
+            <section>
+                <h2>4. Extension Traits</h2>
+                <p>Add methods to types you don't own — including standard library types — by defining a trait and implementing it. This sidesteps the orphan rule by defining the trait in your crate.</p>
+                <pre><code class="language-rust">// Add methods to &amp;[T] slices
+pub trait SliceExt&lt;T&gt; {
+    fn second(&amp;self) -&gt; Option&lt;&amp;T&gt;;
+    fn average(&amp;self) -&gt; f64 where T: Into&lt;f64&gt; + Copy;
+    fn contains_any(&amp;self, others: &amp;[T]) -&gt; bool where T: PartialEq;
+}
+
+impl&lt;T&gt; SliceExt&lt;T&gt; for [T] {
+    fn second(&amp;self) -&gt; Option&lt;&amp;T&gt; { self.get(1) }
+
+    fn average(&amp;self) -&gt; f64 where T: Into&lt;f64&gt; + Copy {
+        if self.is_empty() { return 0.0; }
+        let sum: f64 = self.iter().map(|&amp;x| x.into()).sum();
+        sum / self.len() as f64
+    }
+
+    fn contains_any(&amp;self, others: &amp;[T]) -&gt; bool where T: PartialEq {
+        others.iter().any(|o| self.contains(o))
+    }
+}
+
+// Add methods to String / &amp;str
+pub trait StrExt {
+    fn truncate_at(&amp;self, max: usize, suffix: &amp;str) -&gt; String;
+    fn count_words(&amp;self) -&gt; usize;
+}
+
+impl StrExt for str {
+    fn truncate_at(&amp;self, max: usize, suffix: &amp;str) -&gt; String {
+        if self.chars().count() &lt;= max {
+            self.to_string()
+        } else {
+            let cut: String = self.chars().take(max).collect();
+            format!("{cut}{suffix}")
+        }
+    }
+
+    fn count_words(&amp;self) -&gt; usize {
+        self.split_whitespace().count()
+    }
+}
+
+fn main() {
+    let nums = [10u32, 20, 30, 40, 50];
+    println!("second: {:?}", nums.second());       // Some(20)
+    println!("average: {}", nums.average());        // 30
+    println!("contains 30 or 99: {}", nums.contains_any(&amp;[99, 30])); // true
+
+    let s = "Hello, beautiful world!";
+    println!("{}", s.truncate_at(10, "…")); // Hello, bea…
+    println!("words: {}", s.count_words()); // 3
+}
+</code></pre>
+            </section>
+
+            <!-- 5. Sealed traits -->
+            <section>
+                <h2>5. Sealed Traits</h2>
+                <p>A sealed trait can only be implemented by types within your crate. Users can use the trait but not implement it — useful for extensible enums and stable APIs.</p>
+                <pre><code class="language-rust">// The sealing mechanism: a private supertrait
+mod private {
+    pub trait Sealed {}
+}
+
+// Public trait with a private supertrait — external code cannot implement it
+// because it cannot name `private::Sealed` to satisfy the bound
+pub trait SqlType: private::Sealed {
+    fn sql_type_name() -&gt; &amp;'static str;
+    fn to_sql_string(&amp;self) -&gt; String;
+}
+
+// Only types in this module can impl SqlType
+pub struct SqlInt(pub i64);
+pub struct SqlText(pub String);
+pub struct SqlBool(pub bool);
+
+impl private::Sealed for SqlInt {}
+impl SqlType for SqlInt {
+    fn sql_type_name() -&gt; &amp;'static str { "INTEGER" }
+    fn to_sql_string(&amp;self) -&gt; String { self.0.to_string() }
+}
+
+impl private::Sealed for SqlText {}
+impl SqlType for SqlText {
+    fn sql_type_name() -&gt; &amp;'static str { "TEXT" }
+    fn to_sql_string(&amp;self) -&gt; String { format!("'{}'", self.0.replace('\'', "''")) }
+}
+
+impl private::Sealed for SqlBool {}
+impl SqlType for SqlBool {
+    fn sql_type_name() -&gt; &amp;'static str { "BOOLEAN" }
+    fn to_sql_string(&amp;self) -&gt; String { (if self.0 { "TRUE" } else { "FALSE" }).to_string() }
+}
+
+fn bind&lt;T: SqlType&gt;(placeholder: &amp;str, value: &amp;T) -&gt; String {
+    format!("{placeholder} = {}", value.to_sql_string())
+}
+
+fn main() {
+    println!("{}", bind("age",   &amp;SqlInt(30)));           // age = 30
+    println!("{}", bind("name",  &amp;SqlText("O'Brian".to_string()))); // name = 'O''Brian'
+    println!("{}", bind("admin", &amp;SqlBool(true)));        // admin = TRUE
+}
+</code></pre>
+            </section>
+
+            <!-- 6. State machine -->
+            <section>
+                <h2>6. State Machine Pattern</h2>
+                <p>Represent a state machine as an enum where each variant holds the data for that state. Transitions return a new variant.</p>
+                <pre><code class="language-rust">#[derive(Debug)]
+enum TrafficLight {
+    Red { remaining_secs: u32 },
+    Yellow { remaining_secs: u32 },
+    Green { remaining_secs: u32 },
+}
+
+impl TrafficLight {
+    fn new() -&gt; Self {
+        TrafficLight::Red { remaining_secs: 30 }
+    }
+
+    fn tick(self) -&gt; Self {
+        match self {
+            TrafficLight::Red { remaining_secs: 1 } =&gt;
+                TrafficLight::Green { remaining_secs: 25 },
+            TrafficLight::Red { remaining_secs } =&gt;
+                TrafficLight::Red { remaining_secs: remaining_secs - 1 },
+
+            TrafficLight::Green { remaining_secs: 1 } =&gt;
+                TrafficLight::Yellow { remaining_secs: 5 },
+            TrafficLight::Green { remaining_secs } =&gt;
+                TrafficLight::Green { remaining_secs: remaining_secs - 1 },
+
+            TrafficLight::Yellow { remaining_secs: 1 } =&gt;
+                TrafficLight::Red { remaining_secs: 30 },
+            TrafficLight::Yellow { remaining_secs } =&gt;
+                TrafficLight::Yellow { remaining_secs: remaining_secs - 1 },
+        }
+    }
+
+    fn can_go(&amp;self) -&gt; bool {
+        matches!(self, TrafficLight::Green { .. })
+    }
+
+    fn color(&amp;self) -&gt; &amp;'static str {
+        match self {
+            TrafficLight::Red { .. }    =&gt; "🔴 Red",
+            TrafficLight::Yellow { .. } =&gt; "🟡 Yellow",
+            TrafficLight::Green { .. }  =&gt; "🟢 Green",
+        }
+    }
+}
+
+fn main() {
+    let mut light = TrafficLight::new();
+    for _ in 0..35 {
+        println!("{} (can go: {})", light.color(), light.can_go());
+        light = light.tick();
+    }
+}
+</code></pre>
+            </section>
+
+            <!-- 7. Strategy / Dependency injection -->
+            <section>
+                <h2>7. Strategy Pattern — Trait Objects as Dependencies</h2>
+                <pre><code class="language-rust">// Define the strategy interface
+trait Compressor: Send + Sync {
+    fn compress(&amp;self, data: &amp;[u8]) -&gt; Vec&lt;u8&gt;;
+    fn name(&amp;self) -&gt; &amp;'static str;
+}
+
+// Multiple strategies
+struct NoOp;
+struct Rle;
+
+impl Compressor for NoOp {
+    fn compress(&amp;self, data: &amp;[u8]) -&gt; Vec&lt;u8&gt; { data.to_vec() }
+    fn name(&amp;self) -&gt; &amp;'static str { "none" }
+}
+
+impl Compressor for Rle {
+    fn compress(&amp;self, data: &amp;[u8]) -&gt; Vec&lt;u8&gt; {
+        // Simple run-length encoding
+        let mut out = Vec::new();
+        let mut i = 0;
+        while i &lt; data.len() {
+            let byte = data[i];
+            let mut count = 1u8;
+            while i + count as usize &lt; data.len()
+                &amp;&amp; data[i + count as usize] == byte
+                &amp;&amp; count &lt; 255
+            {
+                count += 1;
+            }
+            out.push(count);
+            out.push(byte);
+            i += count as usize;
+        }
+        out
+    }
+    fn name(&amp;self) -&gt; &amp;'static str { "rle" }
+}
+
+// Consumer uses Box&lt;dyn Compressor&gt; — strategy chosen at runtime
+struct Archiver {
+    compressor: Box&lt;dyn Compressor&gt;,
+}
+
+impl Archiver {
+    fn new(compressor: impl Compressor + 'static) -&gt; Self {
+        Archiver { compressor: Box::new(compressor) }
+    }
+
+    fn archive(&amp;self, data: &amp;[u8]) -&gt; Vec&lt;u8&gt; {
+        let compressed = self.compressor.compress(data);
+        println!("  algorithm: {}, {}-&gt;{} bytes", self.compressor.name(), data.len(), compressed.len());
+        compressed
+    }
+}
+
+// Or use generics for zero-cost monomorphization (strategy known at compile time)
+struct StaticArchiver&lt;C: Compressor&gt; {
+    compressor: C,
+}
+
+fn main() {
+    let data = b"aaaaaabbbcccccdddddddddd";
+
+    let a1 = Archiver::new(NoOp);
+    let a2 = Archiver::new(Rle);
+
+    a1.archive(data); // algorithm: none, 24->24 bytes
+    a2.archive(data); // algorithm: rle, 24->8 bytes
+}
+</code></pre>
+            </section>
+
+            <!-- 8. Visitor -->
+            <section>
+                <h2>8. Visitor Pattern</h2>
+                <p>Separate algorithms from the data structures they operate on. In Rust, this is often done with trait objects or enums + match.</p>
+                <pre><code class="language-rust">// AST representation
+#[derive(Debug)]
+enum Expr {
+    Number(f64),
+    Variable(String),
+    BinOp { op: char, left: Box&lt;Expr&gt;, right: Box&lt;Expr&gt; },
+    Negate(Box&lt;Expr&gt;),
+}
+
+// Visitor trait — one method per node type
+trait ExprVisitor {
+    type Output;
+    fn visit_number(&amp;mut self, n: f64) -&gt; Self::Output;
+    fn visit_variable(&amp;mut self, name: &amp;str) -&gt; Self::Output;
+    fn visit_binop(&amp;mut self, op: char, left: &amp;Expr, right: &amp;Expr) -&gt; Self::Output;
+    fn visit_negate(&amp;mut self, inner: &amp;Expr) -&gt; Self::Output;
+}
+
+impl Expr {
+    fn accept&lt;V: ExprVisitor&gt;(&amp;self, v: &amp;mut V) -&gt; V::Output {
+        match self {
+            Expr::Number(n)              =&gt; v.visit_number(*n),
+            Expr::Variable(name)         =&gt; v.visit_variable(name),
+            Expr::BinOp { op, left, right } =&gt; v.visit_binop(*op, left, right),
+            Expr::Negate(inner)          =&gt; v.visit_negate(inner),
+        }
+    }
+}
+
+// Evaluator visitor
+struct Evaluator {
+    vars: std::collections::HashMap&lt;String, f64&gt;,
+}
+
+impl ExprVisitor for Evaluator {
+    type Output = f64;
+
+    fn visit_number(&amp;mut self, n: f64) -&gt; f64 { n }
+
+    fn visit_variable(&amp;mut self, name: &amp;str) -&gt; f64 {
+        *self.vars.get(name).expect("undefined variable")
+    }
+
+    fn visit_binop(&amp;mut self, op: char, left: &amp;Expr, right: &amp;Expr) -&gt; f64 {
+        let l = left.accept(self);
+        let r = right.accept(self);
+        match op {
+            '+' =&gt; l + r, '-' =&gt; l - r,
+            '*' =&gt; l * r, '/' =&gt; l / r,
+            _   =&gt; panic!("unknown op"),
+        }
+    }
+
+    fn visit_negate(&amp;mut self, inner: &amp;Expr) -&gt; f64 { -inner.accept(self) }
+}
+
+// Pretty-printer visitor
+struct Printer;
+
+impl ExprVisitor for Printer {
+    type Output = String;
+    fn visit_number(&amp;mut self, n: f64) -&gt; String { n.to_string() }
+    fn visit_variable(&amp;mut self, name: &amp;str) -&gt; String { name.to_string() }
+    fn visit_binop(&amp;mut self, op: char, l: &amp;Expr, r: &amp;Expr) -&gt; String {
+        format!("({} {op} {})", l.accept(self), r.accept(self))
+    }
+    fn visit_negate(&amp;mut self, inner: &amp;Expr) -&gt; String {
+        format!("(-{})", inner.accept(self))
+    }
+}
+
+fn main() {
+    // (x + 2) * -(y - 1)
+    let ast = Expr::BinOp {
+        op: '*',
+        left: Box::new(Expr::BinOp {
+            op: '+',
+            left: Box::new(Expr::Variable("x".to_string())),
+            right: Box::new(Expr::Number(2.0)),
+        }),
+        right: Box::new(Expr::Negate(Box::new(Expr::BinOp {
+            op: '-',
+            left: Box::new(Expr::Variable("y".to_string())),
+            right: Box::new(Expr::Number(1.0)),
+        }))),
+    };
+
+    let printed = ast.accept(&amp;mut Printer);
+    println!("{printed}"); // ((x + 2) * (-(y - 1)))
+
+    let mut eval = Evaluator {
+        vars: [("x".to_string(), 3.0), ("y".to_string(), 5.0)].into(),
+    };
+    let result = ast.accept(&amp;mut eval);
+    println!("= {result}"); // = -20
+}
+</code></pre>
+            </section>
+
+            <!-- 9. Command pattern -->
+            <section>
+                <h2>9. Command Pattern — Undo/Redo</h2>
+                <pre><code class="language-rust">trait Command {
+    fn execute(&amp;mut self, text: &amp;mut String);
+    fn undo(&amp;mut self, text: &amp;mut String);
+    fn description(&amp;self) -&gt; String;
+}
+
+struct Insert { pos: usize, content: String }
+struct Delete { pos: usize, len: usize, deleted: String }
+
+impl Command for Insert {
+    fn execute(&amp;mut self, text: &amp;mut String) {
+        text.insert_str(self.pos, &amp;self.content);
+    }
+    fn undo(&amp;mut self, text: &amp;mut String) {
+        text.drain(self.pos..self.pos + self.content.len());
+    }
+    fn description(&amp;self) -&gt; String {
+        format!("insert {:?} at {}", self.content, self.pos)
+    }
+}
+
+impl Command for Delete {
+    fn execute(&amp;mut self, text: &amp;mut String) {
+        self.deleted = text.drain(self.pos..self.pos + self.len).collect();
+    }
+    fn undo(&amp;mut self, text: &amp;mut String) {
+        text.insert_str(self.pos, &amp;self.deleted);
+    }
+    fn description(&amp;self) -&gt; String {
+        format!("delete {} chars at {}", self.len, self.pos)
+    }
+}
+
+struct Editor {
+    text: String,
+    history: Vec&lt;Box&lt;dyn Command&gt;&gt;,
+}
+
+impl Editor {
+    fn new() -&gt; Self { Editor { text: String::new(), history: Vec::new() } }
+
+    fn execute(&amp;mut self, mut cmd: Box&lt;dyn Command&gt;) {
+        cmd.execute(&amp;mut self.text);
+        println!("  did: {}", cmd.description());
+        self.history.push(cmd);
+    }
+
+    fn undo(&amp;mut self) {
+        if let Some(mut cmd) = self.history.pop() {
+            cmd.undo(&amp;mut self.text);
+            println!("  undid: {}", cmd.description());
+        }
+    }
+}
+
+fn main() {
+    let mut ed = Editor::new();
+    ed.execute(Box::new(Insert { pos: 0, content: "Hello".to_string() }));
+    ed.execute(Box::new(Insert { pos: 5, content: ", world!".to_string() }));
+    println!("text: {:?}", ed.text); // "Hello, world!"
+
+    ed.execute(Box::new(Delete { pos: 5, len: 8, deleted: String::new() }));
+    println!("text: {:?}", ed.text); // "Hello"
+
+    ed.undo(); // restore ", world!"
+    println!("text: {:?}", ed.text); // "Hello, world!"
+
+    ed.undo();
+    println!("text: {:?}", ed.text); // "Hello"
+}
+</code></pre>
+            </section>
+
+            <!-- 10. Compose patterns -->
+            <section>
+                <h2>10. Summary: When to Use Each Pattern</h2>
+                <div style="overflow-x: auto; margin: 1.5rem 0;">
+                    <table style="width:100%; border-collapse: collapse; font-size: 14px;">
+                        <thead>
+                            <tr style="background: var(--surface); text-align: left;">
+                                <th style="padding: 10px 14px; border-bottom: 2px solid var(--border);">Pattern</th>
+                                <th style="padding: 10px 14px; border-bottom: 2px solid var(--border);">Use when</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td style="padding:8px 14px;border-bottom:1px solid var(--border)"><strong>Newtype</strong></td><td style="padding:8px 14px;border-bottom:1px solid var(--border)">Prevent mixing semantically different values of the same underlying type</td></tr>
+                            <tr><td style="padding:8px 14px;border-bottom:1px solid var(--border)"><strong>Typestate</strong></td><td style="padding:8px 14px;border-bottom:1px solid var(--border)">Enforce API call ordering at compile time</td></tr>
+                            <tr><td style="padding:8px 14px;border-bottom:1px solid var(--border)"><strong>RAII + Drop</strong></td><td style="padding:8px 14px;border-bottom:1px solid var(--border)">Automatic cleanup of any resource (files, locks, timers, DB connections)</td></tr>
+                            <tr><td style="padding:8px 14px;border-bottom:1px solid var(--border)"><strong>Extension trait</strong></td><td style="padding:8px 14px;border-bottom:1px solid var(--border)">Add methods to foreign types without orphan rule violations</td></tr>
+                            <tr><td style="padding:8px 14px;border-bottom:1px solid var(--border)"><strong>Sealed trait</strong></td><td style="padding:8px 14px;border-bottom:1px solid var(--border)">Expose a trait publicly but restrict implementations to your crate</td></tr>
+                            <tr><td style="padding:8px 14px;border-bottom:1px solid var(--border)"><strong>State machine</strong></td><td style="padding:8px 14px;border-bottom:1px solid var(--border)">Model objects with well-defined transitions (protocols, workflows, UIs)</td></tr>
+                            <tr><td style="padding:8px 14px;border-bottom:1px solid var(--border)"><strong>Strategy</strong></td><td style="padding:8px 14px;border-bottom:1px solid var(--border)">Swap algorithms at runtime (Box&lt;dyn Trait&gt;) or compile time (generics)</td></tr>
+                            <tr><td style="padding:8px 14px;border-bottom:1px solid var(--border)"><strong>Visitor</strong></td><td style="padding:8px 14px;border-bottom:1px solid var(--border)">Apply multiple algorithms to an AST or recursive data structure</td></tr>
+                            <tr><td style="padding:8px 14px"><strong>Command</strong></td><td style="padding:8px 14px">Implement undo/redo, queuing, or logging of operations</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+                    </div><!-- /article-body -->
+                </div><!-- /article-main -->
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+
+                    <div class="sidebar-box">
+                        <h4>Rust Series &mdash; Module 7</h4>
+                        <a href="rust-patterns.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Design Patterns in Rust</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                        <a href="rust-performance.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Performance &amp; Optimization</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                        <a href="rust-wasm.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">WebAssembly with Rust</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                        <a href="rust-cli.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">CLI Applications</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-rust.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+    <script>
+        const toggle = document.querySelector('.nav-toggle');
+        const navLinks = document.querySelector('.nav-links');
+        toggle.addEventListener('click', () => {
+            navLinks.classList.toggle('active');
+            toggle.classList.toggle('active');
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python fix_rust_layout.py)",
+      "Bash(python -c \":*)"
+    ]
+  }
+}

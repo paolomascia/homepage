@@ -267,6 +267,378 @@
 
             </div>
 
+            <!-- Memory Management -->
+            <h3 style="font-size: 18px; font-weight: 700; color: var(--text); margin-top: 48px; margin-bottom: 24px; text-transform: uppercase; letter-spacing: 2px; font-family: var(--mono);">Memory Management</h3>
+            <div class="posts-grid">
+
+                <a href="rust-smart-pointers.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Feb 2026</span>
+                        <span class="post-reading">16 min read</span>
+                    </div>
+                    <h3>Smart Pointers: Box, Rc &amp; Arc</h3>
+                    <p>Heap allocation with Box, recursive types, trait objects, shared ownership with Rc and Weak to break cycles, thread-safe Arc with Mutex, and deref coercions explained.</p>
+                    <div class="post-tags">
+                        <span>Rust</span>
+                        <span>Smart Pointers</span>
+                        <span>Memory</span>
+                    </div>
+                </a>
+
+                <a href="rust-interior-mutability.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Feb 2026</span>
+                        <span class="post-reading">15 min read</span>
+                    </div>
+                    <h3>Interior Mutability: Cell, RefCell, Mutex &amp; RwLock</h3>
+                    <p>Mutating data through shared references &mdash; Cell for Copy types, RefCell for dynamic borrow checking, Mutex and Condvar for threads, RwLock for concurrent reads, and AtomicUsize for lock-free counters.</p>
+                    <div class="post-tags">
+                        <span>Rust</span>
+                        <span>Interior Mutability</span>
+                        <span>Concurrency</span>
+                    </div>
+                </a>
+
+                <a href="rust-slice-deref.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Feb 2026</span>
+                        <span class="post-reading">14 min read</span>
+                    </div>
+                    <h3>Slices, Deref Coercions &amp; Custom Deref</h3>
+                    <p>Slice creation, mutable slice operations, powerful slice patterns in match, the deref coercion chain (&amp;String&rarr;&amp;str, &amp;Vec&rarr;&amp;[T]), implementing custom Deref, and Box&lt;[T]&gt; vs Vec&lt;T&gt; memory layout.</p>
+                    <div class="post-tags">
+                        <span>Rust</span>
+                        <span>Slices</span>
+                        <span>Deref</span>
+                    </div>
+                </a>
+
+                <a href="rust-unsafe.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Feb 2026</span>
+                        <span class="post-reading">17 min read</span>
+                    </div>
+                    <h3>Unsafe Rust: Raw Pointers, unsafe Blocks &amp; FFI</h3>
+                    <p>The five unsafe superpowers, raw pointer arithmetic, building safe abstractions over unsafe code, calling C from Rust with FFI (libc), exporting Rust to C, mem::transmute, mem::forget, and Miri for validation.</p>
+                    <div class="post-tags">
+                        <span>Rust</span>
+                        <span>Unsafe</span>
+                        <span>FFI</span>
+                    </div>
+                </a>
+
+            </div>
+
+            <!-- Concurrency & Async -->
+            <h3 style="font-size: 18px; font-weight: 700; color: var(--text); margin-top: 48px; margin-bottom: 24px; text-transform: uppercase; letter-spacing: 2px; font-family: var(--mono);">Concurrency &amp; Async</h3>
+            <div class="posts-grid">
+
+                <a href="rust-threads.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Feb 2026</span>
+                        <span class="post-reading">16 min read</span>
+                    </div>
+                    <h3>OS Threads &amp; Scoped Threads</h3>
+                    <p>thread::spawn, move closures, scoped threads for borrowed data, thread builder, thread parking, thread-local storage, Arc&lt;Mutex&lt;T&gt;&gt; for shared state, deadlock avoidance, and parallel data processing with Rayon.</p>
+                    <div class="post-tags">
+                        <span>Rust</span>
+                        <span>Threads</span>
+                        <span>Concurrency</span>
+                    </div>
+                </a>
+
+                <a href="rust-channels.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Feb 2026</span>
+                        <span class="post-reading">15 min read</span>
+                    </div>
+                    <h3>Channels &amp; Message Passing</h3>
+                    <p>std::sync::mpsc (unbounded and bounded), multiple producers, the actor pattern for encapsulated state, pipeline pattern, crossbeam-channel for MPMC and select! over multiple channels.</p>
+                    <div class="post-tags">
+                        <span>Rust</span>
+                        <span>Channels</span>
+                        <span>Actor Pattern</span>
+                    </div>
+                </a>
+
+                <a href="rust-async-await.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Feb 2026</span>
+                        <span class="post-reading">18 min read</span>
+                    </div>
+                    <h3>Async/Await &amp; Futures</h3>
+                    <p>The Future trait and poll(), async fn desugaring, sequential vs concurrent .await, join!/try_join!/select!, spawning tasks, Pin and Unpin, async traits, async streams, and common async pitfalls.</p>
+                    <div class="post-tags">
+                        <span>Rust</span>
+                        <span>Async</span>
+                        <span>Futures</span>
+                    </div>
+                </a>
+
+                <a href="rust-tokio.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Feb 2026</span>
+                        <span class="post-reading">17 min read</span>
+                    </div>
+                    <h3>Tokio Runtime &amp; Async I/O</h3>
+                    <p>Multi-threaded vs current-thread runtime, async TCP/UDP, async file I/O, timers and intervals, tokio::sync primitives (Mutex, mpsc, oneshot, broadcast, watch, Semaphore), JoinSet, spawn_blocking, and graceful shutdown.</p>
+                    <div class="post-tags">
+                        <span>Rust</span>
+                        <span>Tokio</span>
+                        <span>Async I/O</span>
+                    </div>
+                </a>
+
+            </div>
+
+            <!-- Macros & Tooling -->
+            <h3 style="font-size: 18px; font-weight: 700; color: var(--text); margin-top: 48px; margin-bottom: 24px; text-transform: uppercase; letter-spacing: 2px; font-family: var(--mono);">Macros &amp; Tooling</h3>
+            <div class="posts-grid">
+
+                <a href="rust-macros-declarative.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Mar 2026</span>
+                        <span class="post-reading">17 min read</span>
+                    </div>
+                    <h3>Declarative Macros: macro_rules!</h3>
+                    <p>Pattern-based code generation — fragment specifiers, repetition ($(...)*), TT muncher pattern, recursive macros, hygiene, exporting macros, and practical patterns like trait impl generators.</p>
+                    <div class="post-tags">
+                        <span>Rust</span>
+                        <span>Macros</span>
+                        <span>Metaprogramming</span>
+                    </div>
+                </a>
+
+                <a href="rust-macros-procedural.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Mar 2026</span>
+                        <span class="post-reading">18 min read</span>
+                    </div>
+                    <h3>Procedural Macros</h3>
+                    <p>Custom derive macros with syn and quote, helper attributes, attribute macros for function transformation, function-like proc macros, handling generics, testing with trybuild, and real-world crates.</p>
+                    <div class="post-tags">
+                        <span>Rust</span>
+                        <span>Proc Macros</span>
+                        <span>syn</span>
+                    </div>
+                </a>
+
+                <a href="rust-testing.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Mar 2026</span>
+                        <span class="post-reading">16 min read</span>
+                    </div>
+                    <h3>Testing &amp; Benchmarking</h3>
+                    <p>Unit tests, test organization and filtering, integration tests, documentation tests, async tests with tokio::test, mocking with trait doubles and mockall, property-based testing with proptest, and Criterion benchmarks.</p>
+                    <div class="post-tags">
+                        <span>Rust</span>
+                        <span>Testing</span>
+                        <span>Criterion</span>
+                    </div>
+                </a>
+
+                <a href="rust-cargo-workspaces.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Mar 2026</span>
+                        <span class="post-reading">15 min read</span>
+                    </div>
+                    <h3>Cargo Workspaces, Features &amp; Build Scripts</h3>
+                    <p>Multi-crate workspaces with shared dependencies, feature flags and conditional compilation, build.rs for code generation and native library linking, profile configuration, and publishing to crates.io.</p>
+                    <div class="post-tags">
+                        <span>Rust</span>
+                        <span>Cargo</span>
+                        <span>Build System</span>
+                    </div>
+                </a>
+
+            </div>
+
+            <!-- Patterns & Systems -->
+            <h3 style="font-size: 18px; font-weight: 700; color: var(--text); margin-top: 48px; margin-bottom: 24px; text-transform: uppercase; letter-spacing: 2px; font-family: var(--mono);">Patterns &amp; Systems</h3>
+            <div class="posts-grid">
+
+                <a href="rust-patterns.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Mar 2026</span>
+                        <span class="post-reading">18 min read</span>
+                    </div>
+                    <h3>Design Patterns &amp; Idioms</h3>
+                    <p>Newtype, typestate for compile-time state machines, RAII with Drop, extension traits, sealed traits, the state machine enum pattern, strategy, visitor, and command for undo/redo.</p>
+                    <div class="post-tags">
+                        <span>Rust</span>
+                        <span>Patterns</span>
+                        <span>Idioms</span>
+                    </div>
+                </a>
+
+                <a href="rust-performance.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Mar 2026</span>
+                        <span class="post-reading">17 min read</span>
+                    </div>
+                    <h3>Performance</h3>
+                    <p>Profiling with flamegraphs and dhat, allocation strategies, zero-copy parsing, inlining and LTO, cache-friendly data layout (SoA), SIMD with the wide crate, string and I/O optimisation, and a performance checklist.</p>
+                    <div class="post-tags">
+                        <span>Rust</span>
+                        <span>Performance</span>
+                        <span>SIMD</span>
+                    </div>
+                </a>
+
+                <a href="rust-wasm.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Mar 2026</span>
+                        <span class="post-reading">16 min read</span>
+                    </div>
+                    <h3>WebAssembly</h3>
+                    <p>Toolchain setup with wasm-pack, wasm-bindgen for JS interop, web-sys browser APIs, js-sys built-in types, passing complex data with serde-wasm-bindgen, async in Wasm, binary size optimization, and the Wasm ecosystem.</p>
+                    <div class="post-tags">
+                        <span>Rust</span>
+                        <span>WebAssembly</span>
+                        <span>wasm-bindgen</span>
+                    </div>
+                </a>
+
+                <a href="rust-cli.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Mar 2026</span>
+                        <span class="post-reading">16 min read</span>
+                    </div>
+                    <h3>CLI Applications</h3>
+                    <p>Argument parsing with clap derive API, subcommands and validation, layered configuration files, coloured output with colored, progress bars with indicatif, stdin/stdout pipelines, error handling with anyhow, and cross-platform binary distribution.</p>
+                    <div class="post-tags">
+                        <span>Rust</span>
+                        <span>CLI</span>
+                        <span>clap</span>
+                    </div>
+                </a>
+
+            </div>
+
+            <!-- Web Development -->
+            <h3 style="font-size: 18px; font-weight: 700; color: var(--text); margin-top: 48px; margin-bottom: 24px; text-transform: uppercase; letter-spacing: 2px; font-family: var(--mono);">Web Development</h3>
+            <div class="posts-grid">
+
+                <a href="rust-axum.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Mar 2026</span>
+                        <span class="post-reading">18 min read</span>
+                    </div>
+                    <h3>Axum Web Framework</h3>
+                    <p>Building async REST APIs with Axum — routing, type-safe extractors (Path, Query, Json, State), shared application state, error handling with IntoResponse, Tower middleware (CORS, tracing, compression), custom extractors, file upload, and handler testing.</p>
+                    <div class="post-tags">
+                        <span>Rust</span>
+                        <span>Axum</span>
+                        <span>REST</span>
+                    </div>
+                </a>
+
+                <a href="rust-reqwest.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Mar 2026</span>
+                        <span class="post-reading">15 min read</span>
+                    </div>
+                    <h3>Reqwest HTTP Client</h3>
+                    <p>Async HTTP requests with Reqwest — GET/POST/PUT/DELETE, JSON de/serialization, headers and authentication, reusable client with connection pool, retry with exponential backoff, streaming downloads, multipart upload, mocking with wiremock, and concurrent requests.</p>
+                    <div class="post-tags">
+                        <span>Rust</span>
+                        <span>Reqwest</span>
+                        <span>HTTP Client</span>
+                    </div>
+                </a>
+
+                <a href="rust-sqlx.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Mar 2026</span>
+                        <span class="post-reading">17 min read</span>
+                    </div>
+                    <h3>SQLx &amp; Databases</h3>
+                    <p>Compile-time verified SQL with SQLx, async connection pools, database migrations, query_as! with strongly-typed results, INSERT/UPDATE/DELETE with RETURNING, ACID transactions and savepoints, streaming large results, dynamic queries, Axum integration, and testing with sqlx::test.</p>
+                    <div class="post-tags">
+                        <span>Rust</span>
+                        <span>SQLx</span>
+                        <span>PostgreSQL</span>
+                    </div>
+                </a>
+
+                <a href="rust-websockets.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Mar 2026</span>
+                        <span class="post-reading">16 min read</span>
+                    </div>
+                    <h3>WebSockets</h3>
+                    <p>Real-time bidirectional communication — Axum WebSocket handler, split send/receive, heartbeat/ping-pong, broadcast chat with tokio::sync::broadcast, multi-room support, authenticated connections, tokio-tungstenite client, and production considerations for scaling.</p>
+                    <div class="post-tags">
+                        <span>Rust</span>
+                        <span>WebSockets</span>
+                        <span>Real-time</span>
+                    </div>
+                </a>
+
+            </div>
+
+            <!-- Infrastructure & Production -->
+            <h3 style="font-size: 18px; font-weight: 700; color: var(--text); margin-top: 48px; margin-bottom: 24px; text-transform: uppercase; letter-spacing: 2px; font-family: var(--mono);">Infrastructure &amp; Production</h3>
+            <div class="posts-grid">
+
+                <a href="rust-grpc.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Mar 2026</span>
+                        <span class="post-reading">17 min read</span>
+                    </div>
+                    <h3>gRPC with Tonic</h3>
+                    <p>Protobuf code generation with tonic-build, unary RPCs, server-streaming, client-streaming, bidirectional streaming, auth interceptors, TLS, server reflection, and a gRPC-Web gateway.</p>
+                    <div class="post-tags">
+                        <span>Rust</span>
+                        <span>gRPC</span>
+                        <span>Tonic</span>
+                    </div>
+                </a>
+
+                <a href="rust-observability.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Mar 2026</span>
+                        <span class="post-reading">18 min read</span>
+                    </div>
+                    <h3>Observability</h3>
+                    <p>Structured logging with tracing and EnvFilter, Prometheus metrics via the metrics crate, OpenTelemetry OTLP distributed tracing, context propagation, and a full docker-compose observability stack.</p>
+                    <div class="post-tags">
+                        <span>Rust</span>
+                        <span>Observability</span>
+                        <span>OpenTelemetry</span>
+                    </div>
+                </a>
+
+                <a href="rust-serde-advanced.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Mar 2026</span>
+                        <span class="post-reading">16 min read</span>
+                    </div>
+                    <h3>Advanced Serde</h3>
+                    <p>Custom Serialize and Deserialize implementations, the Visitor pattern, enum representation strategies (internal, adjacent, untagged), flatten, remote types, zero-copy deserialization, and streaming JSON.</p>
+                    <div class="post-tags">
+                        <span>Rust</span>
+                        <span>Serde</span>
+                        <span>Serialization</span>
+                    </div>
+                </a>
+
+                <a href="rust-deployment.html" class="post-card">
+                    <div class="post-meta">
+                        <span class="post-date">Mar 2026</span>
+                        <span class="post-reading">18 min read</span>
+                    </div>
+                    <h3>Deploying Rust in Production</h3>
+                    <p>Docker multi-stage builds with cargo-chef, graceful SIGTERM shutdown via CancellationToken, Kubernetes liveness and readiness probes, layered configuration with the config crate, secrets management, and CI/CD release pipelines.</p>
+                    <div class="post-tags">
+                        <span>Rust</span>
+                        <span>Docker</span>
+                        <span>Kubernetes</span>
+                    </div>
+                </a>
+
+            </div>
+
         </div>
     </section>
 

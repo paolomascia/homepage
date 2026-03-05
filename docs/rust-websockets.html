@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSockets in Rust &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="rust-tech-insights.html">Rust</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+            <button class="nav-toggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+            <header class="article-header">
+                        <a href="rust-tech-insights.html" class="back-link">&larr; Back to Rust Tech Insights</a>
+                <div class="post-meta">
+                    <span class="post-date">Mar 2026</span>
+                    <span class="post-reading">16 min read</span>
+                </div>
+                <h1>WebSockets in Rust</h1>
+                <div class="post-tags">
+                    <span>Rust</span>
+                    <span>WebSockets</span>
+                    <span>Real-time</span>
+                </div>
+            </header>
+
+                    <div class="article-body">
+
+            <section>
+                <h2>1. Setup</h2>
+                <pre><code class="language-toml"># Cargo.toml
+[dependencies]
+axum       = { version = "0.7", features = ["ws"] }
+tokio      = { version = "1", features = ["full"] }
+tokio-tungstenite = "0.23"  # standalone WS (server + client)
+futures    = "0.3"
+serde      = { version = "1", features = ["derive"] }
+serde_json = "1"
+tower-http = { version = "0.5", features = ["fs"] }  # serve static files
+</code></pre>
+            </section>
+
+            <section>
+                <h2>2. WebSocket Handler with Axum</h2>
+                <pre><code class="language-rust">use axum::{
+    extract::ws::{WebSocket, WebSocketUpgrade, Message},
+    response::IntoResponse,
+    routing::get,
+    Router,
+};
+use futures::{SinkExt, StreamExt};
+
+// The upgrade handler — HTTP &rarr; WebSocket handshake
+async fn ws_handler(ws: WebSocketUpgrade) -&gt; impl IntoResponse {
+    ws.on_upgrade(handle_socket)
+}
+
+// Once upgraded, `socket` is a bidirectional async stream of Messages
+async fn handle_socket(mut socket: WebSocket) {
+    // Send a welcome message
+    if socket.send(Message::Text("Welcome!".into())).await.is_err() {
+        return; // client disconnected
+    }
+
+    // Echo loop
+    while let Some(msg) = socket.recv().await {
+        match msg {
+            Ok(Message::Text(text)) =&gt; {
+                println!("received: {text}");
+                let reply = format!("echo: {text}");
+                if socket.send(Message::Text(reply.into())).await.is_err() {
+                    break; // client disconnected
+                }
+            }
+            Ok(Message::Binary(data)) =&gt; {
+                println!("binary: {} bytes", data.len());
+                let _ = socket.send(Message::Binary(data)).await;
+            }
+            Ok(Message::Ping(data)) =&gt; {
+                let _ = socket.send(Message::Pong(data)).await;
+            }
+            Ok(Message::Close(_)) | Err(_) =&gt; break,
+            Ok(Message::Pong(_)) =&gt; {} // ignore
+        }
+    }
+
+    println!("client disconnected");
+}
+
+#[tokio::main]
+async fn main() {
+    let app = Router::new()
+        .route("/ws", get(ws_handler));
+
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    println!("WebSocket server on ws://localhost:3000/ws");
+    axum::serve(listener, app).await.unwrap();
+}
+</code></pre>
+            </section>
+
+            <section>
+                <h2>3. Split Send / Receive</h2>
+                <p>Split the socket into separate sender and receiver halves to drive them independently — useful for concurrent reading and writing.</p>
+                <pre><code class="language-rust">use axum::extract::ws::{WebSocket, Message};
+use futures::{SinkExt, StreamExt};
+use tokio::time::{interval, Duration};
+
+async fn handle_socket_split(socket: WebSocket) {
+    let (mut sender, mut receiver) = socket.split();
+
+    // Spawn a task that sends a heartbeat every 30 seconds
+    let mut ping_task = tokio::spawn(async move {
+        let mut ticker = interval(Duration::from_secs(30));
+        loop {
+            ticker.tick().await;
+            if sender.send(Message::Ping(vec![].into())).await.is_err() {
+                break;
+            }
+        }
+    });
+
+    // Read messages in the current task
+    let mut recv_task = tokio::spawn(async move {
+        while let Some(msg) = receiver.next().await {
+            match msg {
+                Ok(Message::Text(t)) =&gt; println!("client: {t}"),
+                Ok(Message::Close(_)) | Err(_) =&gt; break,
+                _ =&gt; {}
+            }
+        }
+    });
+
+    // If either task finishes, abort the other
+    tokio::select! {
+        _ = &amp;mut ping_task =&gt; recv_task.abort(),
+        _ = &amp;mut recv_task =&gt; ping_task.abort(),
+    }
+}
+</code></pre>
+            </section>
+
+            <section>
+                <h2>4. Broadcast — WebSocket Chat Server</h2>
+                <p>Use <code>tokio::sync::broadcast</code> to fan out messages from any client to all connected clients.</p>
+                <pre><code class="language-rust">use axum::{
+    extract::{ws::{WebSocket, WebSocketUpgrade, Message}, State},
+    response::IntoResponse,
+    routing::get,
+    Router,
+};
+use futures::{SinkExt, StreamExt};
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+use tokio::sync::broadcast;
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct ChatMessage {
+    sender: String,
+    content: String,
+    timestamp: u64,
+}
+
+#[derive(Clone)]
+struct AppState {
+    tx: broadcast::Sender&lt;ChatMessage&gt;,
+}
+
+async fn chat_handler(
+    ws: WebSocketUpgrade,
+    State(state): State&lt;AppState&gt;,
+) -&gt; impl IntoResponse {
+    ws.on_upgrade(|socket| handle_chat(socket, state))
+}
+
+async fn handle_chat(socket: WebSocket, state: AppState) {
+    let (mut sender, mut receiver) = socket.split();
+
+    // Each connection gets its own receiver from the broadcast channel
+    let mut rx = state.tx.subscribe();
+
+    // Task: forward broadcast messages to this WebSocket client
+    let mut send_task = tokio::spawn(async move {
+        while let Ok(msg) = rx.recv().await {
+            let json = serde_json::to_string(&amp;msg).unwrap();
+            if sender.send(Message::Text(json.into())).await.is_err() {
+                break;
+            }
+        }
+    });
+
+    // Task: read from this WebSocket client and broadcast to all others
+    let tx = state.tx.clone();
+    let mut recv_task = tokio::spawn(async move {
+        while let Some(Ok(Message::Text(text))) = receiver.next().await {
+            // Parse the incoming message
+            if let Ok(mut msg) = serde_json::from_str::&lt;ChatMessage&gt;(&amp;text) {
+                msg.timestamp = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs();
+
+                // Broadcast to ALL subscribers (including the sender)
+                let _ = tx.send(msg);
+            }
+        }
+    });
+
+    tokio::select! {
+        _ = &amp;mut send_task =&gt; recv_task.abort(),
+        _ = &amp;mut recv_task =&gt; send_task.abort(),
+    }
+}
+
+#[tokio::main]
+async fn main() {
+    let (tx, _rx) = broadcast::channel::&lt;ChatMessage&gt;(128);
+    let state = AppState { tx };
+
+    let app = Router::new()
+        .route("/ws/chat", get(chat_handler))
+        .with_state(state);
+
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    println!("Chat server on ws://localhost:3000/ws/chat");
+    axum::serve(listener, app).await.unwrap();
+}
+</code></pre>
+            </section>
+
+            <section>
+                <h2>5. Rooms — Targeted Broadcast</h2>
+                <pre><code class="language-rust">use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
+use tokio::sync::broadcast;
+
+type RoomMap = Arc&lt;RwLock&lt;HashMap&lt;String, broadcast::Sender&lt;String&gt;&gt;&gt;&gt;;
+
+fn get_or_create_room(rooms: &amp;RoomMap, room_id: &amp;str) -&gt; broadcast::Sender&lt;String&gt; {
+    // Fast path: room already exists
+    {
+        let map = rooms.read().unwrap();
+        if let Some(tx) = map.get(room_id) {
+            return tx.clone();
+        }
+    }
+
+    // Slow path: create the room
+    let mut map = rooms.write().unwrap();
+    // Double-check in case another thread created it while we waited
+    map.entry(room_id.to_string())
+        .or_insert_with(|| broadcast::channel(64).0)
+        .clone()
+}
+
+async fn handle_room_socket(
+    socket: WebSocket,
+    rooms: RoomMap,
+    room_id: String,
+    user_id: String,
+) {
+    let tx = get_or_create_room(&amp;rooms, &amp;room_id);
+    let mut rx = tx.subscribe();
+    let (mut sender, mut receiver) = socket.split();
+
+    // Announce join
+    let _ = tx.send(format!("{user_id} joined room {room_id}"));
+
+    let user_id_clone = user_id.clone();
+    let tx_clone = tx.clone();
+
+    let mut send_task = tokio::spawn(async move {
+        while let Ok(msg) = rx.recv().await {
+            if sender.send(Message::Text(msg.into())).await.is_err() {
+                break;
+            }
+        }
+    });
+
+    let mut recv_task = tokio::spawn(async move {
+        while let Some(Ok(Message::Text(text))) = receiver.next().await {
+            let broadcast_msg = format!("[{user_id_clone}] {text}");
+            let _ = tx_clone.send(broadcast_msg);
+        }
+    });
+
+    tokio::select! {
+        _ = &amp;mut send_task =&gt; recv_task.abort(),
+        _ = &amp;mut recv_task =&gt; send_task.abort(),
+    }
+
+    // Announce leave
+    let _ = tx.send(format!("{user_id} left room {room_id}"));
+}
+
+use axum::extract::ws::Message;
+</code></pre>
+            </section>
+
+            <section>
+                <h2>6. Connection Metadata and Query Params</h2>
+                <pre><code class="language-rust">use axum::{
+    extract::{ws::WebSocketUpgrade, Query, State},
+    response::IntoResponse,
+};
+use serde::Deserialize;
+
+#[derive(Deserialize)]
+struct ConnectParams {
+    token: String,
+    room: Option&lt;String&gt;,
+}
+
+async fn authenticated_ws(
+    ws: WebSocketUpgrade,
+    Query(params): Query&lt;ConnectParams&gt;,
+    State(state): State&lt;AppState&gt;,
+) -&gt; impl IntoResponse {
+    // Validate the token before upgrading
+    if params.token != "valid-token" {
+        return axum::http::StatusCode::UNAUTHORIZED.into_response();
+    }
+
+    let room = params.room.unwrap_or_else(|| "general".to_string());
+
+    ws.on_upgrade(move |socket| async move {
+        handle_chat(socket, state).await;
+    })
+}
+</code></pre>
+            </section>
+
+            <section>
+                <h2>7. tokio-tungstenite WebSocket Client</h2>
+                <pre><code class="language-rust">use tokio_tungstenite::{connect_async, tungstenite::Message};
+use futures::{SinkExt, StreamExt};
+use serde_json::json;
+
+#[tokio::main]
+async fn main() -&gt; anyhow::Result&lt;()&gt; {
+    let url = "ws://localhost:3000/ws/chat";
+
+    let (ws_stream, _) = connect_async(url).await?;
+    println!("connected to {url}");
+
+    let (mut write, mut read) = ws_stream.split();
+
+    // Send a message
+    let msg = json!({
+        "sender": "bot",
+        "content": "Hello from Rust client!",
+        "timestamp": 0
+    });
+    write.send(Message::Text(msg.to_string())).await?;
+
+    // Receive messages
+    let recv_task = tokio::spawn(async move {
+        while let Some(msg) = read.next().await {
+            match msg {
+                Ok(Message::Text(text)) =&gt; println!("&lt;&lt; {text}"),
+                Ok(Message::Close(_)) =&gt; break,
+                Err(e) =&gt; { eprintln!("error: {e}"); break; }
+                _ =&gt; {}
+            }
+        }
+    });
+
+    // Send a few more messages then close
+    for i in 1..=3 {
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+        write.send(Message::Text(format!("message {i}"))).await?;
+    }
+    write.send(Message::Close(None)).await?;
+
+    recv_task.await?;
+    Ok(())
+}
+</code></pre>
+            </section>
+
+            <section>
+                <h2>8. Complete: Chat Server + HTML Client</h2>
+                <pre><code class="language-rust">// Server: serves the HTML page AND handles WebSocket connections
+use axum::{routing::get, Router};
+use tower_http::services::ServeDir;
+
+async fn full_server() {
+    let (tx, _) = tokio::sync::broadcast::channel::&lt;ChatMessage&gt;(128);
+    let state = AppState { tx };
+
+    let app = Router::new()
+        .route("/ws/chat", get(chat_handler))
+        // Serve static HTML/JS from the public/ directory
+        .nest_service("/", ServeDir::new("public"))
+        .with_state(state);
+
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    println!("open http://localhost:3000");
+    axum::serve(listener, app).await.unwrap();
+}
+</code></pre>
+                <pre><code class="language-html">&lt;!-- public/index.html —&gt;
+&lt;!DOCTYPE html&gt;
+&lt;html&gt;
+&lt;head&gt;&lt;title&gt;Rust Chat&lt;/title&gt;&lt;/head&gt;
+&lt;body&gt;
+  &lt;div id="messages" style="height:400px;overflow-y:auto;border:1px solid #ccc;padding:8px"&gt;&lt;/div&gt;
+  &lt;input id="input" placeholder="Type a message..." style="width:80%"&gt;
+  &lt;button onclick="send()"&gt;Send&lt;/button&gt;
+
+  &lt;script&gt;
+    const name = prompt("Your name:") || "anon";
+    const ws = new WebSocket(`ws://${location.host}/ws/chat`);
+    const log = document.getElementById("messages");
+
+    ws.onmessage = (e) =&gt; {
+      const msg = JSON.parse(e.data);
+      const div = document.createElement("div");
+      div.textContent = `[${msg.sender}]: ${msg.content}`;
+      log.appendChild(div);
+      log.scrollTop = log.scrollHeight;
+    };
+
+    function send() {
+      const input = document.getElementById("input");
+      ws.send(JSON.stringify({ sender: name, content: input.value, timestamp: 0 }));
+      input.value = "";
+    }
+
+    document.getElementById("input").addEventListener("keydown", e =&gt; {
+      if (e.key === "Enter") send();
+    });
+  &lt;/script&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+</code></pre>
+            </section>
+
+            <section>
+                <h2>9. Production Considerations</h2>
+                <ul>
+                    <li><strong>Heartbeat / ping-pong</strong>: send a ping every 30s; close connections that don't respond within the timeout.</li>
+                    <li><strong>Message size limits</strong>: reject oversized frames to prevent memory exhaustion.</li>
+                    <li><strong>Back-pressure</strong>: use bounded channels (<code>mpsc</code> with capacity) per connection so a slow client doesn't block others.</li>
+                    <li><strong>Authentication</strong>: validate the token in the HTTP upgrade request (query param or <code>Sec-WebSocket-Protocol</code> header) before upgrading.</li>
+                    <li><strong>Horizontal scaling</strong>: use Redis pub/sub (via <code>redis</code> crate) as the broadcast backbone so multiple server instances share messages.</li>
+                    <li><strong>Reconnection on the client</strong>: implement exponential-backoff reconnect in the JavaScript client.</li>
+                </ul>
+                <pre><code class="language-rust">// Per-connection message size limit
+async fn handle_socket_safe(ws: WebSocketUpgrade) -&gt; impl IntoResponse {
+    ws.max_message_size(64 * 1024)   // reject frames &gt; 64 KiB
+      .max_frame_size(16 * 1024)     // reject individual frames &gt; 16 KiB
+      .on_upgrade(handle_socket)
+}
+</code></pre>
+            </section>
+                    </div><!-- /article-body -->
+                </div><!-- /article-main -->
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+
+                    <div class="sidebar-box">
+                        <h4>Rust Series &mdash; Module 8</h4>
+                        <a href="rust-axum.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Axum Web Framework</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                        <a href="rust-reqwest.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">HTTP Client with Reqwest</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                        <a href="rust-sqlx.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">SQLx &amp; Databases</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                        <a href="rust-websockets.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">WebSockets</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-rust.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+    <script>
+        const toggle = document.querySelector('.nav-toggle');
+        const navLinks = document.querySelector('.nav-links');
+        toggle.addEventListener('click', () => {
+            navLinks.classList.toggle('active');
+            toggle.classList.toggle('active');
+        });
+    </script>
+</body>
+</html>

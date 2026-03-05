@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tokio Runtime &amp; Async I/O in Rust &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="rust-tech-insights.html">Rust</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+            <button class="nav-toggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+            <header class="article-header">
+                        <a href="rust-tech-insights.html" class="back-link">&larr; Back to Rust Tech Insights</a>
+                <div class="post-meta">
+                    <span class="post-date">Feb 2026</span>
+                    <span class="post-reading">17 min read</span>
+                </div>
+                <h1>Tokio Runtime &amp; Async I/O</h1>
+                <div class="post-tags">
+                    <span>Rust</span>
+                    <span>Tokio</span>
+                    <span>Async I/O</span>
+                </div>
+            </header>
+
+                    <div class="article-body">
+
+            <!-- 1. Runtime flavors -->
+            <section>
+                <h2>1. Runtime Flavors</h2>
+                <p>Tokio offers two runtime configurations:</p>
+                <pre><code class="language-rust">// Cargo.toml:
+// tokio = { version = "1", features = ["full"] }
+
+// Multi-threaded runtime (default) — spawns N worker threads (N = CPU count)
+// Best for servers and mixed I/O + CPU workloads
+#[tokio::main]
+async fn main() {
+    println!("threads: {}", std::thread::available_parallelism().unwrap());
+}
+
+// Equivalent explicit setup:
+fn explicit_multithread() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(4)          // custom thread count
+        .thread_name("my-worker")
+        .enable_all()               // enable I/O and time drivers
+        .build()
+        .unwrap();
+
+    rt.block_on(async {
+        println!("running on multi-threaded runtime");
+    });
+}
+
+// Single-threaded runtime — no Send requirement for spawned tasks
+// Best for embedded, WASM, or code heavy with non-Send types
+#[tokio::main(flavor = "current_thread")]
+async fn single_thread_main() {
+    println!("single-threaded runtime");
+}
+</code></pre>
+            </section>
+
+            <!-- 2. Async TCP -->
+            <section>
+                <h2>2. Async TCP — TcpListener and TcpStream</h2>
+                <p>Tokio's async TCP primitives mirror <code>std::net</code> but use <code>.await</code> instead of blocking. The echo server below accepts unlimited connections concurrently without threads per connection.</p>
+                <pre><code class="language-rust">use tokio::net::{TcpListener, TcpStream};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+// Echo server: each connection runs as an independent task
+async fn handle_connection(mut stream: TcpStream) {
+    let peer = stream.peer_addr().unwrap();
+    println!("[{peer}] connected");
+
+    let mut buf = vec![0u8; 1024];
+
+    loop {
+        match stream.read(&amp;mut buf).await {
+            Ok(0) =&gt; {
+                println!("[{peer}] disconnected");
+                break;
+            }
+            Ok(n) =&gt; {
+                // Echo the bytes back
+                if stream.write_all(&amp;buf[..n]).await.is_err() {
+                    break;
+                }
+            }
+            Err(e) =&gt; {
+                eprintln!("[{peer}] error: {e}");
+                break;
+            }
+        }
+    }
+}
+
+#[tokio::main]
+async fn main() -&gt; std::io::Result&lt;()&gt; {
+    let listener = TcpListener::bind("127.0.0.1:8080").await?;
+    println!("echo server listening on :8080");
+
+    loop {
+        // accept() yields until a new connection arrives
+        let (stream, _addr) = listener.accept().await?;
+
+        // spawn an independent task per connection — no thread per connection!
+        tokio::spawn(async move {
+            handle_connection(stream).await;
+        });
+    }
+}
+</code></pre>
+
+                <h3>2.1 TCP Client</h3>
+                <pre><code class="language-rust">use tokio::net::TcpStream;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+#[tokio::main]
+async fn main() -&gt; std::io::Result&lt;()&gt; {
+    let mut stream = TcpStream::connect("127.0.0.1:8080").await?;
+    println!("connected to server");
+
+    stream.write_all(b"Hello, server!\n").await?;
+
+    let mut buf = vec![0u8; 256];
+    let n = stream.read(&amp;mut buf).await?;
+    println!("received: {}", String::from_utf8_lossy(&amp;buf[..n]));
+
+    Ok(())
+}
+</code></pre>
+
+                <h3>2.2 BufReader / BufWriter for Line-Oriented Protocols</h3>
+                <pre><code class="language-rust">use tokio::net::TcpStream;
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+
+async fn line_echo(stream: TcpStream) {
+    let (reader, mut writer) = stream.into_split();
+    let mut reader = BufReader::new(reader);
+    let mut line = String::new();
+
+    loop {
+        line.clear();
+        match reader.read_line(&amp;mut line).await {
+            Ok(0)  =&gt; break, // EOF
+            Ok(_)  =&gt; {
+                writer.write_all(line.as_bytes()).await.unwrap();
+            }
+            Err(e) =&gt; { eprintln!("read error: {e}"); break; }
+        }
+    }
+}
+</code></pre>
+            </section>
+
+            <!-- 3. Async file I/O -->
+            <section>
+                <h2>3. Async File I/O</h2>
+                <p><code>tokio::fs</code> provides async versions of <code>std::fs</code>. Internally they use <code>spawn_blocking</code> because OS file I/O is not truly async on all platforms.</p>
+                <pre><code class="language-rust">use tokio::fs::{self, File};
+use tokio::io::{AsyncReadExt, AsyncWriteExt, BufWriter};
+
+#[tokio::main]
+async fn main() -&gt; std::io::Result&lt;()&gt; {
+    // Simple convenience functions
+    fs::write("hello.txt", b"Hello, async world!\n").await?;
+    let contents = fs::read_to_string("hello.txt").await?;
+    println!("{contents}");
+
+    // Streaming writes with BufWriter
+    let file = File::create("output.txt").await?;
+    let mut writer = BufWriter::new(file);
+
+    for i in 0..1000 {
+        writer.write_all(format!("line {i}\n").as_bytes()).await?;
+    }
+    writer.flush().await?; // ensure all buffered data is written
+
+    // Streaming reads
+    let mut file = File::open("output.txt").await?;
+    let mut buf = String::new();
+    file.read_to_string(&amp;mut buf).await?;
+    println!("lines: {}", buf.lines().count());
+
+    // Directory operations
+    fs::create_dir_all("my/nested/dir").await?;
+    let mut entries = fs::read_dir(".").await?;
+    while let Some(entry) = entries.next_entry().await? {
+        println!("{}", entry.file_name().to_string_lossy());
+    }
+
+    // Cleanup
+    fs::remove_file("hello.txt").await?;
+    fs::remove_file("output.txt").await?;
+    fs::remove_dir_all("my").await?;
+
+    Ok(())
+}
+</code></pre>
+            </section>
+
+            <!-- 4. Timers -->
+            <section>
+                <h2>4. Timers — sleep, interval, timeout</h2>
+                <pre><code class="language-rust">use tokio::time::{sleep, interval, timeout, Duration, Instant};
+
+#[tokio::main]
+async fn main() {
+    // sleep: pause for a duration
+    let start = Instant::now();
+    sleep(Duration::from_millis(100)).await;
+    println!("slept {}ms", start.elapsed().as_millis()); // ~100
+
+    // interval: fires at regular intervals
+    let mut ticker = interval(Duration::from_millis(100));
+
+    for i in 0..3 {
+        ticker.tick().await; // first tick is immediate
+        println!("tick {i}");
+    }
+
+    // timeout: cancel a future if it takes too long
+    let slow = async { sleep(Duration::from_secs(10)).await; "done" };
+
+    match timeout(Duration::from_millis(50), slow).await {
+        Ok(v)  =&gt; println!("completed: {v}"),
+        Err(_) =&gt; println!("timed out after 50ms"),
+    }
+
+    // sleep_until: sleep until an absolute instant
+    let wake_at = Instant::now() + Duration::from_millis(50);
+    tokio::time::sleep_until(wake_at).await;
+    println!("woke at the right time");
+}
+</code></pre>
+
+                <h3>4.1 Interval Miss Behavior</h3>
+                <pre><code class="language-rust">use tokio::time::{interval, Duration, MissedTickBehavior};
+
+#[tokio::main]
+async fn main() {
+    let mut ticker = interval(Duration::from_millis(100));
+    // Default: Burst — if a tick is missed, subsequent ticks fire immediately
+    // to catch up. Change with:
+    ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
+    // Skip: skips missed ticks, next tick is at the next aligned time
+    // Delay: adds the interval from when the task resumed
+
+    for i in 0..5 {
+        ticker.tick().await;
+        if i == 1 {
+            // simulate slow work that misses a tick
+            tokio::time::sleep(Duration::from_millis(250)).await;
+        }
+        println!("processed tick {i}");
+    }
+}
+</code></pre>
+            </section>
+
+            <!-- 5. tokio::sync -->
+            <section>
+                <h2>5. tokio::sync — Async Synchronization Primitives</h2>
+                <p>Standard <code>std::sync</code> types block threads. Tokio provides async equivalents that yield to the executor instead.</p>
+
+                <h3>5.1 tokio::sync::Mutex</h3>
+                <pre><code class="language-rust">use tokio::sync::Mutex;
+use std::sync::Arc;
+
+#[tokio::main]
+async fn main() {
+    let counter = Arc::new(Mutex::new(0u32));
+    let mut handles = Vec::new();
+
+    for _ in 0..10 {
+        let counter = Arc::clone(&amp;counter);
+        handles.push(tokio::spawn(async move {
+            for _ in 0..100 {
+                let mut n = counter.lock().await; // async lock — yields, not blocks
+                *n += 1;
+            }
+        }));
+    }
+
+    for h in handles { h.await.unwrap(); }
+    println!("counter = {}", counter.lock().await); // 1000
+}
+</code></pre>
+
+                <h3>5.2 tokio::sync::mpsc (Async Channels)</h3>
+                <pre><code class="language-rust">use tokio::sync::mpsc;
+
+#[tokio::main]
+async fn main() {
+    // tokio mpsc: sender.send().await (async, backs up when channel full)
+    let (tx, mut rx) = mpsc::channel::&lt;String&gt;(32); // bounded, capacity 32
+
+    let producer = tokio::spawn(async move {
+        for i in 0..5 {
+            tx.send(format!("message {i}")).await.unwrap();
+        }
+        // tx dropped here, rx.recv() returns None
+    });
+
+    while let Some(msg) = rx.recv().await {
+        println!("received: {msg}");
+    }
+
+    producer.await.unwrap();
+}
+</code></pre>
+
+                <h3>5.3 oneshot — Single Value Between Tasks</h3>
+                <pre><code class="language-rust">use tokio::sync::oneshot;
+
+#[tokio::main]
+async fn main() {
+    let (tx, rx) = oneshot::channel::&lt;u64&gt;();
+
+    tokio::spawn(async move {
+        let result = 2u64.pow(32);
+        tx.send(result).unwrap(); // can only send once
+    });
+
+    let value = rx.await.unwrap(); // wait for the single value
+    println!("result: {value}"); // 4294967296
+
+    // Common use: request-response with oneshot reply channel
+    let (cmd_tx, mut cmd_rx) = tokio::sync::mpsc::channel::&lt;(String, oneshot::Sender&lt;usize&gt;)&gt;(8);
+
+    tokio::spawn(async move {
+        while let Some((s, reply)) = cmd_rx.recv().await {
+            reply.send(s.len()).unwrap();
+        }
+    });
+
+    let (reply_tx, reply_rx) = oneshot::channel();
+    cmd_tx.send(("hello world".to_string(), reply_tx)).await.unwrap();
+    println!("length: {}", reply_rx.await.unwrap()); // 11
+}
+</code></pre>
+
+                <h3>5.4 broadcast — One to Many</h3>
+                <pre><code class="language-rust">use tokio::sync::broadcast;
+
+#[tokio::main]
+async fn main() {
+    let (tx, _) = broadcast::channel::&lt;String&gt;(16);
+
+    // Each subscriber gets its own Receiver — all receive every message
+    let mut rx1 = tx.subscribe();
+    let mut rx2 = tx.subscribe();
+
+    let tx2 = tx.clone();
+    tokio::spawn(async move {
+        tx2.send("event-1".to_string()).unwrap();
+        tx2.send("event-2".to_string()).unwrap();
+    });
+
+    // Both receivers get both events
+    println!("rx1: {}", rx1.recv().await.unwrap()); // event-1
+    println!("rx2: {}", rx2.recv().await.unwrap()); // event-1
+    println!("rx1: {}", rx1.recv().await.unwrap()); // event-2
+    println!("rx2: {}", rx2.recv().await.unwrap()); // event-2
+}
+</code></pre>
+
+                <h3>5.5 watch — Latest Value Channel</h3>
+                <pre><code class="language-rust">use tokio::sync::watch;
+use tokio::time::{sleep, Duration};
+
+#[derive(Clone, Debug)]
+struct Config { timeout_ms: u64, max_retries: u32 }
+
+#[tokio::main]
+async fn main() {
+    let (tx, rx) = watch::channel(Config { timeout_ms: 5000, max_retries: 3 });
+
+    // Spawn workers that read the latest config
+    for id in 0..3 {
+        let mut rx = rx.clone();
+        tokio::spawn(async move {
+            loop {
+                // changed() waits until the value is updated
+                if rx.changed().await.is_err() { break; }
+                let cfg = rx.borrow().clone();
+                println!("worker {id}: new config timeout={}ms", cfg.timeout_ms);
+            }
+        });
+    }
+
+    sleep(Duration::from_millis(10)).await;
+    tx.send(Config { timeout_ms: 3000, max_retries: 5 }).unwrap();
+    sleep(Duration::from_millis(10)).await;
+    tx.send(Config { timeout_ms: 1000, max_retries: 1 }).unwrap();
+    sleep(Duration::from_millis(20)).await;
+}
+</code></pre>
+
+                <h3>5.6 RwLock and Semaphore</h3>
+                <pre><code class="language-rust">use tokio::sync::{RwLock, Semaphore};
+use std::sync::Arc;
+
+#[tokio::main]
+async fn main() {
+    // RwLock: many readers or one writer
+    let data = Arc::new(RwLock::new(vec![1, 2, 3]));
+
+    let r1 = Arc::clone(&amp;data);
+    let r2 = Arc::clone(&amp;data);
+
+    // Multiple concurrent readers
+    let (a, b) = tokio::join!(
+        async move { r1.read().await.clone() },
+        async move { r2.read().await.clone() },
+    );
+    println!("{a:?}, {b:?}");
+
+    // Semaphore: limit concurrent access (e.g., connection pool)
+    let sem = Arc::new(Semaphore::new(3)); // at most 3 concurrent tasks
+    let mut handles = Vec::new();
+
+    for i in 0..8 {
+        let sem = Arc::clone(&amp;sem);
+        handles.push(tokio::spawn(async move {
+            let _permit = sem.acquire().await.unwrap();
+            // only 3 tasks run here at a time; others wait for a permit
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            println!("task {i} done");
+            // permit dropped here, one waiting task resumes
+        }));
+    }
+
+    for h in handles { h.await.unwrap(); }
+}
+
+use tokio::time::Duration;
+</code></pre>
+            </section>
+
+            <!-- 6. Task management -->
+            <section>
+                <h2>6. Task Management</h2>
+
+                <h3>6.1 JoinSet — Managing Many Tasks</h3>
+                <pre><code class="language-rust">use tokio::task::JoinSet;
+use tokio::time::{sleep, Duration};
+
+#[tokio::main]
+async fn main() {
+    let mut set = JoinSet::new();
+
+    for i in 0u32..10 {
+        set.spawn(async move {
+            sleep(Duration::from_millis(i as u64 * 10)).await;
+            i * i
+        });
+    }
+
+    // join_next() returns results as tasks complete (in completion order)
+    let mut results = Vec::new();
+    while let Some(res) = set.join_next().await {
+        results.push(res.unwrap());
+    }
+    results.sort();
+    println!("{results:?}"); // [0, 1, 4, 9, 16, 25, 36, 49, 64, 81]
+}
+</code></pre>
+
+                <h3>6.2 spawn_blocking for CPU Work</h3>
+                <pre><code class="language-rust">#[tokio::main]
+async fn main() {
+    // Offload CPU-bound work to Tokio's blocking thread pool
+    // so the async executor threads stay free for I/O
+    let large_data: Vec&lt;u32&gt; = (0..1_000_000).collect();
+
+    let result = tokio::task::spawn_blocking(move || {
+        // runs on a dedicated blocking thread
+        large_data.iter().map(|&amp;x| x as u64).sum::&lt;u64&gt;()
+    })
+    .await
+    .unwrap();
+
+    println!("sum = {result}");
+}
+</code></pre>
+
+                <h3>6.3 Graceful Shutdown with CancellationToken</h3>
+                <pre><code class="language-rust">// Cargo.toml: tokio-util = { version = "0.7", features = ["rt"] }
+use tokio_util::sync::CancellationToken;
+use tokio::time::{sleep, Duration};
+
+#[tokio::main]
+async fn main() {
+    let token = CancellationToken::new();
+    let mut handles = Vec::new();
+
+    for id in 0..3 {
+        let token = token.clone();
+        handles.push(tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    _ = token.cancelled() =&gt; {
+                        println!("worker {id}: shutting down gracefully");
+                        break;
+                    }
+                    _ = sleep(Duration::from_millis(100)) =&gt; {
+                        println!("worker {id}: doing work...");
+                    }
+                }
+            }
+        }));
+    }
+
+    // Let workers run for a bit, then cancel all
+    sleep(Duration::from_millis(350)).await;
+    println!("main: sending cancellation");
+    token.cancel();
+
+    for h in handles { h.await.unwrap(); }
+    println!("all workers stopped");
+}
+</code></pre>
+            </section>
+
+            <!-- 7. Complete example: async HTTP-like server -->
+            <section>
+                <h2>7. Complete Example: Async Key-Value Server</h2>
+                <p>A simple TCP server that accepts commands (<code>SET key value</code>, <code>GET key</code>, <code>DEL key</code>) and responds over the connection. Multiple clients are handled concurrently.</p>
+                <pre><code class="language-rust">use tokio::net::{TcpListener, TcpStream};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::sync::{RwLock, mpsc};
+use std::sync::Arc;
+use std::collections::HashMap;
+
+type Store = Arc&lt;RwLock&lt;HashMap&lt;String, String&gt;&gt;&gt;;
+
+async fn handle_client(stream: TcpStream, store: Store) {
+    let peer = stream.peer_addr().unwrap();
+    let (reader, mut writer) = stream.into_split();
+    let mut reader = BufReader::new(reader);
+    let mut line = String::new();
+
+    loop {
+        line.clear();
+        match reader.read_line(&amp;mut line).await {
+            Ok(0) | Err(_) =&gt; break,
+            Ok(_) =&gt; {}
+        }
+
+        let parts: Vec&lt;&amp;str&gt; = line.trim().splitn(3, ' ').collect();
+        let response = match parts.as_slice() {
+            ["SET", key, value] =&gt; {
+                store.write().await.insert(key.to_string(), value.to_string());
+                "OK\n".to_string()
+            }
+            ["GET", key] =&gt; {
+                match store.read().await.get(*key) {
+                    Some(v) =&gt; format!("{v}\n"),
+                    None    =&gt; "NIL\n".to_string(),
+                }
+            }
+            ["DEL", key] =&gt; {
+                let existed = store.write().await.remove(*key).is_some();
+                if existed { "OK\n".to_string() } else { "NIL\n".to_string() }
+            }
+            _ =&gt; "ERR unknown command\n".to_string(),
+        };
+
+        if writer.write_all(response.as_bytes()).await.is_err() {
+            break;
+        }
+    }
+
+    println!("[{peer}] disconnected");
+}
+
+#[tokio::main]
+async fn main() -&gt; std::io::Result&lt;()&gt; {
+    let store: Store = Arc::new(RwLock::new(HashMap::new()));
+    let listener = TcpListener::bind("127.0.0.1:7379").await?;
+    println!("KV server listening on :7379");
+    println!("Commands: SET key value | GET key | DEL key");
+
+    loop {
+        let (stream, addr) = listener.accept().await?;
+        println!("[{addr}] connected");
+        let store = Arc::clone(&amp;store);
+        tokio::spawn(async move {
+            handle_client(stream, store).await;
+        });
+    }
+}
+
+// Test with: echo "SET name Alice" | nc 127.0.0.1 7379
+//            echo "GET name"       | nc 127.0.0.1 7379
+</code></pre>
+            </section>
+
+            <!-- 8. UDP -->
+            <section>
+                <h2>8. Async UDP</h2>
+                <pre><code class="language-rust">use tokio::net::UdpSocket;
+
+#[tokio::main]
+async fn main() -&gt; std::io::Result&lt;()&gt; {
+    // Server
+    let server = UdpSocket::bind("127.0.0.1:8888").await?;
+    println!("UDP server on :8888");
+
+    // Client
+    let client = UdpSocket::bind("0.0.0.0:0").await?;
+    client.connect("127.0.0.1:8888").await?;
+
+    // Send from client
+    client.send(b"ping").await?;
+
+    // Receive on server
+    let mut buf = [0u8; 64];
+    let (n, from) = server.recv_from(&amp;mut buf).await?;
+    println!("server got {} bytes from {from}: {:?}", n, &amp;buf[..n]);
+
+    // Server responds
+    server.send_to(b"pong", from).await?;
+
+    // Client receives response
+    let n = client.recv(&amp;mut buf).await?;
+    println!("client got: {:?}", std::str::from_utf8(&amp;buf[..n]).unwrap());
+
+    Ok(())
+}
+</code></pre>
+            </section>
+
+            <!-- 9. tracing -->
+            <section>
+                <h2>9. Observability with tracing</h2>
+                <p>The <code>tracing</code> crate is the standard observability library for async Rust. It understands async tasks and provides structured, context-aware logging.</p>
+                <pre><code class="language-rust">// Cargo.toml:
+// tracing = "0.1"
+// tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+use tracing::{info, warn, error, instrument, span, Level};
+use tracing_subscriber::{EnvFilter, fmt};
+
+#[instrument(fields(user_id = user_id))]
+async fn process_request(user_id: u32, payload: &amp;str) -&gt; Result&lt;String, String&gt; {
+    info!("processing request");
+
+    if payload.is_empty() {
+        warn!("empty payload");
+        return Err("empty payload".to_string());
+    }
+
+    // Nested span
+    let result = {
+        let _span = span!(Level::DEBUG, "validate").entered();
+        info!(len = payload.len(), "validating");
+        payload.to_uppercase()
+    };
+
+    info!(result_len = result.len(), "request complete");
+    Ok(result)
+}
+
+#[tokio::main]
+async fn main() {
+    // RUST_LOG=info cargo run
+    fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .init();
+
+    match process_request(42, "hello world").await {
+        Ok(r)  =&gt; info!("success: {r}"),
+        Err(e) =&gt; error!("failed: {e}"),
+    }
+}
+// Output (with RUST_LOG=info):
+// INFO process_request{user_id=42}: processing request
+// INFO process_request{user_id=42}: request complete result_len=11
+// INFO success: HELLO WORLD
+</code></pre>
+            </section>
+
+            <!-- 10. Cheat sheet -->
+            <section>
+                <h2>10. Tokio Quick Reference</h2>
+                <pre><code class="language-rust">// ── Runtime ──────────────────────────────────────────────────────────────
+#[tokio::main]                                    // multi-thread runtime
+#[tokio::main(flavor = "current_thread")]         // single-thread runtime
+tokio::runtime::Builder::new_multi_thread()...    // programmatic setup
+
+// ── Tasks ────────────────────────────────────────────────────────────────
+tokio::spawn(async { ... })                       // spawn concurrent task
+tokio::task::spawn_blocking(|| { ... })           // run blocking code
+tokio::task::JoinSet::new()                       // manage many tasks
+
+// ── Time ─────────────────────────────────────────────────────────────────
+tokio::time::sleep(Duration::from_secs(1)).await
+tokio::time::interval(Duration::from_millis(100)) // periodic ticks
+tokio::time::timeout(dur, future).await           // cancel on timeout
+
+// ── I/O ──────────────────────────────────────────────────────────────────
+TcpListener::bind(addr).await                     // async TCP server
+TcpStream::connect(addr).await                    // async TCP client
+UdpSocket::bind(addr).await                       // async UDP
+tokio::fs::read_to_string(path).await             // async file read
+tokio::fs::write(path, data).await                // async file write
+
+// ── Sync ─────────────────────────────────────────────────────────────────
+tokio::sync::Mutex         // async mutex (lock().await)
+tokio::sync::RwLock        // async rwlock
+tokio::sync::mpsc          // bounded async channel (send().await)
+tokio::sync::oneshot       // single-value channel
+tokio::sync::broadcast     // one-to-many channel
+tokio::sync::watch         // latest-value channel
+tokio::sync::Semaphore     // limit concurrent access
+
+// ── Combinators ──────────────────────────────────────────────────────────
+tokio::join!(f1, f2, f3)           // wait for all
+tokio::try_join!(f1, f2)           // wait for all, short-circuit on Err
+tokio::select! { ... }             // first one wins, cancel the rest
+futures::future::join_all(vec)     // wait for a Vec of futures
+</code></pre>
+            </section>
+                    </div><!-- /article-body -->
+                </div><!-- /article-main -->
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+
+                    <div class="sidebar-box">
+                        <h4>Rust Series &mdash; Module 5</h4>
+                        <a href="rust-threads.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">OS Threads &amp; Scoped Threads</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-channels.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Channels &amp; Message Passing</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-async-await.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Async/Await &amp; Futures</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-tokio.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Tokio Runtime &amp; Async I/O</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-rust.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+    <script>
+        const toggle = document.querySelector('.nav-toggle');
+        const navLinks = document.querySelector('.nav-links');
+        toggle.addEventListener('click', () => {
+            navLinks.classList.toggle('active');
+            toggle.classList.toggle('active');
+        });
+    </script>
+</body>
+</html>

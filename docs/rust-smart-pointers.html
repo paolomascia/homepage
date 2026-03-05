@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Pointers: Box, Rc &amp; Arc in Rust &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="rust-tech-insights.html">Rust</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+            <button class="nav-toggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="rust-tech-insights.html" class="back-link">&larr; Back to Rust Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Feb 2026</span>
+                            <span class="post-reading">16 min read</span>
+                        </div>
+                        <h1>Smart Pointers: Box, Rc &amp; Arc</h1>
+                        <div class="post-tags">
+                            <span>Rust</span>
+                            <span>Smart Pointers</span>
+                            <span>Memory</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Rust's ownership system handles the majority of memory management automatically. Smart pointers extend this system to cover cases the basic rules cannot express: heap allocation when the size is unknown at compile time (<code>Box</code>), shared ownership without a garbage collector (<code>Rc</code>), and shared ownership across threads (<code>Arc</code>). Each smart pointer implements <code>Deref</code> so it can be used transparently wherever a reference to the inner type is expected.</p>
+
+                        <h2>Box&lt;T&gt; — Heap Allocation</h2>
+                        <p><code>Box&lt;T&gt;</code> allocates a value of type <code>T</code> on the heap and gives you a uniquely owned pointer to it. When the <code>Box</code> goes out of scope, it drops the value and frees the heap memory. There is no reference counting, no garbage collection: the drop is deterministic and happens exactly when the binding is released.</p>
+                        <p>The three canonical reasons to use <code>Box</code>:</p>
+                        <ol>
+                            <li><strong>Recursive types</strong>: a type whose size cannot be computed because it contains itself directly. Wrapping the recursive field in <code>Box</code> gives it a known size (one pointer).</li>
+                            <li><strong>Trait objects</strong>: <code>Box&lt;dyn Trait&gt;</code> stores a dynamically dispatched value whose concrete type is erased (covered in the trait objects article).</li>
+                            <li><strong>Large values</strong>: moving a large struct copies it on the stack. Boxing it puts it on the heap and makes the move free (just a pointer copy).</li>
+                        </ol>
+
+                        <h3>Box Basics and Recursive Types</h3>
+                        <p><em>A recursive linked list and binary tree that require <code>Box</code> to have a known size, plus the <code>Deref</code> coercion that makes <code>Box</code> transparent.</em></p>
+<pre><code class="language-rust">// Without Box: compile error -- `List` has infinite size.
+// enum List { Cons(i32, List), Nil }
+
+// With Box: size is known (one pointer + one i32).
+#[derive(Debug)]
+enum List {
+    Cons(i32, Box&lt;List&gt;),
+    Nil,
+}
+
+impl List {
+    fn new() -> Self { List::Nil }
+
+    fn prepend(self, value: i32) -> Self {
+        List::Cons(value, Box::new(self))
+    }
+
+    fn sum(&amp;self) -> i32 {
+        match self {
+            List::Nil => 0,
+            List::Cons(v, rest) => v + rest.sum(),
+        }
+    }
+}
+
+// Binary tree -- each node has two optional boxed children.
+#[derive(Debug)]
+struct TreeNode {
+    value: i32,
+    left:  Option&lt;Box&lt;TreeNode&gt;&gt;,
+    right: Option&lt;Box&lt;TreeNode&gt;&gt;,
+}
+
+impl TreeNode {
+    fn leaf(value: i32) -> Self { TreeNode { value, left: None, right: None } }
+
+    fn insert(mut self, v: i32) -> Self {
+        if v &lt; self.value {
+            self.left = Some(Box::new(match self.left {
+                None      => TreeNode::leaf(v),
+                Some(l)   => l.insert(v),
+            }));
+        } else {
+            self.right = Some(Box::new(match self.right {
+                None      => TreeNode::leaf(v),
+                Some(r)   => r.insert(v),
+            }));
+        }
+        self
+    }
+
+    fn inorder(&amp;self) -> Vec&lt;i32&gt; {
+        let mut result = Vec::new();
+        if let Some(l) = &amp;self.left  { result.extend(l.inorder()); }
+        result.push(self.value);
+        if let Some(r) = &amp;self.right { result.extend(r.inorder()); }
+        result
+    }
+}
+
+fn main() {
+    // Linked list
+    let list = List::new().prepend(3).prepend(2).prepend(1);
+    println!("{:?}", list);  // Cons(1, Cons(2, Cons(3, Nil)))
+    println!("sum: {}", list.sum()); // 6
+
+    // Box: Deref coercion makes it transparent
+    let boxed: Box&lt;i32&gt; = Box::new(42);
+    println!("{}", *boxed);      // 42 -- explicit deref
+    println!("{}", boxed + 8);   // 50 -- auto-deref in arithmetic
+
+    // BST
+    let mut tree = TreeNode::leaf(5);
+    for v in [3, 7, 1, 4, 6, 8] { tree = tree.insert(v); }
+    println!("inorder: {:?}", tree.inorder()); // [1, 3, 4, 5, 6, 7, 8]
+}</code></pre>
+
+                        <h3>Box for Large Values and Trait Objects</h3>
+                        <p><em>Moving a large struct without copying, and boxing trait objects for heterogeneous storage.</em></p>
+<pre><code class="language-rust">// A large struct -- moving it without Box copies 4KB on the stack.
+struct LargeMatrix([[f64; 64]; 64]);
+
+impl LargeMatrix {
+    fn new() -> Self { LargeMatrix([[0.0; 64]; 64]) }
+    fn set(&amp;mut self, r: usize, c: usize, v: f64) { self.0[r][c] = v; }
+}
+
+trait Drawable { fn draw(&amp;self); }
+
+struct Circle   { r: f64 }
+struct Square   { s: f64 }
+impl Drawable for Circle { fn draw(&amp;self) { println!("circle r={}", self.r); } }
+impl Drawable for Square { fn draw(&amp;self) { println!("square s={}", self.s); } }
+
+fn main() {
+    // Box keeps LargeMatrix on the heap; moving the Box is a single pointer copy.
+    let matrix = Box::new(LargeMatrix::new());
+    let _moved = matrix; // cheap: moves 8-byte pointer, not 32KB
+
+    // Heterogeneous collection via Box&lt;dyn Trait&gt;
+    let shapes: Vec&lt;Box&lt;dyn Drawable&gt;&gt; = vec![
+        Box::new(Circle { r: 3.0 }),
+        Box::new(Square { s: 4.0 }),
+        Box::new(Circle { r: 1.5 }),
+    ];
+    for shape in &amp;shapes { shape.draw(); }
+
+    // Box::leak: intentionally leak memory to get a &amp;'static reference.
+    // Use only for values that truly need to live forever (e.g., global config).
+    let config: &amp;'static str = Box::leak(Box::new("static config".to_string()));
+    println!("{config}");
+}</code></pre>
+
+                        <h2>Rc&lt;T&gt; — Shared Ownership (Single-Threaded)</h2>
+                        <p><code>Rc&lt;T&gt;</code> (Reference Counted) enables multiple owners of the same heap value within a single thread. Internally it stores the value alongside two counters: the strong reference count and the weak reference count. Cloning an <code>Rc</code> increments the strong count; dropping one decrements it. When the strong count reaches zero, the value is dropped.</p>
+                        <p>The critical constraint: <code>Rc</code> is <em>not</em> <code>Send</code> (cannot be moved across threads) and not <code>Sync</code> (cannot be shared across threads). Its reference counting is non-atomic, which is fast but unsafe to do from multiple threads. For multi-threaded shared ownership, use <code>Arc</code>.</p>
+                        <p>Typical use cases: graph structures where nodes share edges, caches where multiple parts of the code hold references to the same value, and tree nodes that need to point to their parent without creating ownership cycles (use <code>Weak</code> for the back-pointer).</p>
+
+                        <h3>Rc Basics and Reference Counts</h3>
+                        <p><em>Creating shared owners, inspecting reference counts, and the automatic drop when the last owner is gone.</em></p>
+<pre><code class="language-rust">use std::rc::Rc;
+
+#[derive(Debug)]
+struct Node {
+    value: i32,
+    children: Vec&lt;Rc&lt;Node&gt;&gt;,
+}
+
+impl Node {
+    fn new(value: i32) -> Rc&lt;Self&gt; {
+        Rc::new(Node { value, children: Vec::new() })
+    }
+}
+
+fn main() {
+    let a = Rc::new(42);
+    println!("strong count after creating a: {}", Rc::strong_count(&amp;a)); // 1
+
+    let b = Rc::clone(&amp;a);  // increments count, does NOT copy the value
+    println!("strong count after cloning:    {}", Rc::strong_count(&amp;a)); // 2
+
+    {
+        let c = Rc::clone(&amp;a);
+        println!("strong count with c:         {}", Rc::strong_count(&amp;a)); // 3
+        println!("a={}, b={}, c={}", a, b, c); // all print 42
+    } // c dropped here
+
+    println!("strong count after c dropped:  {}", Rc::strong_count(&amp;a)); // 2
+
+    // Shared ownership: both owner1 and owner2 point to the same Config
+    #[derive(Debug)]
+    struct Config { debug: bool, max_connections: u32 }
+
+    let config = Rc::new(Config { debug: true, max_connections: 100 });
+    let server_config = Rc::clone(&amp;config);
+    let monitor_config = Rc::clone(&amp;config);
+
+    println!("server uses debug={}", server_config.debug);
+    println!("monitor uses max_conn={}", monitor_config.max_connections);
+    println!("shared config refs: {}", Rc::strong_count(&amp;config)); // 3
+
+    // Rc::try_unwrap: get the inner value if this is the only owner
+    let sole = Rc::new("only owner".to_string());
+    match Rc::try_unwrap(sole) {
+        Ok(s)  => println!("unwrapped: {s}"),
+        Err(_) => println!("still shared"),
+    }
+}</code></pre>
+
+                        <h3>Weak&lt;T&gt; — Breaking Reference Cycles</h3>
+                        <p>Reference cycles between <code>Rc</code> values cause memory leaks: if A holds an <code>Rc</code> to B and B holds an <code>Rc</code> to A, neither strong count ever reaches zero. <code>Weak&lt;T&gt;</code> solves this: a weak reference does not increment the strong count and does not keep the value alive. To access the value through a <code>Weak</code>, call <code>.upgrade()</code> which returns <code>Option&lt;Rc&lt;T&gt;&gt;</code> &mdash; <code>None</code> if the value has already been dropped.</p>
+                        <p>The idiomatic pattern for parent-child trees: children hold strong <code>Rc</code> references to their parents, and parents hold <code>Weak</code> references back to their children (or vice versa, depending on ownership semantics).</p>
+
+                        <p><em>A parent-child tree where children use <code>Weak</code> back-pointers to avoid cycles, with <code>upgrade()</code> to access the parent.</em></p>
+<pre><code class="language-rust">use std::rc::{Rc, Weak};
+use std::cell::RefCell;
+
+#[derive(Debug)]
+struct TreeNode {
+    value:    i32,
+    parent:   RefCell&lt;Weak&lt;TreeNode&gt;&gt;,   // weak: does not own parent
+    children: RefCell&lt;Vec&lt;Rc&lt;TreeNode&gt;&gt;&gt;, // strong: owns children
+}
+
+impl TreeNode {
+    fn new(value: i32) -> Rc&lt;Self&gt; {
+        Rc::new(TreeNode {
+            value,
+            parent:   RefCell::new(Weak::new()),
+            children: RefCell::new(Vec::new()),
+        })
+    }
+}
+
+fn main() {
+    let root = TreeNode::new(1);
+    let child1 = TreeNode::new(2);
+    let child2 = TreeNode::new(3);
+
+    // Set child's parent (weak reference -- does not keep root alive)
+    *child1.parent.borrow_mut() = Rc::downgrade(&amp;root);
+    *child2.parent.borrow_mut() = Rc::downgrade(&amp;root);
+
+    // Add children to root
+    root.children.borrow_mut().push(Rc::clone(&amp;child1));
+    root.children.borrow_mut().push(Rc::clone(&amp;child2));
+
+    // Strong count: root has 1 (the binding) + 2 (children hold it via Weak, not strong)
+    println!("root strong count: {}", Rc::strong_count(&amp;root)); // 1
+
+    // Upgrade weak reference: child1 can access its parent
+    if let Some(parent) = child1.parent.borrow().upgrade() {
+        println!("child1's parent value: {}", parent.value); // 1
+    }
+
+    // After root is dropped, child.parent.upgrade() returns None
+    let child1_ref = Rc::clone(&amp;child1);
+    drop(root);
+    // root's strong count was 1, now 0 -- dropped
+    println!("parent gone: {:?}", child1_ref.parent.borrow().upgrade()); // None
+}</code></pre>
+
+                        <h2>Arc&lt;T&gt; — Shared Ownership Across Threads</h2>
+                        <p><code>Arc&lt;T&gt;</code> (Atomically Reference Counted) is <code>Rc&lt;T&gt;</code> with atomic operations on the reference counters, making it safe to clone and drop from multiple threads simultaneously. The atomic operations use hardware compare-and-swap instructions, which are more expensive than non-atomic increments but still very fast in the uncontended case.</p>
+                        <p><code>Arc&lt;T&gt;</code> is <code>Send + Sync</code> when <code>T: Send + Sync</code>, meaning it can be moved across thread boundaries and shared via references. The value inside is immutable by default; combine with <code>Mutex</code> or <code>RwLock</code> for thread-safe mutation (covered in the next article).</p>
+
+                        <h3>Arc in Multi-Threaded Code</h3>
+                        <p><em>Sharing read-only data across threads with <code>Arc</code>, and the classic <code>Arc&lt;Mutex&lt;T&gt;&gt;</code> pattern for shared mutable state.</em></p>
+<pre><code class="language-rust">use std::sync::{Arc, Mutex};
+use std::thread;
+
+fn main() {
+    // Read-only shared data: Arc without Mutex
+    let data = Arc::new(vec![1, 2, 3, 4, 5]);
+
+    let handles: Vec&lt;_&gt; = (0..4).map(|i| {
+        let data = Arc::clone(&amp;data);
+        thread::spawn(move || {
+            // Each thread reads from the shared Vec
+            let sum: i32 = data.iter().sum();
+            println!("thread {i}: sum = {sum}");
+        })
+    }).collect();
+
+    for h in handles { h.join().unwrap(); }
+
+    // Shared mutable state: Arc&lt;Mutex&lt;T&gt;&gt;
+    let counter = Arc::new(Mutex::new(0u32));
+
+    let handles: Vec&lt;_&gt; = (0..8).map(|_| {
+        let counter = Arc::clone(&amp;counter);
+        thread::spawn(move || {
+            let mut val = counter.lock().unwrap();
+            *val += 1;
+        })
+    }).collect();
+
+    for h in handles { h.join().unwrap(); }
+    println!("final counter: {}", counter.lock().unwrap()); // 8
+
+    // Arc with a complex shared structure
+    #[derive(Debug)]
+    struct SharedCache {
+        data: Mutex&lt;std::collections::HashMap&lt;String, String&gt;&gt;,
+    }
+
+    impl SharedCache {
+        fn new() -> Arc&lt;Self&gt; {
+            Arc::new(SharedCache { data: Mutex::new(std::collections::HashMap::new()) })
+        }
+        fn set(&amp;self, key: &amp;str, val: &amp;str) {
+            self.data.lock().unwrap().insert(key.to_string(), val.to_string());
+        }
+        fn get(&amp;self, key: &amp;str) -> Option&lt;String&gt; {
+            self.data.lock().unwrap().get(key).cloned()
+        }
+    }
+
+    let cache = SharedCache::new();
+    let cache2 = Arc::clone(&amp;cache);
+
+    let writer = thread::spawn(move || {
+        cache2.set("key", "value");
+    });
+    writer.join().unwrap();
+
+    println!("{:?}", cache.get("key")); // Some("value")
+}</code></pre>
+
+                        <h2>Deref and DerefMut — Transparent Pointer Behaviour</h2>
+                        <p>All smart pointers implement <code>Deref</code> (and <code>DerefMut</code> where appropriate), which is what allows them to be used transparently wherever a reference to the inner type is expected. The compiler applies <em>deref coercion</em> automatically: when it sees <code>&amp;Box&lt;T&gt;</code> where <code>&amp;T</code> is required, it inserts the implicit <code>*</code> operations needed to coerce the type. This chain can go through multiple levels (e.g., <code>&amp;String</code> → <code>&amp;str</code>, <code>&amp;Box&lt;String&gt;</code> → <code>&amp;String</code> → <code>&amp;str</code>).</p>
+
+                        <p><em>Custom smart pointer implementing <code>Deref</code>, and the deref coercion chain in action.</em></p>
+<pre><code class="language-rust">use std::ops::{Deref, DerefMut};
+
+// A minimal smart pointer wrapping a value
+struct MyBox&lt;T&gt;(T);
+
+impl&lt;T&gt; MyBox&lt;T&gt; {
+    fn new(val: T) -> Self { MyBox(val) }
+}
+
+impl&lt;T&gt; Deref for MyBox&lt;T&gt; {
+    type Target = T;
+    fn deref(&amp;self) -> &amp;T { &amp;self.0 }
+}
+
+impl&lt;T&gt; DerefMut for MyBox&lt;T&gt; {
+    fn deref_mut(&amp;mut self) -> &amp;mut T { &amp;mut self.0 }
+}
+
+fn print_str(s: &amp;str) { println!("{s}"); }
+
+fn main() {
+    let b = MyBox::new(String::from("hello"));
+
+    // Explicit deref: *b gives String, &*b gives &amp;String, which coerces to &amp;str
+    print_str(&amp;*b);  // explicit
+
+    // Implicit deref coercion: &amp;MyBox&lt;String&gt; -> &amp;String -> &amp;str
+    print_str(&amp;b);   // compiler inserts the derefs automatically
+
+    // Standard library: Box, Rc, Arc all work the same way
+    let boxed = Box::new(String::from("boxed"));
+    print_str(&amp;boxed); // &amp;Box&lt;String&gt; -> &amp;String -> &amp;str
+
+    // Mutation via DerefMut
+    let mut mb = MyBox::new(5i32);
+    *mb += 10;
+    println!("{}", *mb); // 15
+
+    // Deref coercion summary:
+    // &amp;T          -> &amp;T           (identity)
+    // &amp;Box&lt;T&gt;     -> &amp;T           (Box deref)
+    // &amp;String     -> &amp;str         (String deref)
+    // &amp;Vec&lt;T&gt;     -> &amp;[T]         (Vec deref)
+    // &amp;Box&lt;String&gt; -> &amp;String -> &amp;str  (two steps, both auto)
+}</code></pre>
+
+                        <h2>Choosing the Right Pointer Type</h2>
+                        <p>A quick decision guide:</p>
+                        <ul>
+                            <li><strong>Stack allocation (no smart pointer)</strong>: default. If the value fits on the stack and has a known size, just use it directly.</li>
+                            <li><strong><code>Box&lt;T&gt;</code></strong>: single owner, heap-allocated. Use for recursive types, large values, or trait objects. Zero overhead beyond the heap allocation itself.</li>
+                            <li><strong><code>Rc&lt;T&gt;</code></strong>: multiple owners, single thread. Use when ownership is shared and lifetimes cannot be expressed statically. Slightly more expensive than <code>Box</code> due to reference count maintenance.</li>
+                            <li><strong><code>Weak&lt;T&gt;</code></strong>: non-owning reference into an <code>Rc</code>. Use for back-pointers and cyclic structures to prevent memory leaks.</li>
+                            <li><strong><code>Arc&lt;T&gt;</code></strong>: multiple owners, multiple threads. Use when shared data must cross thread boundaries. Slightly more expensive than <code>Rc</code> due to atomic operations.</li>
+                            <li><strong><code>Arc&lt;Mutex&lt;T&gt;&gt;</code></strong>: shared mutable state across threads. The most common pattern for concurrent data sharing.</li>
+                        </ul>
+
+                    </div>
+                </div>
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>Rust Series &mdash; Module 4</h4>
+                        <a href="rust-smart-pointers.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Smart Pointers: Box, Rc &amp; Arc</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-interior-mutability.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Interior Mutability: Cell, RefCell, Mutex &amp; RwLock</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-slice-deref.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Slices, Deref Coercions &amp; Custom Deref</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-unsafe.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Unsafe Rust: Raw Pointers, unsafe Blocks &amp; FFI</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-rust.min.js"></script>
+    <script>
+        const toggle = document.querySelector('.nav-toggle');
+        const navLinks = document.querySelector('.nav-links');
+        toggle.addEventListener('click', () => {
+            navLinks.classList.toggle('active');
+            toggle.classList.toggle('active');
+        });
+    </script>
+
+</body>
+</html>

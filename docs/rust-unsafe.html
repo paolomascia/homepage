@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unsafe Rust: Raw Pointers, unsafe Blocks &amp; FFI in Rust &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="rust-tech-insights.html">Rust</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+            <button class="nav-toggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="rust-tech-insights.html" class="back-link">&larr; Back to Rust Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Feb 2026</span>
+                            <span class="post-reading">16 min read</span>
+                        </div>
+                        <h1>Unsafe Rust: Raw Pointers, unsafe Blocks &amp; FFI</h1>
+                        <div class="post-tags">
+                            <span>Rust</span>
+                            <span>Unsafe</span>
+                            <span>FFI</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Rust's safety guarantees are enforced by the compiler, but not every correct program can be expressed within those guarantees. <code>unsafe</code> is a conscious escape hatch that lets you step outside the checked subset when you have manually verified that the invariants the compiler would normally enforce still hold. The critical insight: unsafe does not disable safety &mdash; it <em>transfers responsibility</em> from the compiler to you.</p>
+
+                        <h2>What unsafe Enables</h2>
+                        <p>An <code>unsafe</code> block or function unlocks exactly five additional capabilities that are otherwise forbidden:</p>
+                        <ol>
+                            <li>Dereference a raw pointer (<code>*const T</code> or <code>*mut T</code>)</li>
+                            <li>Call an <code>unsafe</code> function or method</li>
+                            <li>Access or modify a mutable static variable</li>
+                            <li>Implement an <code>unsafe</code> trait</li>
+                            <li>Access fields of a <code>union</code></li>
+                        </ol>
+                        <p>Everything else remains checked. The borrow checker still operates inside unsafe blocks; lifetimes and types are still verified. Only the specific operations above are permitted beyond the normal rules. This containment is what makes unsafe sustainable: bugs can only be introduced through these five specific doors, not through arbitrary UB.</p>
+
+                        <h2>Raw Pointers</h2>
+                        <p>Raw pointers come in two flavours: <code>*const T</code> (immutable, like <code>&amp;T</code> without lifetime tracking) and <code>*mut T</code> (mutable, like <code>&amp;mut T</code> without borrow checking). You can <em>create</em> raw pointers from references in safe code; you need <code>unsafe</code> only to <em>dereference</em> them. Raw pointers are not automatically <code>null</code>-checked, not tracked by the borrow checker, and not automatically freed. They are exactly what C and C++ pointers are.</p>
+
+                        <h3>Raw Pointer Basics</h3>
+                        <p><em>Creating raw pointers from references and integers, null checks, dereferencing, and pointer arithmetic.</em></p>
+<pre><code class="language-rust">fn main() {
+    let x = 42i32;
+
+    // Create raw pointers from references -- safe
+    let raw_const: *const i32 = &amp;x as *const i32;
+    let mut y = 10i32;
+    let raw_mut: *mut i32 = &amp;mut y as *mut i32;
+
+    // Dereference requires unsafe
+    unsafe {
+        println!("*raw_const = {}", *raw_const); // 42
+        *raw_mut += 5;
+        println!("y = {}", *raw_mut); // 15
+    }
+    println!("y after unsafe: {y}"); // 15
+
+    // Null pointer (NOT the same as None -- no compiler checking)
+    let null_ptr: *const i32 = std::ptr::null();
+    println!("is null: {}", null_ptr.is_null()); // true
+
+    // Always check before dereferencing a possibly-null pointer
+    if !null_ptr.is_null() {
+        unsafe { println!("{}", *null_ptr); } // never reached
+    }
+
+    // Pointer arithmetic: advance by sizeof(T) bytes
+    let arr = [10i32, 20, 30, 40, 50];
+    let ptr: *const i32 = arr.as_ptr();
+    unsafe {
+        for i in 0..arr.len() {
+            print!("{} ", *ptr.add(i)); // 10 20 30 40 50
+        }
+        println!();
+    }
+
+    // from_raw_parts: construct a slice from a raw pointer and length
+    unsafe {
+        let slice = std::slice::from_raw_parts(ptr, arr.len());
+        println!("slice sum: {}", slice.iter().sum::&lt;i32&gt;()); // 150
+    }
+}</code></pre>
+
+                        <h3>Safe Abstractions over Unsafe Code</h3>
+                        <p>The idiomatic approach is to encapsulate <code>unsafe</code> inside a <em>safe abstraction</em>: a module or type whose public API is entirely safe, but whose internal implementation uses <code>unsafe</code> where necessary. The unsafe code is small, auditable, and contained. Every <code>Vec</code>, <code>Mutex</code>, and channel in the standard library is built this way.</p>
+
+                        <p><em>A <code>split_at_mut</code> reimplementation that produces two non-overlapping mutable slices from one, using raw pointers internally with a safe public interface.</em></p>
+<pre><code class="language-rust">/// Split `data` into two non-overlapping mutable slices at `mid`.
+/// Safe precondition: `mid &lt;= data.len()`.
+/// SAFETY: the two raw pointers are derived from `data`, they point to
+/// non-overlapping regions [0, mid) and [mid, len), and both are valid
+/// for the lifetime of `data`.
+fn split_at_mut_safe&lt;T&gt;(data: &amp;mut [T], mid: usize) -> (&amp;mut [T], &amp;mut [T]) {
+    assert!(mid &lt;= data.len(), "mid out of bounds");
+    let len = data.len();
+    let ptr = data.as_mut_ptr();
+    unsafe {
+        (
+            std::slice::from_raw_parts_mut(ptr, mid),
+            std::slice::from_raw_parts_mut(ptr.add(mid), len - mid),
+        )
+    }
+}
+
+fn main() {
+    let mut v = vec![1, 2, 3, 4, 5, 6];
+    let (left, right) = split_at_mut_safe(&amp;mut v, 3);
+
+    left.iter_mut().for_each(|x| *x *= 10);
+    right.iter_mut().for_each(|x| *x += 100);
+
+    println!("{:?}", v); // [10, 20, 30, 104, 105, 106]
+}</code></pre>
+
+                        <h2>unsafe Functions and Traits</h2>
+                        <p>Marking a function <code>unsafe fn</code> signals to callers that they must uphold certain invariants that the compiler cannot verify. The function's documentation should explicitly state these invariants as a <code># Safety</code> section. An <code>unsafe</code> trait means that implementing it requires the implementor to manually uphold invariants: <code>Send</code> and <code>Sync</code> are the canonical examples &mdash; the compiler automatically derives them when it can verify the invariants, but you can opt in manually with <code>unsafe impl</code> when you have a type the compiler cannot reason about (e.g., one containing raw pointers).</p>
+
+                        <p><em>An unsafe function with a documented safety contract, and an unsafe trait implementation for a raw-pointer-backed type.</em></p>
+<pre><code class="language-rust">use std::fmt;
+
+/// A non-null, non-owning pointer to a T.
+/// SAFETY: The caller must ensure the pointer remains valid for the
+/// lifetime of any NonNullRef instance and is properly aligned.
+struct NonNullRef&lt;T&gt; {
+    ptr: *const T,
+}
+
+impl&lt;T&gt; NonNullRef&lt;T&gt; {
+    /// # Safety
+    /// `ptr` must be non-null, properly aligned, and valid for reads
+    /// for as long as this NonNullRef exists.
+    unsafe fn new(ptr: *const T) -> Self {
+        assert!(!ptr.is_null());
+        NonNullRef { ptr }
+    }
+
+    fn get(&amp;self) -> &amp;T {
+        // SAFETY: constructor guarantee -- ptr is valid and aligned
+        unsafe { &amp;*self.ptr }
+    }
+}
+
+// SAFETY: T: Send means the pointed-to data can be sent across threads.
+// NonNullRef contains only a raw pointer, which is not Send by default;
+// we are manually asserting that our use is correct.
+unsafe impl&lt;T: Send + Sync&gt; Send for NonNullRef&lt;T&gt; {}
+unsafe impl&lt;T: Send + Sync&gt; Sync for NonNullRef&lt;T&gt; {}
+
+impl&lt;T: fmt::Debug&gt; fmt::Debug for NonNullRef&lt;T&gt; {
+    fn fmt(&amp;self, f: &amp;mut fmt::Formatter&lt;'_&gt;) -> fmt::Result {
+        write!(f, "NonNullRef({:?})", self.get())
+    }
+}
+
+fn main() {
+    let value = 42i32;
+    let r = unsafe { NonNullRef::new(&amp;value) };
+    println!("{r:?}"); // NonNullRef(42)
+    println!("value: {}", r.get()); // 42
+
+    // The reference behaves safely because the invariants are upheld
+    let sum = *r.get() + 8;
+    println!("sum: {sum}"); // 50
+}</code></pre>
+
+                        <h2>FFI — Calling C from Rust</h2>
+                        <p>Foreign Function Interface (FFI) lets Rust code call functions from C libraries and vice versa. On the Rust side, you declare the C function signature in an <code>extern "C"</code> block. Calling any <code>extern</code> function requires <code>unsafe</code> because Rust cannot verify that the C code upholds memory safety. The <code>libc</code> crate provides Rust bindings for the standard C library types and functions.</p>
+                        <p>Type mapping between C and Rust requires care. The <code>std::ffi</code> and <code>libc</code> modules provide <code>c_int</code>, <code>c_char</code>, <code>c_void</code>, and other C-compatible types. Strings need special handling: C strings are null-terminated byte sequences, while Rust strings are UTF-8 fat pointers. <code>CString</code> and <code>CStr</code> bridge this gap.</p>
+
+                        <h3>Calling C Standard Library Functions</h3>
+                        <p><em>Calling <code>strlen</code>, <code>abs</code>, and <code>qsort</code> from C, with correct type conversions and null-termination handling.</em></p>
+<pre><code class="language-rust">use std::ffi::{CString, CStr, c_void};
+use std::os::raw::{c_char, c_int};
+
+extern "C" {
+    fn strlen(s: *const c_char) -> usize;
+    fn abs(n: c_int) -> c_int;
+    fn qsort(
+        base:  *mut c_void,
+        nmemb: usize,
+        size:  usize,
+        compar: unsafe extern "C" fn(*const c_void, *const c_void) -> c_int,
+    );
+}
+
+unsafe extern "C" fn compare_i32(a: *const c_void, b: *const c_void) -> c_int {
+    let a = *(a as *const i32);
+    let b = *(b as *const i32);
+    a.cmp(&amp;b) as c_int
+}
+
+fn main() {
+    // strlen: C string length
+    let s = CString::new("hello world").unwrap();
+    let len = unsafe { strlen(s.as_ptr()) };
+    println!("strlen: {len}"); // 11
+
+    // abs: C absolute value
+    let n: c_int = -42;
+    println!("abs(-42) = {}", unsafe { abs(n) }); // 42
+
+    // qsort: C quicksort
+    let mut data: Vec&lt;i32&gt; = vec![5, 2, 8, 1, 9, 3, 7, 4, 6];
+    unsafe {
+        qsort(
+            data.as_mut_ptr() as *mut c_void,
+            data.len(),
+            std::mem::size_of::&lt;i32&gt;(),
+            compare_i32,
+        );
+    }
+    println!("sorted: {data:?}"); // [1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+    // CStr: borrow a C string without allocation
+    let c_hello = b"hello\0";
+    let cstr = unsafe { CStr::from_bytes_with_nul_unchecked(c_hello) };
+    println!("cstr: {:?}", cstr.to_str().unwrap()); // "hello"
+}</code></pre>
+
+                        <h3>Exporting Rust Functions to C</h3>
+                        <p>To make a Rust function callable from C, annotate it with <code>#[no_mangle]</code> (preserve the symbol name) and <code>extern "C"</code> (use the C calling convention). The function must only use C-compatible types at its boundary. This is how Rust libraries expose APIs to Python (via ctypes/cffi), C++, or other languages.</p>
+
+                        <p><em>A small math library with Rust functions exported as a C-compatible shared library API.</em></p>
+<pre><code class="language-rust">use std::ffi::CStr;
+use std::os::raw::c_char;
+
+/// # Safety
+/// `s` must be a valid, null-terminated C string.
+#[no_mangle]
+pub unsafe extern "C" fn rust_strlen(s: *const c_char) -> usize {
+    if s.is_null() { return 0; }
+    CStr::from_ptr(s).to_bytes().len()
+}
+
+#[no_mangle]
+pub extern "C" fn rust_add(a: i32, b: i32) -> i32 {
+    a + b
+}
+
+#[no_mangle]
+pub extern "C" fn rust_dot_product(
+    a:   *const f64,
+    b:   *const f64,
+    len: usize,
+) -> f64 {
+    // SAFETY: caller guarantees a and b point to valid arrays of `len` f64s
+    unsafe {
+        let a = std::slice::from_raw_parts(a, len);
+        let b = std::slice::from_raw_parts(b, len);
+        a.iter().zip(b.iter()).map(|(x, y)| x * y).sum()
+    }
+}
+
+// In Cargo.toml, set crate-type = ["cdylib"] to produce a .so/.dll
+// Then from C:
+//   extern int rust_add(int a, int b);
+//   printf("%d\n", rust_add(3, 4)); // 7
+
+fn main() {
+    println!("rust_add(3, 4) = {}", rust_add(3, 4));
+    let a = [1.0, 2.0, 3.0];
+    let b = [4.0, 5.0, 6.0];
+    println!("dot product = {}",
+        rust_dot_product(a.as_ptr(), b.as_ptr(), a.len())); // 32.0
+}</code></pre>
+
+                        <h2>mem::transmute and mem::forget</h2>
+                        <p><code>std::mem::transmute&lt;A, B&gt;(val)</code> reinterprets the bits of a value of type <code>A</code> as type <code>B</code>. It is the most dangerous function in the standard library: it bypasses all type safety and imposes no runtime checks. The types must have the same size; beyond that, anything goes. Use it only as a last resort when no safe conversion exists and you have a precise proof that the bit patterns are compatible.</p>
+                        <p><code>std::mem::forget(val)</code> takes ownership of a value and prevents its destructor from running. This is occasionally needed in FFI when ownership is transferred to C code that will free the memory. It is safe to call (hence no <code>unsafe</code> requirement), because the only consequence is a potential memory or resource leak &mdash; not memory unsafety.</p>
+
+                        <p><em>Legitimate uses of <code>transmute</code> (f32 bit inspection) and <code>forget</code> (transferring ownership to C), with extensive commentary on why alternatives should always be tried first.</em></p>
+<pre><code class="language-rust">fn main() {
+    // transmute: inspect f32 bits (use f32::to_bits() in real code!)
+    let f: f32 = 1.0;
+    let bits: u32 = unsafe { std::mem::transmute(f) };
+    println!("1.0f32 bits: 0x{bits:08X}"); // 0x3F800000
+
+    // to_bits() is the safe, idiomatic alternative:
+    let bits2 = f.to_bits();
+    assert_eq!(bits, bits2);
+
+    // transmute lifetime extension -- extremely dangerous:
+    // creates a reference with an incorrect lifetime
+    // NEVER do this unless you have a very specific reason and proof
+    // Example of what NOT to do:
+    // let extended: &amp;'static str = unsafe { std::mem::transmute("hello") };
+
+    // forget: prevent the destructor of a value from running
+    // Useful when transferring ownership to C or when a struct
+    // manages a resource that should not be freed at this point.
+    let v = vec![1, 2, 3];
+    let ptr = v.as_ptr();
+    let len = v.len();
+    std::mem::forget(v); // v's destructor will NOT run; memory is not freed
+
+    // Now the memory is "owned" by raw_vec -- must be freed manually!
+    // In real FFI code, the C side would call free() on ptr.
+    // Here we just reconstruct to avoid a leak in this example:
+    let _recovered = unsafe { Vec::from_raw_parts(ptr as *mut i32, len, len) };
+    // _recovered's destructor WILL free the memory
+
+    // mem::size_of and align_of: useful for low-level layout work
+    println!("size of i32:  {} bytes", std::mem::size_of::&lt;i32&gt;());
+    println!("size of u64:  {} bytes", std::mem::size_of::&lt;u64&gt;());
+    println!("size of &amp;str: {} bytes", std::mem::size_of::&lt;&amp;str&gt;());    // 16 (fat ptr)
+    println!("align of f64: {} bytes", std::mem::align_of::&lt;f64&gt;());
+}</code></pre>
+
+                        <h2>When to Use unsafe — Practical Guidelines</h2>
+                        <ul>
+                            <li><strong>Do not use unsafe to work around compiler errors.</strong> If the borrow checker rejects your code, that is almost always a signal that the code has a genuine ownership or aliasing problem. Fix the design, do not suppress the check.</li>
+                            <li><strong>Minimise the unsafe surface.</strong> Keep unsafe blocks as small as possible. Wrap unsafe operations in safe abstractions with documented invariants. Test the abstraction thoroughly.</li>
+                            <li><strong>Document the safety invariants.</strong> Every <code>unsafe</code> function and every <code>unsafe</code> block should have a <code># Safety</code> comment explaining what preconditions must hold and why they are satisfied at this call site.</li>
+                            <li><strong>Use safe alternatives when they exist.</strong> <code>f32::to_bits()</code> instead of <code>transmute</code>. <code>slice::split_at_mut</code> instead of dual raw pointer arithmetic. <code>CString</code> instead of manual null termination.</li>
+                            <li><strong>Use tools.</strong> Miri (the Rust interpreter) detects undefined behaviour in unsafe code at test time. Sanitizers (AddressSanitizer, MemorySanitizer) catch memory errors at runtime.</li>
+                        </ul>
+
+                    </div>
+                </div>
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>Rust Series &mdash; Module 4</h4>
+                        <a href="rust-smart-pointers.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Smart Pointers: Box, Rc &amp; Arc</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-interior-mutability.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Interior Mutability: Cell, RefCell, Mutex &amp; RwLock</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-slice-deref.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Slices, Deref Coercions &amp; Custom Deref</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-unsafe.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Unsafe Rust: Raw Pointers, unsafe Blocks &amp; FFI</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-rust.min.js"></script>
+    <script>
+        const toggle = document.querySelector('.nav-toggle');
+        const navLinks = document.querySelector('.nav-links');
+        toggle.addEventListener('click', () => {
+            navLinks.classList.toggle('active');
+            toggle.classList.toggle('active');
+        });
+    </script>
+
+</body>
+</html>

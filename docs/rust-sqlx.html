@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SQLx &amp; Databases in Rust &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="rust-tech-insights.html">Rust</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+            <button class="nav-toggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+            <header class="article-header">
+                        <a href="rust-tech-insights.html" class="back-link">&larr; Back to Rust Tech Insights</a>
+                <div class="post-meta">
+                    <span class="post-date">Mar 2026</span>
+                    <span class="post-reading">17 min read</span>
+                </div>
+                <h1>SQLx &amp; Databases</h1>
+                <div class="post-tags">
+                    <span>Rust</span>
+                    <span>SQLx</span>
+                    <span>PostgreSQL</span>
+                </div>
+            </header>
+
+                    <div class="article-body">
+
+            <section>
+                <h2>1. Setup</h2>
+                <pre><code class="language-toml"># Cargo.toml
+[dependencies]
+sqlx = { version = "0.8", features = [
+    "runtime-tokio",   # async runtime
+    "tls-rustls",      # TLS support
+    "postgres",        # or "sqlite", "mysql"
+    "uuid",            # UUID type support
+    "chrono",          # DateTime type support
+    "json",            # serde_json::Value
+    "migrate",         # migrations
+] }
+tokio    = { version = "1", features = ["full"] }
+serde    = { version = "1", features = ["derive"] }
+uuid     = { version = "1", features = ["v4"] }
+chrono   = { version = "0.4", features = ["serde"] }
+</code></pre>
+                <pre><code class="language-bash"># Install the sqlx CLI for running migrations
+cargo install sqlx-cli --no-default-features --features rustls,postgres
+
+# Create the database
+export DATABASE_URL="postgres://user:pass@localhost/mydb"
+sqlx database create
+
+# Create a migration
+sqlx migrate add create_users
+
+# Run migrations
+sqlx migrate run
+
+# Revert the last migration
+sqlx migrate revert
+</code></pre>
+            </section>
+
+            <section>
+                <h2>2. Connection Pool</h2>
+                <pre><code class="language-rust">use sqlx::postgres::PgPoolOptions;
+use sqlx::PgPool;
+use std::time::Duration;
+
+async fn create_pool(database_url: &amp;str) -&gt; anyhow::Result&lt;PgPool&gt; {
+    let pool = PgPoolOptions::new()
+        .max_connections(20)               // max pool size
+        .min_connections(2)                // keep 2 connections warm
+        .acquire_timeout(Duration::from_secs(5))  // wait timeout for a connection
+        .idle_timeout(Duration::from_secs(600))   // close idle connections after 10m
+        .max_lifetime(Duration::from_secs(1800))  // recycle connections every 30m
+        .connect(database_url)
+        .await?;
+
+    // Run pending migrations automatically on startup
+    sqlx::migrate!("./migrations").run(&amp;pool).await?;
+
+    Ok(pool)
+}
+
+#[tokio::main]
+async fn main() -&gt; anyhow::Result&lt;()&gt; {
+    let url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgres://postgres:password@localhost/mydb".to_string());
+
+    let pool = create_pool(&amp;url).await?;
+
+    // Pool is Clone — pass it via Arc or directly (it's already Arc internally)
+    println!("pool size: {}", pool.size());
+
+    Ok(())
+}
+</code></pre>
+            </section>
+
+            <section>
+                <h2>3. Migrations</h2>
+                <pre><code class="language-sql">-- migrations/20260301000001_create_users.sql
+CREATE TABLE users (
+    id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    name       TEXT        NOT NULL,
+    email      TEXT        NOT NULL UNIQUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_users_email ON users(email);
+</code></pre>
+                <pre><code class="language-sql">-- migrations/20260301000002_create_posts.sql
+CREATE TABLE posts (
+    id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id    UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title      TEXT        NOT NULL,
+    body       TEXT        NOT NULL DEFAULT '',
+    published  BOOLEAN     NOT NULL DEFAULT false,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_posts_user_id  ON posts(user_id);
+CREATE INDEX idx_posts_published ON posts(published, created_at DESC);
+</code></pre>
+            </section>
+
+            <section>
+                <h2>4. Compile-Time Checked Queries — query!</h2>
+                <p><code>query!</code> and <code>query_as!</code> verify your SQL against the live database at <strong>compile time</strong>. The type of every column is known statically — typos in column names are build errors.</p>
+                <pre><code class="language-rust">use sqlx::PgPool;
+use uuid::Uuid;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Serialize, Deserialize)]
+struct User {
+    id: Uuid,
+    name: String,
+    email: String,
+    created_at: DateTime&lt;Utc&gt;,
+    updated_at: DateTime&lt;Utc&gt;,
+}
+
+// query_as! maps rows directly to a struct — all column types are verified at compile time
+async fn find_user(pool: &amp;PgPool, id: Uuid) -&gt; anyhow::Result&lt;Option&lt;User&gt;&gt; {
+    let user = sqlx::query_as!(
+        User,
+        "SELECT id, name, email, created_at, updated_at
+         FROM users
+         WHERE id = $1",
+        id
+    )
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(user)
+}
+
+async fn find_user_by_email(pool: &amp;PgPool, email: &amp;str) -&gt; anyhow::Result&lt;Option&lt;User&gt;&gt; {
+    Ok(sqlx::query_as!(
+        User,
+        "SELECT id, name, email, created_at, updated_at
+         FROM users WHERE email = $1",
+        email
+    )
+    .fetch_optional(pool)
+    .await?)
+}
+
+async fn list_users(pool: &amp;PgPool, limit: i64, offset: i64) -&gt; anyhow::Result&lt;Vec&lt;User&gt;&gt; {
+    Ok(sqlx::query_as!(
+        User,
+        "SELECT id, name, email, created_at, updated_at
+         FROM users
+         ORDER BY created_at DESC
+         LIMIT $1 OFFSET $2",
+        limit,
+        offset
+    )
+    .fetch_all(pool)
+    .await?)
+}
+
+// For queries that return a single scalar value
+async fn count_users(pool: &amp;PgPool) -&gt; anyhow::Result&lt;i64&gt; {
+    let row = sqlx::query!("SELECT COUNT(*) as count FROM users")
+        .fetch_one(pool)
+        .await?;
+    Ok(row.count.unwrap_or(0))
+}
+</code></pre>
+            </section>
+
+            <section>
+                <h2>5. INSERT, UPDATE, DELETE</h2>
+                <pre><code class="language-rust">use sqlx::PgPool;
+use uuid::Uuid;
+
+#[derive(Debug)]
+struct CreateUser {
+    name: String,
+    email: String,
+}
+
+async fn create_user(pool: &amp;PgPool, input: CreateUser) -&gt; anyhow::Result&lt;User&gt; {
+    // RETURNING * gives us the full row back (including DB-generated fields)
+    let user = sqlx::query_as!(
+        User,
+        "INSERT INTO users (name, email)
+         VALUES ($1, $2)
+         RETURNING id, name, email, created_at, updated_at",
+        input.name,
+        input.email,
+    )
+    .fetch_one(pool)
+    .await?;
+
+    Ok(user)
+}
+
+async fn update_user_name(pool: &amp;PgPool, id: Uuid, name: &amp;str) -&gt; anyhow::Result&lt;Option&lt;User&gt;&gt; {
+    Ok(sqlx::query_as!(
+        User,
+        "UPDATE users
+         SET name = $1, updated_at = NOW()
+         WHERE id = $2
+         RETURNING id, name, email, created_at, updated_at",
+        name,
+        id,
+    )
+    .fetch_optional(pool)
+    .await?)
+}
+
+async fn delete_user(pool: &amp;PgPool, id: Uuid) -&gt; anyhow::Result&lt;bool&gt; {
+    let result = sqlx::query!(
+        "DELETE FROM users WHERE id = $1",
+        id
+    )
+    .execute(pool)
+    .await?;
+
+    Ok(result.rows_affected() == 1)
+}
+</code></pre>
+            </section>
+
+            <section>
+                <h2>6. Transactions</h2>
+                <pre><code class="language-rust">use sqlx::{PgPool, postgres::PgConnection};
+use uuid::Uuid;
+
+// Transfer money between accounts atomically
+async fn transfer(
+    pool: &amp;PgPool,
+    from_id: Uuid,
+    to_id: Uuid,
+    amount: i64, // in cents
+) -&gt; anyhow::Result&lt;()&gt; {
+    // begin() starts a transaction; commits on drop if no error
+    let mut tx = pool.begin().await?;
+
+    // Deduct from sender (lock the row to prevent races)
+    let updated = sqlx::query!(
+        "UPDATE accounts
+         SET balance = balance - $1
+         WHERE id = $2 AND balance &gt;= $1
+         RETURNING id",
+        amount,
+        from_id,
+    )
+    .fetch_optional(&amp;mut *tx)
+    .await?;
+
+    if updated.is_none() {
+        anyhow::bail!("insufficient funds or account not found");
+    }
+
+    // Add to recipient
+    sqlx::query!(
+        "UPDATE accounts SET balance = balance + $1 WHERE id = $2",
+        amount,
+        to_id,
+    )
+    .execute(&amp;mut *tx)
+    .await?;
+
+    // Record the transfer
+    sqlx::query!(
+        "INSERT INTO transfers (from_id, to_id, amount) VALUES ($1, $2, $3)",
+        from_id,
+        to_id,
+        amount,
+    )
+    .execute(&amp;mut *tx)
+    .await?;
+
+    tx.commit().await?; // all-or-nothing commit
+    Ok(())
+}
+
+// Savepoints for partial rollback
+async fn bulk_insert_with_savepoint(pool: &amp;PgPool, names: &amp;[&amp;str]) -&gt; anyhow::Result&lt;Vec&lt;Uuid&gt;&gt; {
+    let mut tx = pool.begin().await?;
+    let mut ids = Vec::new();
+
+    for &amp;name in names {
+        // Create a savepoint before each insert
+        sqlx::query("SAVEPOINT insert_user").execute(&amp;mut *tx).await?;
+
+        match sqlx::query_scalar!(
+            "INSERT INTO users (name, email) VALUES ($1, $2) RETURNING id",
+            name,
+            format!("{name}@example.com"),
+        )
+        .fetch_one(&amp;mut *tx)
+        .await {
+            Ok(id) =&gt; ids.push(id),
+            Err(e) =&gt; {
+                // Roll back to savepoint — only this insert fails, not the whole tx
+                sqlx::query("ROLLBACK TO SAVEPOINT insert_user")
+                    .execute(&amp;mut *tx).await?;
+                eprintln!("skipped {name}: {e}");
+            }
+        }
+    }
+
+    tx.commit().await?;
+    Ok(ids)
+}
+</code></pre>
+            </section>
+
+            <section>
+                <h2>7. Streaming Large Result Sets</h2>
+                <pre><code class="language-rust">use sqlx::PgPool;
+use futures::TryStreamExt;
+
+async fn process_all_users(pool: &amp;PgPool) -&gt; anyhow::Result&lt;()&gt; {
+    // fetch_many / fetch stream rows without loading everything into memory
+    let mut stream = sqlx::query_as!(
+        User,
+        "SELECT id, name, email, created_at, updated_at FROM users ORDER BY created_at"
+    )
+    .fetch(pool); // returns a Stream
+
+    let mut count = 0usize;
+    while let Some(user) = stream.try_next().await? {
+        // Process one user at a time — low memory footprint even for millions of rows
+        process_user(&amp;user).await;
+        count += 1;
+        if count % 1000 == 0 {
+            println!("processed {count} users...");
+        }
+    }
+
+    println!("done: {count} users processed");
+    Ok(())
+}
+
+async fn process_user(user: &amp;User) {
+    // placeholder
+}
+</code></pre>
+            </section>
+
+            <section>
+                <h2>8. Dynamic Queries with QueryBuilder</h2>
+                <pre><code class="language-rust">use sqlx::{PgPool, QueryBuilder};
+
+#[derive(Default)]
+struct UserFilter {
+    name: Option&lt;String&gt;,
+    email_domain: Option&lt;String&gt;,
+    min_created: Option&lt;chrono::DateTime&lt;chrono::Utc&gt;&gt;,
+    limit: Option&lt;i64&gt;,
+}
+
+async fn search_users(pool: &amp;PgPool, filter: &amp;UserFilter) -&gt; anyhow::Result&lt;Vec&lt;User&gt;&gt; {
+    let mut builder: QueryBuilder&lt;sqlx::Postgres&gt; = QueryBuilder::new(
+        "SELECT id, name, email, created_at, updated_at FROM users WHERE 1=1"
+    );
+
+    if let Some(name) = &amp;filter.name {
+        builder.push(" AND name ILIKE ").push_bind(format!("%{name}%"));
+    }
+    if let Some(domain) = &amp;filter.email_domain {
+        builder.push(" AND email LIKE ").push_bind(format!("%@{domain}"));
+    }
+    if let Some(min) = filter.min_created {
+        builder.push(" AND created_at >= ").push_bind(min);
+    }
+
+    builder.push(" ORDER BY created_at DESC");
+
+    if let Some(limit) = filter.limit {
+        builder.push(" LIMIT ").push_bind(limit);
+    }
+
+    Ok(builder.build_query_as::&lt;User&gt;()
+        .fetch_all(pool)
+        .await?)
+}
+</code></pre>
+            </section>
+
+            <section>
+                <h2>9. Integration with Axum</h2>
+                <pre><code class="language-rust">use axum::{extract::{State, Path}, Json, Router, routing::{get, post}};
+use sqlx::PgPool;
+use uuid::Uuid;
+
+// Pass the pool as Axum state
+async fn api_get_user(
+    State(pool): State&lt;PgPool&gt;,
+    Path(id): Path&lt;Uuid&gt;,
+) -&gt; Result&lt;Json&lt;User&gt;, (axum::http::StatusCode, String)&gt; {
+    find_user(&amp;pool, id)
+        .await
+        .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .map(Json)
+        .ok_or((axum::http::StatusCode::NOT_FOUND, format!("user {id} not found")))
+}
+
+#[derive(serde::Deserialize)]
+struct CreateUserBody { name: String, email: String }
+
+async fn api_create_user(
+    State(pool): State&lt;PgPool&gt;,
+    Json(body): Json&lt;CreateUserBody&gt;,
+) -&gt; Result&lt;(axum::http::StatusCode, Json&lt;User&gt;), (axum::http::StatusCode, String)&gt; {
+    let user = create_user(&amp;pool, CreateUser { name: body.name, email: body.email })
+        .await
+        .map_err(|e| {
+            if e.to_string().contains("unique") {
+                (axum::http::StatusCode::CONFLICT, "email already in use".to_string())
+            } else {
+                (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+            }
+        })?;
+
+    Ok((axum::http::StatusCode::CREATED, Json(user)))
+}
+
+#[tokio::main]
+async fn main() -&gt; anyhow::Result&lt;()&gt; {
+    let url = std::env::var("DATABASE_URL")?;
+    let pool = create_pool(&amp;url).await?;
+
+    let app = Router::new()
+        .route("/users/:id", get(api_get_user))
+        .route("/users",     post(api_create_user))
+        .with_state(pool);
+
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
+    axum::serve(listener, app).await?;
+    Ok(())
+}
+</code></pre>
+            </section>
+
+            <section>
+                <h2>10. Testing with a Real Database</h2>
+                <pre><code class="language-toml"># Cargo.toml
+[dev-dependencies]
+sqlx = { version = "0.8", features = ["test-utils"] }
+</code></pre>
+                <pre><code class="language-rust">#[cfg(test)]
+mod tests {
+    use super::*;
+    use sqlx::PgPool;
+
+    // sqlx::test spins up a fresh DB (via Docker or an existing PG instance),
+    // runs migrations, and gives you an isolated pool per test.
+    // Set TEST_DATABASE_URL or use sqlx::test(migrations = "migrations")
+    #[sqlx::test(migrations = "./migrations")]
+    async fn test_create_and_find_user(pool: PgPool) {
+        let user = create_user(&amp;pool, CreateUser {
+            name: "Alice".to_string(),
+            email: "alice@test.com".to_string(),
+        })
+        .await
+        .unwrap();
+
+        assert_eq!(user.name, "Alice");
+        assert_eq!(user.email, "alice@test.com");
+
+        let found = find_user(&amp;pool, user.id).await.unwrap();
+        assert!(found.is_some());
+        assert_eq!(found.unwrap().name, "Alice");
+    }
+
+    #[sqlx::test(migrations = "./migrations")]
+    async fn test_delete_user(pool: PgPool) {
+        let user = create_user(&amp;pool, CreateUser {
+            name: "Bob".to_string(),
+            email: "bob@test.com".to_string(),
+        })
+        .await
+        .unwrap();
+
+        let deleted = delete_user(&amp;pool, user.id).await.unwrap();
+        assert!(deleted);
+
+        let not_found = find_user(&amp;pool, user.id).await.unwrap();
+        assert!(not_found.is_none());
+    }
+}
+</code></pre>
+            </section>
+                    </div><!-- /article-body -->
+                </div><!-- /article-main -->
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+
+                    <div class="sidebar-box">
+                        <h4>Rust Series &mdash; Module 8</h4>
+                        <a href="rust-axum.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Axum Web Framework</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                        <a href="rust-reqwest.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">HTTP Client with Reqwest</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                        <a href="rust-sqlx.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">SQLx &amp; Databases</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                        <a href="rust-websockets.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">WebSockets</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-rust.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+    <script>
+        const toggle = document.querySelector('.nav-toggle');
+        const navLinks = document.querySelector('.nav-links');
+        toggle.addEventListener('click', () => {
+            navLinks.classList.toggle('active');
+            toggle.classList.toggle('active');
+        });
+    </script>
+</body>
+</html>

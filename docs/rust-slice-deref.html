@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Slices, Deref Coercions &amp; Custom Deref in Rust &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="rust-tech-insights.html">Rust</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+            <button class="nav-toggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+                    <header class="article-header">
+                        <a href="rust-tech-insights.html" class="back-link">&larr; Back to Rust Tech Insights</a>
+                        <div class="post-meta">
+                            <span class="post-date">Feb 2026</span>
+                            <span class="post-reading">14 min read</span>
+                        </div>
+                        <h1>Slices, Deref Coercions &amp; Custom Deref</h1>
+                        <div class="post-tags">
+                            <span>Rust</span>
+                            <span>Slices</span>
+                            <span>Deref</span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        <p class="lead">Slices are fat pointers: a pointer to a contiguous region of memory paired with a length. They are one of Rust's most versatile types, providing a unified interface for arrays, <code>Vec</code>s, strings, and any contiguous sequence without copying or allocating. Deref coercions are the mechanism that makes smart pointers and collection types behave transparently as their inner types, enabling APIs that accept <code>&amp;[T]</code> to work with <code>Vec&lt;T&gt;</code> and arrays without conversion.</p>
+
+                        <h2>Slices in Depth</h2>
+                        <p>A slice <code>&amp;[T]</code> is a view into a contiguous sequence of <code>T</code> values. It is a <em>dynamically sized type</em> (DST): its size is not known at compile time, only the size of the fat pointer (two words: pointer + length) is. You always use slices behind a reference or inside a smart pointer.</p>
+                        <p>The key property: every collection that stores elements contiguously implements <code>Deref&lt;Target = [T]&gt;</code>, which means anywhere a <code>&amp;[T]</code> is expected, a <code>&amp;Vec&lt;T&gt;</code>, <code>&amp;Box&lt;[T]&gt;</code>, or <code>&amp;[T; N]</code> will be accepted via coercion. Writing functions that take <code>&amp;[T]</code> instead of <code>&amp;Vec&lt;T&gt;</code> makes them work with any of these sources.</p>
+
+                        <h3>Slice Creation and Operations</h3>
+                        <p><em>Creating slices from different sources, slicing ranges, split operations, and the full set of slice methods.</em></p>
+<pre><code class="language-rust">fn sum(data: &amp;[i32]) -> i32 { data.iter().sum() }
+
+fn main() {
+    // From array
+    let arr = [1, 2, 3, 4, 5];
+    let slice: &amp;[i32] = &amp;arr;
+    let partial: &amp;[i32] = &amp;arr[1..4]; // [2, 3, 4]
+
+    // From Vec (via Deref)
+    let v = vec![10, 20, 30, 40, 50];
+    let vslice: &amp;[i32] = &amp;v;     // Vec&lt;T&gt; deref to [T]
+    let mid: &amp;[i32] = &amp;v[1..3]; // [20, 30]
+
+    // sum() accepts &amp;[i32]: works with both
+    println!("{}", sum(slice));  // 15
+    println!("{}", sum(vslice)); // 150
+    println!("{}", sum(&amp;arr));   // 15 -- &amp;[T; N] coerces to &amp;[T]
+
+    // Core slice methods
+    let data = vec![3, 1, 4, 1, 5, 9, 2, 6];
+    println!("len:   {}", data.len());
+    println!("first: {:?}", data.first());      // Some(3)
+    println!("last:  {:?}", data.last());       // Some(6)
+    println!("get 2: {:?}", data.get(2));       // Some(4)
+    println!("get 99:{:?}", data.get(99));      // None
+
+    // Split operations -- all return pairs of slices, no allocation
+    let (head, tail) = data.split_at(3);
+    println!("head={head:?}, tail={tail:?}");
+
+    let (init, last) = data.split_last().unwrap();
+    println!("last={last}, rest={init:?}");
+
+    // chunks / windows (revisited with slices)
+    let chunks: Vec&lt;&amp;[i32]&gt; = data.chunks(3).collect();
+    println!("chunks: {chunks:?}");
+
+    // contains and binary_search
+    let sorted = vec![1, 2, 3, 4, 5];
+    println!("contains 3: {}", sorted.contains(&amp;3)); // true
+    println!("binary_search 3: {:?}", sorted.binary_search(&amp;3)); // Ok(2)
+
+    // rotate_left / rotate_right
+    let mut r = [1, 2, 3, 4, 5];
+    r.rotate_left(2);
+    println!("rotated: {r:?}"); // [3, 4, 5, 1, 2]
+
+    // swap elements
+    let mut s = [1, 2, 3];
+    s.swap(0, 2);
+    println!("swapped: {s:?}"); // [3, 2, 1]
+}</code></pre>
+
+                        <h3>Mutable Slices</h3>
+                        <p><em>Sorting, filling, copying between slices, and the <code>split_at_mut</code> trick for obtaining two non-overlapping mutable slices from one.</em></p>
+<pre><code class="language-rust">fn normalise(data: &amp;mut [f64]) {
+    let max = data.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+    if max != 0.0 {
+        for x in data.iter_mut() { *x /= max; }
+    }
+}
+
+fn main() {
+    let mut v = vec![3.0, 1.0, 4.0, 1.0, 5.0, 9.0, 2.0, 6.0];
+
+    normalise(&amp;mut v);
+    println!("{:?}", v.iter().map(|x| format!("{x:.2}")).collect::&lt;Vec&lt;_&gt;&gt;());
+
+    // fill: set all elements to a value
+    let mut zeros = vec![0i32; 5];
+    zeros.fill(42);
+    println!("{zeros:?}"); // [42, 42, 42, 42, 42]
+
+    // fill_with: set with a closure
+    let mut counter = vec![0i32; 5];
+    let mut n = 0;
+    counter.fill_with(|| { n += 1; n });
+    println!("{counter:?}"); // [1, 2, 3, 4, 5]
+
+    // copy_from_slice: bulk copy between same-length slices
+    let src = [10, 20, 30];
+    let mut dst = [0i32; 3];
+    dst.copy_from_slice(&amp;src);
+    println!("{dst:?}"); // [10, 20, 30]
+
+    // split_at_mut: the only way to get two mutable slices from one
+    let mut data = [1, 2, 3, 4, 5, 6];
+    let (left, right) = data.split_at_mut(3);
+    left[0]  = 99;
+    right[0] = 77;
+    println!("{data:?}"); // [99, 2, 3, 77, 5, 6]
+
+    // Sorting with key
+    let mut words = vec!["banana", "apple", "cherry", "fig", "date"];
+    words.sort_unstable_by_key(|s| s.len());
+    println!("{words:?}"); // ["fig", "date", "apple", "banana", "cherry"]
+}</code></pre>
+
+                        <h2>Slice Patterns in match</h2>
+                        <p>Rust's pattern matching works on slices, enabling clean structural decomposition of sequences. Slice patterns can match on fixed-length prefixes, suffixes, or use <code>..</code> to ignore the middle portion.</p>
+
+                        <p><em>Comprehensive slice pattern examples: empty, single element, fixed-length, prefix+rest, and nested patterns.</em></p>
+<pre><code class="language-rust">fn describe(data: &amp;[i32]) -> String {
+    match data {
+        [] =>
+            "empty".to_string(),
+        [x] =>
+            format!("single: {x}"),
+        [first, second] =>
+            format!("pair: {first} and {second}"),
+        [first, .., last] =>
+            format!("starts with {first}, ends with {last}, len={}", data.len()),
+    }
+}
+
+fn sum_recursive(data: &amp;[i32]) -> i32 {
+    match data {
+        [] => 0,
+        [head, tail @ ..] => head + sum_recursive(tail),
+    }
+}
+
+fn is_sorted(data: &amp;[i32]) -> bool {
+    match data {
+        [] | [_] => true,
+        [a, b, rest @ ..] => a &lt;= b &amp;&amp; is_sorted(&amp;[&amp;[*b], rest].concat()),
+    }
+}
+
+fn main() {
+    println!("{}", describe(&amp;[]));              // empty
+    println!("{}", describe(&amp;[42]));            // single: 42
+    println!("{}", describe(&amp;[1, 2]));          // pair: 1 and 2
+    println!("{}", describe(&amp;[1, 2, 3, 4, 5])); // starts with 1, ends with 5, len=5
+
+    println!("sum: {}", sum_recursive(&amp;[1, 2, 3, 4, 5])); // 15
+
+    println!("sorted [1,2,3]: {}", is_sorted(&amp;[1, 2, 3])); // true
+    println!("sorted [1,3,2]: {}", is_sorted(&amp;[1, 3, 2])); // false
+
+    // Pattern in function parameter (destructure directly)
+    fn first_and_rest(data: &amp;[i32]) -> Option&lt;(i32, &amp;[i32])&gt; {
+        if let [head, tail @ ..] = data {
+            Some((*head, tail))
+        } else { None }
+    }
+    println!("{:?}", first_and_rest(&amp;[10, 20, 30])); // Some((10, [20, 30]))
+}</code></pre>
+
+                        <h2>Deref Coercions</h2>
+                        <p>Deref coercion is the compiler's automatic insertion of <code>*</code> (dereference) operations when a value of type <code>&amp;T</code> is used where <code>&amp;U</code> is expected and <code>T: Deref&lt;Target = U&gt;</code>. The compiler applies coercions repeatedly, walking the deref chain until it finds a type that matches. This is why you can pass <code>&amp;String</code> where <code>&amp;str</code> is expected, <code>&amp;Vec&lt;T&gt;</code> where <code>&amp;[T]</code> is expected, and <code>&amp;Box&lt;T&gt;</code> where <code>&amp;T</code> is expected.</p>
+                        <p>Deref coercions apply in three contexts: when a function parameter type doesn't match the argument, when a method receiver doesn't match, and when the <code>*</code> operator is used on a smart pointer. They are entirely free at runtime: the compiler resolves them at compile time and emits the appropriate pointer arithmetic.</p>
+
+                        <p><em>The full deref chain from <code>&amp;Box&lt;String&gt;</code> to <code>&amp;str</code>, and a function that benefits from accepting the most general type.</em></p>
+<pre><code class="language-rust">fn count_vowels(s: &amp;str) -> usize {
+    s.chars().filter(|c| "aeiouAEIOU".contains(*c)).count()
+}
+
+fn process_slice(data: &amp;[i32]) -> i32 {
+    data.iter().sum()
+}
+
+fn main() {
+    // &amp;String -> &amp;str (String: Deref&lt;Target=str&gt;)
+    let s = String::from("hello world");
+    println!("{}", count_vowels(&amp;s));      // works
+
+    // &amp;Box&lt;String&gt; -> &amp;String -> &amp;str (two coercions)
+    let boxed = Box::new(String::from("hello"));
+    println!("{}", count_vowels(&amp;boxed)); // works
+
+    // &amp;Vec&lt;T&gt; -> &amp;[T] (Vec: Deref&lt;Target=[T]&gt;)
+    let v = vec![1, 2, 3, 4, 5];
+    println!("{}", process_slice(&amp;v));     // works
+
+    // &amp;[T; N] -> &amp;[T] (arrays coerce to slices)
+    let arr = [10, 20, 30];
+    println!("{}", process_slice(&amp;arr));   // works
+
+    // &amp;Box&lt;Vec&lt;i32&gt;&gt; -> &amp;Vec&lt;i32&gt; -> &amp;[i32]
+    let bv = Box::new(vec![1, 2, 3]);
+    println!("{}", process_slice(&amp;bv));    // works
+
+    // Method calls also trigger deref coercion
+    let boxed_str = Box::new(String::from("hello"));
+    println!("{}", boxed_str.to_uppercase()); // Box -&gt; String -&gt; str method
+
+    // Deref chain summary:
+    // &amp;Box&lt;T&gt;    -> &amp;T
+    // &amp;Rc&lt;T&gt;     -> &amp;T
+    // &amp;Arc&lt;T&gt;    -> &amp;T
+    // &amp;Vec&lt;T&gt;    -> &amp;[T]
+    // &amp;String    -> &amp;str
+    // &amp;PathBuf   -> &amp;Path
+    // &amp;OsString  -> &amp;OsStr
+}</code></pre>
+
+                        <h2>Implementing Custom Deref</h2>
+                        <p>Implementing <code>Deref</code> for your own types allows them to participate in deref coercions and enables the <code>*</code> operator. This is most useful for newtype wrappers (thin wrappers around another type) and smart pointer types. The convention is to implement <code>Deref</code> only when your type genuinely behaves like a smart pointer to the target type &mdash; not as a shortcut for accessing a field.</p>
+
+                        <p><em>A <code>Buffer&lt;T&gt;</code> newtype wrapping <code>Vec&lt;T&gt;</code> with custom methods, implementing <code>Deref</code> and <code>DerefMut</code> to inherit all <code>[T]</code> methods transparently.</em></p>
+<pre><code class="language-rust">use std::ops::{Deref, DerefMut};
+use std::fmt;
+
+/// A fixed-capacity buffer that wraps Vec&lt;T&gt; and adds domain-specific methods.
+struct Buffer&lt;T&gt; {
+    data:     Vec&lt;T&gt;,
+    capacity: usize,
+}
+
+impl&lt;T&gt; Buffer&lt;T&gt; {
+    fn new(capacity: usize) -> Self {
+        Buffer { data: Vec::with_capacity(capacity), capacity }
+    }
+
+    fn push(&amp;mut self, item: T) -> bool {
+        if self.data.len() &lt; self.capacity {
+            self.data.push(item);
+            true
+        } else {
+            false
+        }
+    }
+
+    fn is_full(&amp;self)  -> bool { self.data.len() == self.capacity }
+    fn remaining(&amp;self) -> usize { self.capacity - self.data.len() }
+}
+
+// Deref&lt;Target=[T]&gt; gives Buffer all [T] methods: iter, sort, windows, etc.
+impl&lt;T&gt; Deref for Buffer&lt;T&gt; {
+    type Target = [T];
+    fn deref(&amp;self) -> &amp;[T] { &amp;self.data }
+}
+
+impl&lt;T&gt; DerefMut for Buffer&lt;T&gt; {
+    fn deref_mut(&amp;mut self) -> &amp;mut [T] { &amp;mut self.data }
+}
+
+impl&lt;T: fmt::Debug&gt; fmt::Display for Buffer&lt;T&gt; {
+    fn fmt(&amp;self, f: &amp;mut fmt::Formatter&lt;'_&gt;) -> fmt::Result {
+        write!(f, "Buffer({}/{}) {:?}", self.data.len(), self.capacity, self.data)
+    }
+}
+
+fn print_slice(s: &amp;[i32]) { println!("slice: {s:?}"); }
+
+fn main() {
+    let mut buf: Buffer&lt;i32&gt; = Buffer::new(5);
+    for i in 1..=6 { println!("push {i}: {}", buf.push(i)); }
+    // push 1..5: true; push 6: false (full)
+
+    println!("{buf}"); // Buffer(5/5) [1, 2, 3, 4, 5]
+
+    // Deref coercion: &amp;Buffer&lt;i32&gt; -&gt; &amp;[i32]
+    print_slice(&amp;buf); // works!
+
+    // All [T] methods available via Deref
+    println!("sum: {}", buf.iter().sum::&lt;i32&gt;()); // 15
+    println!("first: {:?}", buf.first()); // Some(1)
+    println!("contains 3: {}", buf.contains(&amp;3)); // true
+
+    // DerefMut: mutable [T] methods
+    buf.sort_unstable_by(|a, b| b.cmp(a)); // sort descending via [T]::sort_unstable_by
+    println!("sorted desc: {:?}", &amp;buf[..]); // [5, 4, 3, 2, 1]
+
+    println!("remaining: {}", buf.remaining()); // 0
+    println!("is_full:   {}", buf.is_full());   // true
+}</code></pre>
+
+                        <h2>Box&lt;[T]&gt; — The Boxed Slice</h2>
+                        <p>A <code>Vec&lt;T&gt;</code> stores three fields: pointer, length, and capacity. When you know the size will never change, you can convert to a boxed slice <code>Box&lt;[T]&gt;</code>, which stores only a pointer and a length. This is more memory-efficient and communicates intent: the data is fixed in size. Converting is free (no reallocation if the Vec's length equals its capacity).</p>
+
+                        <p><em>Converting Vec to boxed slice, using it as a fixed-size buffer, and the memory layout comparison.</em></p>
+<pre><code class="language-rust">fn main() {
+    // Build with Vec, then freeze into a boxed slice
+    let v: Vec&lt;i32&gt; = (1..=5).collect();
+    let boxed: Box&lt;[i32]&gt; = v.into_boxed_slice(); // no reallocation if len == cap
+
+    // Box&lt;[T]&gt; derefs to [T], so all slice methods work
+    println!("len: {}", boxed.len());
+    println!("sum: {}", boxed.iter().sum::&lt;i32&gt;()); // 15
+
+    // Cannot push -- it's fixed size
+    // boxed.push(6); // compile error: no `push` method on [i32]
+
+    // Convert back to Vec
+    let v2: Vec&lt;i32&gt; = boxed.into_vec();
+    println!("{v2:?}");
+
+    // Fixed-size buffer from a closure
+    let squares: Box&lt;[u32]&gt; = (1..=10).map(|x: u32| x * x).collect();
+    println!("{squares:?}");
+
+    // Memory sizes
+    println!("Vec&lt;i32&gt; size: {} bytes", std::mem::size_of::&lt;Vec&lt;i32&gt;&gt;());    // 24 (ptr+len+cap)
+    println!("Box&lt;[i32]&gt; size: {} bytes", std::mem::size_of::&lt;Box&lt;[i32]&gt;&gt;()); // 16 (ptr+len)
+    println!("&amp;[i32] size: {} bytes",    std::mem::size_of::&lt;&amp;[i32]&gt;());       // 16 (ptr+len)
+}</code></pre>
+
+                    </div>
+                </div>
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+                    <div class="sidebar-box">
+                        <h4>Rust Series &mdash; Module 4</h4>
+                        <a href="rust-smart-pointers.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Smart Pointers: Box, Rc &amp; Arc</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-interior-mutability.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Interior Mutability: Cell, RefCell, Mutex &amp; RwLock</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-slice-deref.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Slices, Deref Coercions &amp; Custom Deref</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-unsafe.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Unsafe Rust: Raw Pointers, unsafe Blocks &amp; FFI</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-rust.min.js"></script>
+    <script>
+        const toggle = document.querySelector('.nav-toggle');
+        const navLinks = document.querySelector('.nav-links');
+        toggle.addEventListener('click', () => {
+            navLinks.classList.toggle('active');
+            toggle.classList.toggle('active');
+        });
+    </script>
+
+</body>
+</html>

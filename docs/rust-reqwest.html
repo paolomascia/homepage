@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reqwest HTTP Client in Rust &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="rust-tech-insights.html">Rust</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+            <button class="nav-toggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+            <header class="article-header">
+                        <a href="rust-tech-insights.html" class="back-link">&larr; Back to Rust Tech Insights</a>
+                <div class="post-meta">
+                    <span class="post-date">Mar 2026</span>
+                    <span class="post-reading">15 min read</span>
+                </div>
+                <h1>Reqwest HTTP Client</h1>
+                <div class="post-tags">
+                    <span>Rust</span>
+                    <span>Reqwest</span>
+                    <span>HTTP</span>
+                </div>
+            </header>
+
+                    <div class="article-body">
+
+            <section>
+                <h2>1. Setup and Basic Requests</h2>
+                <pre><code class="language-toml"># Cargo.toml
+[dependencies]
+reqwest = { version = "0.12", features = ["json", "stream", "multipart"] }
+tokio   = { version = "1", features = ["full"] }
+serde   = { version = "1", features = ["derive"] }
+anyhow  = "1"
+</code></pre>
+                <pre><code class="language-rust">use reqwest::Client;
+use serde::{Deserialize, Serialize};
+use anyhow::Result;
+
+#[derive(Debug, Deserialize)]
+struct Post {
+    id: u32,
+    title: String,
+    body: String,
+    #[serde(rename = "userId")]
+    user_id: u32,
+}
+
+#[tokio::main]
+async fn main() -&gt; Result&lt;()&gt; {
+    // Create a client once — reuse across requests (connection pool!)
+    let client = Client::new();
+
+    // Simple GET — deserialize JSON directly
+    let post: Post = client
+        .get("https://jsonplaceholder.typicode.com/posts/1")
+        .send()
+        .await?
+        .error_for_status()?   // returns Err for 4xx/5xx
+        .json()
+        .await?;
+
+    println!("{post:#?}");
+
+    // GET with query parameters
+    let posts: Vec&lt;Post&gt; = client
+        .get("https://jsonplaceholder.typicode.com/posts")
+        .query(&amp;[("userId", "1"), ("_limit", "3")])
+        .send()
+        .await?
+        .json()
+        .await?;
+
+    println!("found {} posts", posts.len());
+
+    Ok(())
+}
+</code></pre>
+            </section>
+
+            <section>
+                <h2>2. POST, PUT, PATCH, DELETE</h2>
+                <pre><code class="language-rust">use reqwest::Client;
+use serde::{Deserialize, Serialize};
+use anyhow::Result;
+
+#[derive(Serialize)]
+struct CreatePost {
+    title: String,
+    body: String,
+    user_id: u32,
+}
+
+#[derive(Debug, Deserialize)]
+struct CreatedPost {
+    id: u32,
+    title: String,
+}
+
+async fn crud_example(client: &amp;Client) -&gt; Result&lt;()&gt; {
+    let base = "https://jsonplaceholder.typicode.com";
+
+    // POST with JSON body
+    let new_post = CreatePost {
+        title: "My Post".to_string(),
+        body: "Hello, world!".to_string(),
+        user_id: 1,
+    };
+
+    let created: CreatedPost = client
+        .post(format!("{base}/posts"))
+        .json(&amp;new_post)          // sets Content-Type: application/json
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
+
+    println!("created: {created:?}");
+
+    // PUT — full replacement
+    let resp = client
+        .put(format!("{base}/posts/1"))
+        .json(&amp;serde_json::json!({ "title": "Updated", "body": "New body", "userId": 1 }))
+        .send()
+        .await?
+        .error_for_status()?;
+
+    println!("put: {}", resp.status());
+
+    // PATCH — partial update
+    let resp = client
+        .patch(format!("{base}/posts/1"))
+        .json(&amp;serde_json::json!({ "title": "Patched title" }))
+        .send()
+        .await?;
+
+    println!("patch: {}", resp.status());
+
+    // DELETE
+    let resp = client
+        .delete(format!("{base}/posts/1"))
+        .send()
+        .await?
+        .error_for_status()?;
+
+    println!("deleted: {}", resp.status()); // 200
+
+    Ok(())
+}
+</code></pre>
+            </section>
+
+            <section>
+                <h2>3. Headers and Authentication</h2>
+                <pre><code class="language-rust">use reqwest::{Client, header};
+use anyhow::Result;
+
+async fn auth_examples() -&gt; Result&lt;()&gt; {
+    // Bearer token
+    let client = Client::new();
+
+    let resp = client
+        .get("https://api.example.com/protected")
+        .bearer_auth("my-jwt-token")
+        .send()
+        .await?;
+
+    // Basic auth
+    let resp = client
+        .get("https://api.example.com/resource")
+        .basic_auth("username", Some("password"))
+        .send()
+        .await?;
+
+    // Custom headers
+    let resp = client
+        .get("https://api.example.com/data")
+        .header("x-api-key", "my-api-key")
+        .header("x-request-id", "abc-123")
+        .header(header::ACCEPT, "application/json")
+        .send()
+        .await?;
+
+    // Client with default headers (applied to every request)
+    let mut headers = header::HeaderMap::new();
+    headers.insert("x-api-key", "my-key".parse().unwrap());
+    headers.insert(header::USER_AGENT, "my-client/1.0".parse().unwrap());
+
+    let client = Client::builder()
+        .default_headers(headers)
+        .build()?;
+
+    let resp = client.get("https://api.example.com/anything").send().await?;
+    println!("status: {}", resp.status());
+
+    Ok(())
+}
+</code></pre>
+            </section>
+
+            <section>
+                <h2>4. Reusable Client with Configuration</h2>
+                <p>Build the client once with a timeout, TLS, and proxy settings; reuse it throughout the application lifetime.</p>
+                <pre><code class="language-rust">use reqwest::{Client, header, redirect::Policy};
+use std::time::Duration;
+use anyhow::Result;
+
+fn build_client(api_key: &amp;str, base_url: &amp;str) -&gt; Result&lt;Client&gt; {
+    let mut headers = header::HeaderMap::new();
+    headers.insert("x-api-key", api_key.parse()?);
+    headers.insert(header::ACCEPT, "application/json".parse()?);
+    headers.insert(header::CONTENT_TYPE, "application/json".parse()?);
+
+    let client = Client::builder()
+        .default_headers(headers)
+        .timeout(Duration::from_secs(30))           // request-level timeout
+        .connect_timeout(Duration::from_secs(10))   // TCP connection timeout
+        .pool_max_idle_per_host(10)                 // connection pool size
+        .redirect(Policy::limited(5))               // follow up to 5 redirects
+        .gzip(true)                                 // decompress gzip responses
+        .user_agent("my-app/1.0")
+        .build()?;
+
+    Ok(client)
+}
+
+// Wrap the client for a specific API
+struct ApiClient {
+    client: Client,
+    base_url: String,
+}
+
+impl ApiClient {
+    fn new(api_key: &amp;str, base_url: &amp;str) -&gt; Result&lt;Self&gt; {
+        Ok(ApiClient {
+            client: build_client(api_key, base_url)?,
+            base_url: base_url.to_string(),
+        })
+    }
+
+    async fn get_user(&amp;self, id: u64) -&gt; Result&lt;serde_json::Value&gt; {
+        Ok(self.client
+            .get(format!("{}/users/{id}", self.base_url))
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?)
+    }
+
+    async fn create_user(&amp;self, name: &amp;str, email: &amp;str) -&gt; Result&lt;serde_json::Value&gt; {
+        Ok(self.client
+            .post(format!("{}/users", self.base_url))
+            .json(&amp;serde_json::json!({ "name": name, "email": email }))
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?)
+    }
+}
+</code></pre>
+            </section>
+
+            <section>
+                <h2>5. Retry with Exponential Backoff</h2>
+                <pre><code class="language-rust">use reqwest::{Client, StatusCode};
+use std::time::Duration;
+use anyhow::{Result, bail};
+
+async fn fetch_with_retry(
+    client: &amp;Client,
+    url: &amp;str,
+    max_attempts: u32,
+) -&gt; Result&lt;serde_json::Value&gt; {
+    let mut last_err = anyhow::anyhow!("no attempts made");
+
+    for attempt in 0..max_attempts {
+        if attempt &gt; 0 {
+            let delay = Duration::from_millis(100 * 2u64.pow(attempt - 1)); // 100ms, 200ms, 400ms…
+            tokio::time::sleep(delay).await;
+            eprintln!("retry {attempt}/{max_attempts} after {:?}", delay);
+        }
+
+        match client.get(url).send().await {
+            Ok(resp) =&gt; {
+                let status = resp.status();
+
+                // Don't retry client errors (4xx) — they won't change
+                if status.is_client_error() {
+                    bail!("client error {status}: {}", resp.text().await.unwrap_or_default());
+                }
+
+                // Retry server errors (5xx) and rate limits (429)
+                if status.is_server_error() || status == StatusCode::TOO_MANY_REQUESTS {
+                    // Respect Retry-After header if present
+                    if let Some(retry_after) = resp.headers().get("retry-after") {
+                        if let Ok(secs) = retry_after.to_str().unwrap_or("0").parse::&lt;u64&gt;() {
+                            tokio::time::sleep(Duration::from_secs(secs)).await;
+                        }
+                    }
+                    last_err = anyhow::anyhow!("server error {status}");
+                    continue;
+                }
+
+                return Ok(resp.json().await?);
+            }
+            Err(e) if e.is_connect() || e.is_timeout() =&gt; {
+                last_err = e.into();
+            }
+            Err(e) =&gt; return Err(e.into()),
+        }
+    }
+
+    Err(last_err.context(format!("failed after {max_attempts} attempts")))
+}
+</code></pre>
+            </section>
+
+            <section>
+                <h2>6. Streaming Responses</h2>
+                <pre><code class="language-rust">use reqwest::Client;
+use tokio::io::AsyncWriteExt;
+use futures::StreamExt;
+use anyhow::Result;
+
+// Download a large file with progress
+async fn download_file(client: &amp;Client, url: &amp;str, dest: &amp;str) -&gt; Result&lt;()&gt; {
+    let resp = client.get(url).send().await?.error_for_status()?;
+
+    let total = resp.content_length();
+    let mut stream = resp.bytes_stream();
+    let mut file = tokio::fs::File::create(dest).await?;
+    let mut downloaded = 0u64;
+
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk?;
+        file.write_all(&amp;chunk).await?;
+        downloaded += chunk.len() as u64;
+
+        if let Some(total) = total {
+            print!("\r{:.1}%", downloaded as f64 / total as f64 * 100.0);
+        }
+    }
+    file.flush().await?;
+    println!("\ndownloaded {} bytes to {dest}", downloaded);
+
+    Ok(())
+}
+
+// Server-Sent Events (SSE) / streaming text
+async fn stream_sse(client: &amp;Client, url: &amp;str) -&gt; Result&lt;()&gt; {
+    let resp = client
+        .get(url)
+        .header("accept", "text/event-stream")
+        .send()
+        .await?;
+
+    let mut stream = resp.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk?;
+        let text = std::str::from_utf8(&amp;chunk)?;
+        for line in text.lines() {
+            if let Some(data) = line.strip_prefix("data: ") {
+                println!("event: {data}");
+            }
+        }
+    }
+
+    Ok(())
+}
+</code></pre>
+            </section>
+
+            <section>
+                <h2>7. Multipart Form Upload</h2>
+                <pre><code class="language-rust">use reqwest::{Client, multipart};
+use anyhow::Result;
+
+async fn upload_image(client: &amp;Client, path: &amp;str) -&gt; Result&lt;serde_json::Value&gt; {
+    let file = tokio::fs::read(path).await?;
+    let file_name = std::path::Path::new(path)
+        .file_name().unwrap().to_string_lossy().to_string();
+
+    let part = multipart::Part::bytes(file)
+        .file_name(file_name)
+        .mime_str("image/jpeg")?;
+
+    let form = multipart::Form::new()
+        .text("title", "my image")
+        .text("description", "uploaded via reqwest")
+        .part("file", part);
+
+    let resp = client
+        .post("https://api.example.com/upload")
+        .multipart(form)
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
+
+    Ok(resp)
+}
+</code></pre>
+            </section>
+
+            <section>
+                <h2>8. Mocking for Tests</h2>
+                <pre><code class="language-toml"># Cargo.toml (dev-dependencies)
+[dev-dependencies]
+mockito = "1"
+wiremock = "0.6"
+</code></pre>
+                <pre><code class="language-rust">// Using wiremock for integration tests
+#[cfg(test)]
+mod tests {
+    use wiremock::{MockServer, Mock, ResponseTemplate};
+    use wiremock::matchers::{method, path, header};
+    use reqwest::Client;
+
+    #[tokio::test]
+    async fn test_get_user() {
+        // Start a mock HTTP server bound to a random port
+        let server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/users/1"))
+            .and(header("x-api-key", "test-key"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({
+                        "id": 1,
+                        "name": "Alice",
+                        "email": "alice@example.com"
+                    }))
+            )
+            .expect(1) // assert it's called exactly once
+            .mount(&amp;server)
+            .await;
+
+        let client = reqwest::Client::builder()
+            .build()
+            .unwrap();
+
+        let resp = client
+            .get(format!("{}/users/1", server.uri()))
+            .header("x-api-key", "test-key")
+            .send()
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), 200);
+        let body: serde_json::Value = resp.json().await.unwrap();
+        assert_eq!(body["name"], "Alice");
+
+        // wiremock verifies that .expect(1) was satisfied when MockServer drops
+    }
+
+    #[tokio::test]
+    async fn test_retry_on_server_error() {
+        let server = MockServer::start().await;
+
+        // First call returns 503, second returns 200
+        Mock::given(method("GET")).and(path("/data"))
+            .respond_with(ResponseTemplate::new(503))
+            .up_to_n_times(1)
+            .mount(&amp;server)
+            .await;
+
+        Mock::given(method("GET")).and(path("/data"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({ "ok": true }))
+            )
+            .mount(&amp;server)
+            .await;
+
+        let client = reqwest::Client::new();
+        let result = super::fetch_with_retry(&amp;client, &amp;format!("{}/data", server.uri()), 3).await;
+        assert!(result.is_ok());
+    }
+}
+</code></pre>
+            </section>
+
+            <section>
+                <h2>9. Concurrent Requests</h2>
+                <pre><code class="language-rust">use reqwest::Client;
+use futures::future;
+use anyhow::Result;
+
+async fn fetch_many(client: &amp;Client, ids: &amp;[u32]) -&gt; Result&lt;Vec&lt;serde_json::Value&gt;&gt; {
+    let futures: Vec&lt;_&gt; = ids.iter().map(|&amp;id| {
+        let client = client.clone();
+        async move {
+            client
+                .get(format!("https://jsonplaceholder.typicode.com/posts/{id}"))
+                .send()
+                .await?
+                .json::&lt;serde_json::Value&gt;()
+                .await
+        }
+    }).collect();
+
+    // Wait for all futures concurrently (not sequentially)
+    let results = future::join_all(futures).await;
+    results.into_iter().collect()  // Vec&lt;Result&gt; -&gt; Result&lt;Vec&gt;
+}
+
+// Limit concurrency with a semaphore
+async fn fetch_bounded(client: &amp;Client, ids: &amp;[u32], concurrency: usize) -&gt; Vec&lt;serde_json::Value&gt; {
+    use tokio::sync::Semaphore;
+    use std::sync::Arc;
+
+    let sem = Arc::new(Semaphore::new(concurrency));
+    let mut handles = Vec::new();
+
+    for &amp;id in ids {
+        let client = client.clone();
+        let sem = Arc::clone(&amp;sem);
+
+        handles.push(tokio::spawn(async move {
+            let _permit = sem.acquire().await.unwrap();
+            client
+                .get(format!("https://jsonplaceholder.typicode.com/posts/{id}"))
+                .send()
+                .await
+                .ok()?
+                .json::&lt;serde_json::Value&gt;()
+                .await
+                .ok()
+        }));
+    }
+
+    let mut results = Vec::new();
+    for h in handles {
+        if let Ok(Some(v)) = h.await {
+            results.push(v);
+        }
+    }
+    results
+}
+
+#[tokio::main]
+async fn main() -&gt; Result&lt;()&gt; {
+    let client = Client::new();
+    let ids = [1, 2, 3, 4, 5];
+
+    let posts = fetch_many(&amp;client, &amp;ids).await?;
+    println!("fetched {} posts", posts.len());
+
+    let posts = fetch_bounded(&amp;client, &amp;ids, 3).await; // max 3 in-flight
+    println!("bounded: {} posts", posts.len());
+
+    Ok(())
+}
+</code></pre>
+            </section>
+                    </div><!-- /article-body -->
+                </div><!-- /article-main -->
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+
+                    <div class="sidebar-box">
+                        <h4>Rust Series &mdash; Module 8</h4>
+                        <a href="rust-axum.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Axum Web Framework</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                        <a href="rust-reqwest.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">HTTP Client with Reqwest</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                        <a href="rust-sqlx.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">SQLx &amp; Databases</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                        <a href="rust-websockets.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">WebSockets</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-rust.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+    <script>
+        const toggle = document.querySelector('.nav-toggle');
+        const navLinks = document.querySelector('.nav-links');
+        toggle.addEventListener('click', () => {
+            navLinks.classList.toggle('active');
+            toggle.classList.toggle('active');
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Serde in Rust &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="rust-tech-insights.html">Rust</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+            <button class="nav-toggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+            <header class="article-header">
+                        <a href="rust-tech-insights.html" class="back-link">&larr; Back to Rust Tech Insights</a>
+                <div class="post-meta">
+                    <span class="post-date">Mar 2026</span>
+                    <span class="post-reading">16 min read</span>
+                </div>
+                <h1>Advanced Serde</h1>
+                <div class="post-tags">
+                    <span>Rust</span>
+                    <span>Serde</span>
+                    <span>Serialization</span>
+                </div>
+            </header>
+
+                    <div class="article-body">
+
+            <section>
+                <h2>1. Serde Fundamentals Recap</h2>
+                <p>Serde is Rust's de-facto serialization framework. The derive macros handle most cases, but knowing the internals unlocks advanced patterns.</p>
+                <pre><code class="language-toml"># Cargo.toml
+[dependencies]
+serde       = { version = "1", features = ["derive"] }
+serde_json  = "1"
+serde_yaml  = "0.9"
+serde_with  = "3"       # extra attribute helpers
+</code></pre>
+                <pre><code class="language-rust">use serde::{Deserialize, Serialize};
+
+// Derive handles the common case automatically
+#[derive(Debug, Serialize, Deserialize)]
+struct User {
+    id: u64,
+    name: String,
+    email: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    phone: Option&lt;String&gt;,
+}
+
+fn main() {
+    let user = User { id: 1, name: "Alice".into(), email: "alice@example.com".into(), phone: None };
+    let json = serde_json::to_string_pretty(&amp;user).unwrap();
+    println!("{json}");
+    // {
+    //   "id": 1,
+    //   "name": "Alice",
+    //   "email": "alice@example.com"
+    // }  — phone omitted because it's None
+}
+</code></pre>
+            </section>
+
+            <section>
+                <h2>2. Field-Level Attributes</h2>
+                <p>Serde's attribute system is extensive — these are the most impactful field attributes:</p>
+                <pre><code class="language-rust">use serde::{Deserialize, Serialize};
+
+fn default_true() -&gt; bool { true }
+
+#[derive(Debug, Serialize, Deserialize)]
+struct Config {
+    // Rename field in the serialized form
+    #[serde(rename = "app_name")]
+    name: String,
+
+    // Use a different name only for serialization or deserialization
+    #[serde(rename(serialize = "maxConns", deserialize = "max_connections"))]
+    max_connections: u32,
+
+    // Provide a default if the field is missing during deserialization
+    #[serde(default)]
+    timeout_secs: u64,
+
+    // Use a specific function as default
+    #[serde(default = "default_true")]
+    enabled: bool,
+
+    // Completely skip a field (never serialize or deserialize it)
+    #[serde(skip)]
+    internal_counter: u32,
+
+    // Skip only during serialization
+    #[serde(skip_serializing)]
+    write_only: String,
+
+    // Skip only when the value equals its Default
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    tags: Vec&lt;String&gt;,
+
+    // Transform value during (de)serialization
+    #[serde(serialize_with = "serialize_as_hex", deserialize_with = "deserialize_from_hex")]
+    secret_bytes: Vec&lt;u8&gt;,
+
+    // Treat a string field as a nested JSON string
+    #[serde(with = "serde_json::value")]
+    metadata: serde_json::Value,
+}
+
+fn serialize_as_hex&lt;S: serde::Serializer&gt;(bytes: &amp;[u8], s: S) -&gt; Result&lt;S::Ok, S::Error&gt; {
+    s.serialize_str(&amp;hex::encode(bytes))
+}
+
+fn deserialize_from_hex&lt;'de, D: serde::Deserializer&lt;'de&gt;&gt;(d: D) -&gt; Result&lt;Vec&lt;u8&gt;, D::Error&gt; {
+    let s = String::deserialize(d)?;
+    hex::decode(&amp;s).map_err(serde::de::Error::custom)
+}
+</code></pre>
+                <pre><code class="language-rust">// serde_with: powerful extra attributes
+use serde_with::{serde_as, DisplayFromStr, DurationSeconds};
+use std::time::Duration;
+
+#[serde_as]
+#[derive(Debug, Serialize, Deserialize)]
+struct Limits {
+    // Serialize Duration as integer seconds
+    #[serde_as(as = "DurationSeconds&lt;u64&gt;")]
+    timeout: Duration,
+
+    // Serialize via Display/FromStr — useful for types that don't impl Serialize
+    #[serde_as(as = "DisplayFromStr")]
+    port: std::net::SocketAddr,
+
+    // Vec of pairs &lt;-&gt; map
+    #[serde_as(as = "Vec&lt;(DisplayFromStr, _)&gt;")]
+    entries: Vec&lt;(std::net::IpAddr, String)&gt;,
+}
+</code></pre>
+            </section>
+
+            <section>
+                <h2>3. Enum Representation Strategies</h2>
+                <p>Serde offers four ways to represent enums in formats like JSON:</p>
+                <pre><code class="language-rust">use serde::{Deserialize, Serialize};
+
+// 1. External tagging (DEFAULT) — { "VariantName": { ...fields } }
+#[derive(Debug, Serialize, Deserialize)]
+enum EventExternal {
+    Click { x: i32, y: i32 },
+    KeyPress { key: String },
+    Quit,
+}
+// {"Click":{"x":10,"y":20}}
+// {"KeyPress":{"key":"Enter"}}
+// "Quit"
+
+// 2. Internal tagging — type field embedded in the same object
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(tag = "type")]
+enum EventInternal {
+    Click { x: i32, y: i32 },
+    KeyPress { key: String },
+    Quit,
+}
+// {"type":"Click","x":10,"y":20}
+// {"type":"KeyPress","key":"Enter"}
+// {"type":"Quit"}
+
+// 3. Adjacent tagging — two separate fields for tag and content
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(tag = "kind", content = "data")]
+enum EventAdjacent {
+    Click { x: i32, y: i32 },
+    KeyPress { key: String },
+    Quit,
+}
+// {"kind":"Click","data":{"x":10,"y":20}}
+// {"kind":"KeyPress","data":{"key":"Enter"}}
+// {"kind":"Quit","data":null}
+
+// 4. Untagged — serde tries each variant in order until one succeeds
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(untagged)]
+enum EventUntagged {
+    Click { x: i32, y: i32 },
+    KeyPress { key: String },
+    Quit,
+}
+// {"x":10,"y":20}
+// {"key":"Enter"}
+// {}
+
+// Rename variants
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum Status {
+    ActiveUser,    // "active_user"
+    PendingReview, // "pending_review"
+    SoftDeleted,   // "soft_deleted"
+}
+</code></pre>
+            </section>
+
+            <section>
+                <h2>4. Flattening and Newtype Patterns</h2>
+                <pre><code class="language-rust">use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+
+// flatten: inline fields of a nested struct into the parent
+#[derive(Debug, Serialize, Deserialize)]
+struct Pagination {
+    page: u32,
+    per_page: u32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct UserListRequest {
+    search: String,
+    #[serde(flatten)]
+    pagination: Pagination,
+}
+// Serializes as: {"search":"alice","page":1,"per_page":20}
+// Not: {"search":"alice","pagination":{"page":1,"per_page":20}}
+
+// flatten with HashMap to capture extra/unknown fields
+#[derive(Debug, Serialize, Deserialize)]
+struct FlexibleConfig {
+    name: String,
+    version: u32,
+    #[serde(flatten)]
+    extra: HashMap&lt;String, serde_json::Value&gt;,
+}
+
+fn demo_flatten() {
+    let json = r#"{"name":"myapp","version":2,"feature_x":true,"log_level":"debug"}"#;
+    let cfg: FlexibleConfig = serde_json::from_str(json).unwrap();
+    println!("{:?}", cfg.extra); // {"feature_x": Bool(true), "log_level": String("debug")}
+}
+
+// Newtype wrapper: transparent serialization
+#[derive(Debug, Serialize, Deserialize)]
+struct UserId(u64);
+
+#[derive(Debug, Serialize, Deserialize)]
+struct WrappedUserId(#[serde(rename = "id")] u64);
+
+// Transparent newtype — serializes exactly like the inner type
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(transparent)]
+struct Milliseconds(u64);
+// Serializes as just a number, not {"0": 1234}
+</code></pre>
+            </section>
+
+            <section>
+                <h2>5. Custom Serialize Implementation</h2>
+                <p>Implement <code>Serialize</code> manually when the derive output doesn't match your target format:</p>
+                <pre><code class="language-rust">use serde::{Serialize, Serializer, ser::SerializeStruct};
+
+// A type that doesn't derive Serialize
+struct Matrix {
+    rows: usize,
+    cols: usize,
+    data: Vec&lt;f64&gt;,
+}
+
+impl Serialize for Matrix {
+    fn serialize&lt;S: Serializer&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt; {
+        // Serialize as a struct with 3 fields
+        let mut state = serializer.serialize_struct("Matrix", 3)?;
+        state.serialize_field("rows", &amp;self.rows)?;
+        state.serialize_field("cols", &amp;self.cols)?;
+        // Serialize data as 2D nested array
+        let nested: Vec&lt;Vec&lt;f64&gt;&gt; = self.data
+            .chunks(self.cols)
+            .map(|row| row.to_vec())
+            .collect();
+        state.serialize_field("data", &amp;nested)?;
+        state.end()
+    }
+}
+
+// Serialize a sequence
+struct Rgb(u8, u8, u8);
+
+impl Serialize for Rgb {
+    fn serialize&lt;S: Serializer&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt; {
+        use serde::ser::SerializeSeq;
+        let mut seq = serializer.serialize_seq(Some(3))?;
+        seq.serialize_element(&amp;self.0)?;
+        seq.serialize_element(&amp;self.1)?;
+        seq.serialize_element(&amp;self.2)?;
+        seq.end()
+    }
+}
+
+// Serialize a map from a custom structure
+use std::collections::BTreeMap;
+struct Registry { entries: BTreeMap&lt;String, Vec&lt;String&gt;&gt; }
+
+impl Serialize for Registry {
+    fn serialize&lt;S: Serializer&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt; {
+        use serde::ser::SerializeMap;
+        let mut map = serializer.serialize_map(Some(self.entries.len()))?;
+        for (key, values) in &amp;self.entries {
+            map.serialize_entry(key, values)?;
+        }
+        map.end()
+    }
+}
+</code></pre>
+            </section>
+
+            <section>
+                <h2>6. Custom Deserialize and the Visitor Pattern</h2>
+                <p>Manual <code>Deserialize</code> uses the Visitor pattern — you define what data formats you accept:</p>
+                <pre><code class="language-rust">use serde::{Deserialize, Deserializer, de::{self, Visitor, MapAccess, SeqAccess}};
+use std::fmt;
+
+struct Point { x: f64, y: f64 }
+
+struct PointVisitor;
+
+impl&lt;'de&gt; Visitor&lt;'de&gt; for PointVisitor {
+    type Value = Point;
+
+    fn expecting(&amp;self, formatter: &amp;mut fmt::Formatter) -&gt; fmt::Result {
+        formatter.write_str("a Point as [x, y] array or {\"x\":..., \"y\":...} object")
+    }
+
+    // Accept a sequence: [1.0, 2.0]
+    fn visit_seq&lt;A: SeqAccess&lt;'de&gt;&gt;(&amp;self, mut seq: A) -&gt; Result&lt;Self::Value, A::Error&gt; {
+        let x = seq.next_element()?.ok_or_else(|| de::Error::invalid_length(0, &amp;self))?;
+        let y = seq.next_element()?.ok_or_else(|| de::Error::invalid_length(1, &amp;self))?;
+        Ok(Point { x, y })
+    }
+
+    // Accept a map: {"x": 1.0, "y": 2.0}
+    fn visit_map&lt;A: MapAccess&lt;'de&gt;&gt;(&amp;self, mut map: A) -&gt; Result&lt;Self::Value, A::Error&gt; {
+        let mut x = None;
+        let mut y = None;
+        while let Some(key) = map.next_key::&lt;String&gt;()? {
+            match key.as_str() {
+                "x" =&gt; x = Some(map.next_value()?),
+                "y" =&gt; y = Some(map.next_value()?),
+                unknown =&gt; return Err(de::Error::unknown_field(unknown, &amp;["x", "y"])),
+            }
+        }
+        Ok(Point {
+            x: x.ok_or_else(|| de::Error::missing_field("x"))?,
+            y: y.ok_or_else(|| de::Error::missing_field("y"))?,
+        })
+    }
+}
+
+impl&lt;'de&gt; Deserialize&lt;'de&gt; for Point {
+    fn deserialize&lt;D: Deserializer&lt;'de&gt;&gt;(deserializer: D) -&gt; Result&lt;Self, D::Error&gt; {
+        deserializer.deserialize_any(PointVisitor)
+    }
+}
+
+fn main() {
+    let p1: Point = serde_json::from_str("[3.0, 4.0]").unwrap();
+    let p2: Point = serde_json::from_str(r#"{"x": 1.5, "y": 2.5}"#).unwrap();
+    println!("p1 = ({}, {})", p1.x, p1.y); // (3, 4)
+    println!("p2 = ({}, {})", p2.x, p2.y); // (1.5, 2.5)
+}
+</code></pre>
+                <pre><code class="language-rust">// Zero-copy deserialization with lifetimes
+use serde::{Deserialize, Deserializer, de::Visitor};
+use std::fmt;
+
+// &amp;'de str borrows directly from the input — no allocation
+#[derive(Debug, Deserialize)]
+struct LogEntry&lt;'a&gt; {
+    #[serde(borrow)]
+    level: &amp;'a str,
+    #[serde(borrow)]
+    message: &amp;'a str,
+    timestamp: u64,
+}
+
+fn parse_log(input: &amp;str) -&gt; LogEntry&lt;'_&gt; {
+    serde_json::from_str(input).unwrap()
+}
+
+// Custom visitor that accepts str OR bytes (zero-copy capable)
+struct CowStrVisitor;
+
+impl&lt;'de&gt; Visitor&lt;'de&gt; for CowStrVisitor {
+    type Value = std::borrow::Cow&lt;'de, str&gt;;
+
+    fn expecting(&amp;self, f: &amp;mut fmt::Formatter) -&gt; fmt::Result {
+        f.write_str("a string")
+    }
+
+    fn visit_borrowed_str&lt;E: de::Error&gt;(self, v: &amp;'de str) -&gt; Result&lt;Self::Value, E&gt; {
+        Ok(std::borrow::Cow::Borrowed(v))  // zero-copy borrow
+    }
+
+    fn visit_str&lt;E: de::Error&gt;(self, v: &amp;str) -&gt; Result&lt;Self::Value, E&gt; {
+        Ok(std::borrow::Cow::Owned(v.to_owned()))  // fallback: allocate
+    }
+}
+</code></pre>
+            </section>
+
+            <section>
+                <h2>7. Streaming Deserialization</h2>
+                <p>For large JSON files, stream one item at a time instead of loading everything into memory:</p>
+                <pre><code class="language-rust">use serde::Deserialize;
+use serde_json::Deserializer;
+use std::io::BufReader;
+use std::fs::File;
+
+#[derive(Debug, Deserialize)]
+struct Record {
+    id: u64,
+    value: f64,
+    label: String,
+}
+
+// Process a large JSON array line-by-line
+fn stream_array(path: &amp;str) -&gt; anyhow::Result&lt;()&gt; {
+    let file = File::open(path)?;
+    let reader = BufReader::new(file);
+
+    // StreamDeserializer yields one item at a time from a JSON array
+    let stream = Deserializer::from_reader(reader).into_iter::&lt;Record&gt;();
+
+    let mut count = 0u64;
+    let mut total = 0.0f64;
+
+    for result in stream {
+        let record = result?;
+        total += record.value;
+        count += 1;
+    }
+
+    println!("Processed {count} records, avg = {:.2}", total / count as f64);
+    Ok(())
+}
+
+// Newline-delimited JSON (NDJSON / JSON Lines)
+fn stream_ndjson(path: &amp;str) -&gt; anyhow::Result&lt;()&gt; {
+    use std::io::{BufRead};
+    let file = File::open(path)?;
+    let reader = BufReader::new(file);
+
+    for line in reader.lines() {
+        let line = line?;
+        if line.is_empty() { continue; }
+        let record: Record = serde_json::from_str(&amp;line)?;
+        println!("id={} label={}", record.id, record.label);
+    }
+    Ok(())
+}
+
+// Async streaming with tokio
+use tokio::io::{AsyncBufReadExt, BufReader as AsyncBufReader};
+use tokio::fs::File as AsyncFile;
+
+async fn stream_ndjson_async(path: &amp;str) -&gt; anyhow::Result&lt;()&gt; {
+    let file = AsyncFile::open(path).await?;
+    let mut lines = AsyncBufReader::new(file).lines();
+
+    while let Some(line) = lines.next_line().await? {
+        if line.is_empty() { continue; }
+        let record: Record = serde_json::from_str(&amp;line)?;
+        println!("id={}", record.id);
+    }
+    Ok(())
+}
+</code></pre>
+            </section>
+
+            <section>
+                <h2>8. Remote Types and Derive Helpers</h2>
+                <p>When you don't own a type, use <code>#[serde(remote = "...")]</code> to generate impls without a newtype wrapper:</p>
+                <pre><code class="language-rust">use serde::{Deserialize, Serialize};
+
+// External type you don't own
+mod third_party {
+    pub struct Color { pub r: u8, pub g: u8, pub b: u8 }
+}
+
+// Define a remote def matching the external type
+#[derive(Serialize, Deserialize)]
+#[serde(remote = "third_party::Color")]
+struct ColorDef {
+    r: u8,
+    g: u8,
+    b: u8,
+}
+
+// Use it in your own types with #[serde(with = "ColorDef")]
+#[derive(Serialize, Deserialize)]
+struct Palette {
+    name: String,
+    #[serde(with = "ColorDef")]
+    primary: third_party::Color,
+    #[serde(with = "ColorDef")]
+    accent: third_party::Color,
+}
+
+// For collections of remote types, wrap in a helper
+mod color_vec {
+    use super::{third_party, ColorDef};
+    use serde::{Deserializer, Serializer, ser::SerializeSeq};
+
+    pub fn serialize&lt;S: Serializer&gt;(colors: &amp;[third_party::Color], s: S) -&gt; Result&lt;S::Ok, S::Error&gt; {
+        let mut seq = s.serialize_seq(Some(colors.len()))?;
+        for c in colors { seq.serialize_element(&amp;ColorDef::serialize(c, serde::__private::ser::FlatMapSerializer(&amp;mut seq)))?; }
+        seq.end()
+    }
+    // ... deserialize analogously
+}
+</code></pre>
+                <pre><code class="language-rust">// #[serde(from = "T")] / #[serde(into = "T")] — convert via an intermediate type
+use serde::{Deserialize, Serialize};
+
+// Intermediate representation
+#[derive(Deserialize, Serialize)]
+struct RawVersion { major: u32, minor: u32, patch: u32 }
+
+#[derive(Debug)]
+struct Version { major: u32, minor: u32, patch: u32 }
+
+impl From&lt;RawVersion&gt; for Version {
+    fn from(r: RawVersion) -&gt; Self { Version { major: r.major, minor: r.minor, patch: r.patch } }
+}
+
+impl From&lt;Version&gt; for RawVersion {
+    fn from(v: Version) -&gt; Self { RawVersion { major: v.major, minor: v.minor, patch: v.patch } }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(from = "RawVersion", into = "RawVersion")]
+struct AppVersion(Version);
+
+impl From&lt;RawVersion&gt; for AppVersion { fn from(r: RawVersion) -&gt; Self { AppVersion(Version::from(r)) } }
+impl From&lt;AppVersion&gt; for RawVersion { fn from(v: AppVersion) -&gt; Self { RawVersion::from(v.0) } }
+</code></pre>
+            </section>
+
+            <section>
+                <h2>9. Multi-Format Support</h2>
+                <p>Serde's data model is format-agnostic — the same types work across JSON, YAML, TOML, MessagePack, and more:</p>
+                <pre><code class="language-rust">use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ServerConfig {
+    host: String,
+    port: u16,
+    workers: usize,
+    #[serde(default)]
+    debug: bool,
+}
+
+fn format_roundtrip() -&gt; anyhow::Result&lt;()&gt; {
+    let config = ServerConfig { host: "0.0.0.0".into(), port: 8080, workers: 4, debug: false };
+
+    // JSON
+    let json = serde_json::to_string_pretty(&amp;config)?;
+    let from_json: ServerConfig = serde_json::from_str(&amp;json)?;
+
+    // YAML
+    let yaml = serde_yaml::to_string(&amp;config)?;
+    let from_yaml: ServerConfig = serde_yaml::from_str(&amp;yaml)?;
+
+    // TOML (toml crate)
+    let toml_str = toml::to_string(&amp;config)?;
+    let from_toml: ServerConfig = toml::from_str(&amp;toml_str)?;
+
+    // MessagePack — compact binary (rmp-serde crate)
+    let msgpack = rmp_serde::to_vec(&amp;config)?;
+    let from_msgpack: ServerConfig = rmp_serde::from_slice(&amp;msgpack)?;
+
+    println!("JSON size:    {} bytes", json.len());
+    println!("YAML size:    {} bytes", yaml.len());
+    println!("TOML size:    {} bytes", toml_str.len());
+    println!("MsgPack size: {} bytes", msgpack.len());
+    // MsgPack is typically 30-50% smaller than JSON
+
+    Ok(())
+}
+
+// serde_json::Value for dynamic/unknown structures
+fn process_dynamic(raw: &amp;str) -&gt; anyhow::Result&lt;()&gt; {
+    let mut value: serde_json::Value = serde_json::from_str(raw)?;
+
+    // Navigate and modify
+    if let Some(users) = value["users"].as_array_mut() {
+        for user in users {
+            user["active"] = serde_json::json!(true);
+        }
+    }
+
+    // Merge two objects
+    let patch = serde_json::json!({ "version": 2, "updated": true });
+    if let (serde_json::Value::Object(base), serde_json::Value::Object(extra)) = (&amp;mut value, patch) {
+        base.extend(extra);
+    }
+
+    println!("{}", serde_json::to_string_pretty(&amp;value)?);
+    Ok(())
+}
+</code></pre>
+            </section>
+
+            <section>
+                <h2>10. Error Handling and Testing</h2>
+                <pre><code class="language-rust">use serde::{Deserialize, Serialize};
+use serde::de::Error;
+
+// Custom error message in a deserializer
+fn deserialize_positive&lt;'de, D: serde::Deserializer&lt;'de&gt;&gt;(d: D) -&gt; Result&lt;i64, D::Error&gt; {
+    let val = i64::deserialize(d)?;
+    if val &lt;= 0 {
+        return Err(D::Error::custom(format!("expected positive integer, got {val}")));
+    }
+    Ok(val)
+}
+
+#[derive(Debug, Deserialize)]
+struct Invoice {
+    #[serde(deserialize_with = "deserialize_positive")]
+    amount_cents: i64,
+    currency: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_roundtrip() {
+        let original = Invoice { amount_cents: 1000, currency: "USD".into() };
+        // Serialize to JSON and back
+        let json = serde_json::to_string(&amp;original).unwrap();
+        let recovered: Invoice = serde_json::from_str(&amp;json).unwrap();
+        assert_eq!(recovered.amount_cents, 1000);
+    }
+
+    #[test]
+    fn test_invalid_amount() {
+        let json = r#"{"amount_cents": -5, "currency": "USD"}"#;
+        let result: Result&lt;Invoice, _&gt; = serde_json::from_str(json);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("positive integer"));
+    }
+
+    #[test]
+    fn test_missing_field_with_default() {
+        #[derive(Deserialize, PartialEq, Debug)]
+        struct Config { name: String, #[serde(default)] retries: u32 }
+        let cfg: Config = serde_json::from_str(r#"{"name":"test"}"#).unwrap();
+        assert_eq!(cfg.retries, 0); // default
+    }
+
+    #[test]
+    fn test_unknown_fields_rejected() {
+        #[derive(Deserialize, Debug)]
+        #[serde(deny_unknown_fields)]
+        struct Strict { x: i32 }
+        let result: Result&lt;Strict, _&gt; = serde_json::from_str(r#"{"x":1,"y":2}"#);
+        assert!(result.is_err()); // "y" is unknown
+    }
+
+    #[test]
+    fn test_untagged_enum() {
+        #[derive(Deserialize, Debug, PartialEq)]
+        #[serde(untagged)]
+        enum IntOrString { Int(i64), Str(String) }
+
+        let i: IntOrString = serde_json::from_str("42").unwrap();
+        let s: IntOrString = serde_json::from_str(r#""hello""#).unwrap();
+        assert_eq!(i, IntOrString::Int(42));
+        assert_eq!(s, IntOrString::Str("hello".into()));
+    }
+}
+</code></pre>
+            </section>
+                    </div><!-- /article-body -->
+                </div><!-- /article-main -->
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+
+                    <div class="sidebar-box">
+                        <h4>Rust Series &mdash; Module 9</h4>
+                        <a href="rust-grpc.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">gRPC with Tonic</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                        <a href="rust-observability.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Observability</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                        <a href="rust-serde-advanced.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Advanced Serde</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                        <a href="rust-deployment.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Deploying Rust in Production</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-rust.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+    <script>
+        const toggle = document.querySelector('.nav-toggle');
+        const navLinks = document.querySelector('.nav-links');
+        toggle.addEventListener('click', () => {
+            navLinks.classList.toggle('active');
+            toggle.classList.toggle('active');
+        });
+    </script>
+
+</body>
+</html>

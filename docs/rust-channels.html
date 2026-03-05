@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Channels &amp; Message Passing in Rust &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="rust-tech-insights.html">Rust</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+            <button class="nav-toggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+            <header class="article-header">
+                        <a href="rust-tech-insights.html" class="back-link">&larr; Back to Rust Tech Insights</a>
+                <div class="post-meta">
+                    <span class="post-date">Feb 2026</span>
+                    <span class="post-reading">15 min read</span>
+                </div>
+                <h1>Channels &amp; Message Passing in Rust</h1>
+                <div class="post-tags">
+                    <span>Rust</span>
+                    <span>Channels</span>
+                    <span>Concurrency</span>
+                </div>
+            </header>
+
+                    <div class="article-body">
+
+            <!-- 1. mpsc basics -->
+            <section>
+                <h2>1. std::sync::mpsc — Multiple Producer, Single Consumer</h2>
+                <p>The standard library provides <code>mpsc::channel()</code> (unbounded) and <code>mpsc::sync_channel()</code> (bounded). "mpsc" stands for <em>multiple producer, single consumer</em> — you can clone the <code>Sender</code> but there is only one <code>Receiver</code>.</p>
+                <pre><code class="language-rust">use std::sync::mpsc;
+use std::thread;
+
+fn main() {
+    // unbounded channel — sender never blocks
+    let (tx, rx) = mpsc::channel::&lt;String&gt;();
+
+    let handle = thread::spawn(move || {
+        tx.send("hello".to_string()).unwrap();
+        tx.send("world".to_string()).unwrap();
+        // tx is dropped here; rx.recv() will return Err when all senders drop
+    });
+
+    // recv() blocks until a message arrives (or all senders drop)
+    while let Ok(msg) = rx.recv() {
+        println!("received: {msg}");
+    }
+    println!("channel closed");
+
+    handle.join().unwrap();
+}
+// Output:
+// received: hello
+// received: world
+// channel closed
+</code></pre>
+
+                <h3>1.1 try_recv and recv_timeout</h3>
+                <pre><code class="language-rust">use std::sync::mpsc;
+use std::time::Duration;
+use std::thread;
+
+fn main() {
+    let (tx, rx) = mpsc::channel::&lt;i32&gt;();
+
+    thread::spawn(move || {
+        thread::sleep(Duration::from_millis(50));
+        tx.send(42).unwrap();
+    });
+
+    // try_recv is non-blocking
+    match rx.try_recv() {
+        Ok(v)                              =&gt; println!("immediate: {v}"),
+        Err(mpsc::TryRecvError::Empty)     =&gt; println!("no message yet"),
+        Err(mpsc::TryRecvError::Disconnected) =&gt; println!("disconnected"),
+    }
+
+    // recv_timeout blocks for at most the given duration
+    match rx.recv_timeout(Duration::from_millis(200)) {
+        Ok(v)                                 =&gt; println!("got: {v}"),
+        Err(mpsc::RecvTimeoutError::Timeout)  =&gt; println!("timed out"),
+        Err(mpsc::RecvTimeoutError::Disconnected) =&gt; println!("disconnected"),
+    }
+}
+// Output:
+// no message yet
+// got: 42
+</code></pre>
+            </section>
+
+            <!-- 2. Multiple producers -->
+            <section>
+                <h2>2. Multiple Producers</h2>
+                <p>Clone the <code>Sender</code> to create multiple producers. All clones share the same channel; each message is delivered to the single <code>Receiver</code>.</p>
+                <pre><code class="language-rust">use std::sync::mpsc;
+use std::thread;
+
+#[derive(Debug)]
+struct WorkResult {
+    worker_id: usize,
+    value: u64,
+}
+
+fn main() {
+    let (tx, rx) = mpsc::channel::&lt;WorkResult&gt;();
+    let mut handles = Vec::new();
+
+    for id in 0..4 {
+        let tx = tx.clone(); // clone the sender for each thread
+        handles.push(thread::spawn(move || {
+            // simulate work
+            let result = (id as u64 + 1) * 100;
+            tx.send(WorkResult { worker_id: id, value: result }).unwrap();
+        }));
+    }
+
+    // Drop the original tx so the channel closes when all workers finish
+    drop(tx);
+
+    // Collect all results
+    let mut results: Vec&lt;WorkResult&gt; = rx.iter().collect(); // iter() = loop recv()
+    results.sort_by_key(|r| r.worker_id);
+
+    for r in &amp;results {
+        println!("worker {}: {}", r.worker_id, r.value);
+    }
+
+    for h in handles { h.join().unwrap(); }
+}
+</code></pre>
+                <p><strong>Key pattern</strong>: always <code>drop(tx)</code> after cloning. If the original sender is not dropped, <code>rx.iter()</code> never terminates because the channel looks open.</p>
+            </section>
+
+            <!-- 3. Bounded channels -->
+            <section>
+                <h2>3. Bounded Channels — sync_channel</h2>
+                <p><code>sync_channel(n)</code> creates a channel with a fixed-size buffer. The sender blocks when the buffer is full, providing back-pressure automatically.</p>
+                <pre><code class="language-rust">use std::sync::mpsc;
+use std::thread;
+use std::time::Duration;
+
+fn main() {
+    // buffer capacity = 2; sender blocks on the 3rd send until receiver reads
+    let (tx, rx) = mpsc::sync_channel::&lt;i32&gt;(2);
+
+    let producer = thread::spawn(move || {
+        for i in 0..5 {
+            println!("sending {i}...");
+            tx.send(i).unwrap(); // blocks when buffer full
+            println!("sent {i}");
+        }
+    });
+
+    thread::sleep(Duration::from_millis(50)); // let producer fill the buffer
+
+    for _ in 0..5 {
+        thread::sleep(Duration::from_millis(20));
+        let v = rx.recv().unwrap();
+        println!("received {v}");
+    }
+
+    producer.join().unwrap();
+}
+// The producer will block after sending 2 messages and
+// resume as the consumer reads them — natural back-pressure.
+</code></pre>
+
+                <h3>3.1 Rendezvous Channel (capacity = 0)</h3>
+                <pre><code class="language-rust">use std::sync::mpsc;
+use std::thread;
+
+fn main() {
+    // capacity 0 = rendezvous: send blocks until recv is ready
+    let (tx, rx) = mpsc::sync_channel::&lt;i32&gt;(0);
+
+    let sender = thread::spawn(move || {
+        println!("sender: waiting for receiver...");
+        tx.send(99).unwrap(); // blocks until receiver calls recv()
+        println!("sender: handed off");
+    });
+
+    thread::sleep(std::time::Duration::from_millis(50));
+    println!("receiver: calling recv()");
+    let v = rx.recv().unwrap();
+    println!("receiver: got {v}");
+
+    sender.join().unwrap();
+}
+</code></pre>
+            </section>
+
+            <!-- 4. Sending complex types -->
+            <section>
+                <h2>4. Sending Complex Types and Errors</h2>
+                <p>Anything that implements <code>Send</code> can travel through a channel. Use enums to multiplex different message kinds.</p>
+                <pre><code class="language-rust">use std::sync::mpsc;
+use std::thread;
+
+// A typed command enum — clean alternative to trait objects
+#[derive(Debug)]
+enum Command {
+    Process(Vec&lt;u8&gt;),
+    SetConfig { key: String, value: String },
+    Shutdown,
+}
+
+fn main() {
+    let (tx, rx) = mpsc::channel::&lt;Command&gt;();
+
+    let worker = thread::spawn(move || {
+        loop {
+            match rx.recv().unwrap() {
+                Command::Process(data) =&gt; {
+                    println!("processing {} bytes", data.len());
+                }
+                Command::SetConfig { key, value } =&gt; {
+                    println!("config: {key} = {value}");
+                }
+                Command::Shutdown =&gt; {
+                    println!("shutting down");
+                    break;
+                }
+            }
+        }
+    });
+
+    tx.send(Command::SetConfig {
+        key: "timeout".to_string(),
+        value: "30s".to_string(),
+    }).unwrap();
+    tx.send(Command::Process(vec![1, 2, 3, 4])).unwrap();
+    tx.send(Command::Shutdown).unwrap();
+
+    worker.join().unwrap();
+}
+</code></pre>
+
+                <h3>4.1 Result over Channels</h3>
+                <pre><code class="language-rust">use std::sync::mpsc;
+use std::thread;
+use std::num::ParseIntError;
+
+fn parse_worker(input: &amp;str, tx: mpsc::Sender&lt;Result&lt;i32, ParseIntError&gt;&gt;) {
+    let result = input.trim().parse::&lt;i32&gt;();
+    tx.send(result).unwrap();
+}
+
+fn main() {
+    let (tx, rx) = mpsc::channel();
+
+    let inputs = vec!["42", "not_a_number", "100"];
+    let mut handles = Vec::new();
+
+    for input in inputs {
+        let tx = tx.clone();
+        let input = input.to_string();
+        handles.push(thread::spawn(move || parse_worker(&amp;input, tx)));
+    }
+    drop(tx);
+
+    let (ok, err): (Vec&lt;_&gt;, Vec&lt;_&gt;) = rx.iter().partition(Result::is_ok);
+    println!("parsed: {:?}", ok.into_iter().map(Result::unwrap).collect::&lt;Vec&lt;_&gt;&gt;());
+    println!("errors: {}", err.len());
+
+    for h in handles { h.join().unwrap(); }
+}
+</code></pre>
+            </section>
+
+            <!-- 5. Actor pattern -->
+            <section>
+                <h2>5. The Actor Pattern</h2>
+                <p>An actor is a thread that owns exclusive mutable state and communicates only through message passing. This pattern eliminates shared state and makes concurrency bugs much harder to introduce.</p>
+                <pre><code class="language-rust">use std::sync::mpsc;
+use std::thread;
+use std::collections::HashMap;
+
+// Messages the actor understands
+enum CacheMsg {
+    Set(String, String),
+    Get(String, mpsc::Sender&lt;Option&lt;String&gt;&gt;),
+    Delete(String),
+    Stats(mpsc::Sender&lt;usize&gt;),
+}
+
+// Actor handle — cheap to clone, hides implementation
+#[derive(Clone)]
+struct CacheHandle(mpsc::Sender&lt;CacheMsg&gt;);
+
+impl CacheHandle {
+    fn new() -&gt; Self {
+        let (tx, rx) = mpsc::channel::&lt;CacheMsg&gt;();
+
+        thread::spawn(move || {
+            let mut store: HashMap&lt;String, String&gt; = HashMap::new();
+
+            loop {
+                match rx.recv() {
+                    Ok(CacheMsg::Set(k, v)) =&gt; { store.insert(k, v); }
+                    Ok(CacheMsg::Get(k, reply)) =&gt; {
+                        reply.send(store.get(&amp;k).cloned()).unwrap();
+                    }
+                    Ok(CacheMsg::Delete(k)) =&gt; { store.remove(&amp;k); }
+                    Ok(CacheMsg::Stats(reply)) =&gt; {
+                        reply.send(store.len()).unwrap();
+                    }
+                    Err(_) =&gt; break, // all senders dropped
+                }
+            }
+        });
+
+        CacheHandle(tx)
+    }
+
+    fn set(&amp;self, key: impl Into&lt;String&gt;, val: impl Into&lt;String&gt;) {
+        self.0.send(CacheMsg::Set(key.into(), val.into())).unwrap();
+    }
+
+    fn get(&amp;self, key: impl Into&lt;String&gt;) -&gt; Option&lt;String&gt; {
+        let (tx, rx) = mpsc::channel();
+        self.0.send(CacheMsg::Get(key.into(), tx)).unwrap();
+        rx.recv().unwrap()
+    }
+
+    fn stats(&amp;self) -&gt; usize {
+        let (tx, rx) = mpsc::channel();
+        self.0.send(CacheMsg::Stats(tx)).unwrap();
+        rx.recv().unwrap()
+    }
+}
+
+fn main() {
+    let cache = CacheHandle::new();
+    let cache2 = cache.clone(); // give a copy to another thread
+
+    let h = thread::spawn(move || {
+        cache2.set("key1", "value1");
+        cache2.set("key2", "value2");
+    });
+    h.join().unwrap();
+
+    cache.set("key3", "value3");
+    println!("key1 = {:?}", cache.get("key1")); // Some("value1")
+    println!("key9 = {:?}", cache.get("key9")); // None
+    println!("size = {}", cache.stats());         // 3
+}
+</code></pre>
+            </section>
+
+            <!-- 6. Pipeline pattern -->
+            <section>
+                <h2>6. Pipeline Pattern</h2>
+                <p>Chain threads together with channels to create processing pipelines. Each stage reads from one channel and writes to another.</p>
+                <pre><code class="language-rust">use std::sync::mpsc;
+use std::thread;
+
+// Stage 1: generate numbers
+fn generate(tx: mpsc::SyncSender&lt;u64&gt;) {
+    for n in 0u64..20 {
+        tx.send(n).unwrap();
+    }
+}
+
+// Stage 2: square numbers
+fn square(rx: mpsc::Receiver&lt;u64&gt;, tx: mpsc::SyncSender&lt;u64&gt;) {
+    for n in rx {
+        tx.send(n * n).unwrap();
+    }
+}
+
+// Stage 3: filter even numbers
+fn filter_even(rx: mpsc::Receiver&lt;u64&gt;, tx: mpsc::SyncSender&lt;u64&gt;) {
+    for n in rx {
+        if n % 2 == 0 {
+            tx.send(n).unwrap();
+        }
+    }
+}
+
+fn main() {
+    let (tx1, rx1) = mpsc::sync_channel::&lt;u64&gt;(8);
+    let (tx2, rx2) = mpsc::sync_channel::&lt;u64&gt;(8);
+    let (tx3, rx3) = mpsc::sync_channel::&lt;u64&gt;(8);
+
+    let h1 = thread::spawn(move || generate(tx1));
+    let h2 = thread::spawn(move || square(rx1, tx2));
+    let h3 = thread::spawn(move || filter_even(rx2, tx3));
+
+    // collect results
+    let results: Vec&lt;u64&gt; = rx3.iter().collect();
+    println!("{results:?}");
+    // [0, 4, 16, 36, 64, 100, 144, 196, 256, 324]
+
+    h1.join().unwrap();
+    h2.join().unwrap();
+    h3.join().unwrap();
+}
+</code></pre>
+            </section>
+
+            <!-- 7. crossbeam-channel -->
+            <section>
+                <h2>7. crossbeam-channel — Advanced Primitives</h2>
+                <p><a href="https://docs.rs/crossbeam-channel" target="_blank">crossbeam-channel</a> extends <code>mpsc</code> with <em>multiple consumers</em>, <code>select!</code> over multiple channels, and after/tick senders. Add it with <code>cargo add crossbeam-channel</code>.</p>
+                <pre><code class="language-rust">// Cargo.toml: crossbeam-channel = "0.5"
+use crossbeam_channel::{bounded, select, tick, after};
+use std::time::Duration;
+use std::thread;
+
+fn main() {
+    let (tx, rx) = bounded::&lt;String&gt;(8); // MPMC: both ends can be cloned!
+
+    // Multiple consumers
+    for id in 0..3 {
+        let rx = rx.clone();
+        thread::spawn(move || {
+            for msg in &amp;rx {
+                println!("consumer {id}: {msg}");
+            }
+        });
+    }
+
+    // Producers
+    let tx2 = tx.clone();
+    thread::spawn(move || {
+        for i in 0..6 {
+            tx2.send(format!("msg-{i}")).unwrap();
+        }
+    });
+
+    // Original sender also sends
+    for i in 6..9 {
+        tx.send(format!("msg-{i}")).unwrap();
+    }
+    drop(tx); // channel closes when all senders drop
+
+    thread::sleep(Duration::from_millis(100));
+}
+</code></pre>
+
+                <h3>7.1 select! — Wait on Multiple Channels</h3>
+                <pre><code class="language-rust">use crossbeam_channel::{bounded, tick, after, select};
+use std::time::Duration;
+use std::thread;
+
+fn main() {
+    let (data_tx, data_rx) = bounded::&lt;i32&gt;(8);
+    let ticker = tick(Duration::from_millis(200));       // fires every 200ms
+    let deadline = after(Duration::from_millis(1_000));  // fires once after 1s
+
+    thread::spawn(move || {
+        for i in 0..5 {
+            thread::sleep(Duration::from_millis(150));
+            data_tx.send(i).unwrap();
+        }
+    });
+
+    loop {
+        select! {
+            recv(data_rx) -&gt; msg =&gt; {
+                match msg {
+                    Ok(v) =&gt; println!("data: {v}"),
+                    Err(_) =&gt; println!("data channel closed"),
+                }
+            }
+            recv(ticker) -&gt; _ =&gt; {
+                println!("tick");
+            }
+            recv(deadline) -&gt; _ =&gt; {
+                println!("deadline reached, exiting");
+                break;
+            }
+        }
+    }
+}
+</code></pre>
+
+                <h3>7.2 Unbounded Channel Performance</h3>
+                <pre><code class="language-rust">use crossbeam_channel::unbounded;
+use std::thread;
+
+fn main() {
+    let (tx, rx) = unbounded::&lt;u64&gt;();
+
+    // crossbeam unbounded is significantly faster than std::mpsc for
+    // high-throughput scenarios (lock-free FIFO queue internally)
+    let producer = thread::spawn(move || {
+        for i in 0..1_000_000u64 {
+            tx.send(i).unwrap();
+        }
+    });
+
+    let consumer = thread::spawn(move || {
+        let mut sum = 0u64;
+        for v in &amp;rx {
+            sum += v;
+        }
+        sum
+    });
+
+    producer.join().unwrap();
+    let total = consumer.join().unwrap();
+    println!("sum = {total}"); // 499999500000
+}
+</code></pre>
+            </section>
+
+            <!-- 8. Channels vs Mutex -->
+            <section>
+                <h2>8. Channels vs Mutex — When to Use Which</h2>
+                <div style="overflow-x: auto; margin: 1.5rem 0;">
+                    <table style="width:100%; border-collapse: collapse; font-size: 14px;">
+                        <thead>
+                            <tr style="background: var(--surface); text-align: left;">
+                                <th style="padding: 10px 14px; border-bottom: 2px solid var(--border);">Scenario</th>
+                                <th style="padding: 10px 14px; border-bottom: 2px solid var(--border);">Prefer</th>
+                                <th style="padding: 10px 14px; border-bottom: 2px solid var(--border);">Why</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 8px 14px; border-bottom: 1px solid var(--border);">Pipeline / streaming data</td>
+                                <td style="padding: 8px 14px; border-bottom: 1px solid var(--border);">Channel</td>
+                                <td style="padding: 8px 14px; border-bottom: 1px solid var(--border);">Natural ownership transfer</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 14px; border-bottom: 1px solid var(--border);">Actor / encapsulated state</td>
+                                <td style="padding: 8px 14px; border-bottom: 1px solid var(--border);">Channel</td>
+                                <td style="padding: 8px 14px; border-bottom: 1px solid var(--border);">No shared mutable state</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 14px; border-bottom: 1px solid var(--border);">Shared counter / cache</td>
+                                <td style="padding: 8px 14px; border-bottom: 1px solid var(--border);">Mutex</td>
+                                <td style="padding: 8px 14px; border-bottom: 1px solid var(--border);">Simpler, lower overhead</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 14px; border-bottom: 1px solid var(--border);">Reader-heavy shared data</td>
+                                <td style="padding: 8px 14px; border-bottom: 1px solid var(--border);">RwLock</td>
+                                <td style="padding: 8px 14px; border-bottom: 1px solid var(--border);">Concurrent reads</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 14px; border-bottom: 1px solid var(--border);">Single integer counter</td>
+                                <td style="padding: 8px 14px; border-bottom: 1px solid var(--border);">Atomic</td>
+                                <td style="padding: 8px 14px; border-bottom: 1px solid var(--border);">Lock-free, fastest</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 14px;">Select over multiple events</td>
+                                <td style="padding: 8px 14px;">crossbeam select!</td>
+                                <td style="padding: 8px 14px;">No equivalent with Mutex</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <pre><code class="language-rust">// Rule of thumb: if data flows in one direction → channel
+//                if data is shared and mutated in place → Mutex/RwLock
+
+use std::sync::{Arc, Mutex, mpsc};
+use std::thread;
+
+// Good use of Mutex: shared configuration read/written by any thread
+fn mutex_example() {
+    let config = Arc::new(Mutex::new(std::collections::HashMap::&lt;String, String&gt;::new()));
+
+    let c1 = Arc::clone(&amp;config);
+    thread::spawn(move || {
+        c1.lock().unwrap().insert("key".to_string(), "value".to_string());
+    }).join().unwrap();
+
+    println!("{:?}", config.lock().unwrap().get("key")); // Some("value")
+}
+
+// Good use of channel: log messages flow from workers to a collector
+fn channel_example() {
+    let (tx, rx) = mpsc::channel::&lt;String&gt;();
+
+    for i in 0..4 {
+        let tx = tx.clone();
+        thread::spawn(move || {
+            tx.send(format!("worker {i} done")).unwrap();
+        });
+    }
+    drop(tx);
+
+    for msg in rx {
+        println!("{msg}");
+    }
+}
+
+fn main() {
+    mutex_example();
+    channel_example();
+}
+</code></pre>
+            </section>
+                    </div><!-- /article-body -->
+                </div><!-- /article-main -->
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+
+                    <div class="sidebar-box">
+                        <h4>Rust Series &mdash; Module 5</h4>
+                        <a href="rust-threads.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">OS Threads &amp; Scoped Threads</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-channels.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Channels &amp; Message Passing</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-async-await.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Async/Await &amp; Futures</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-tokio.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Tokio Runtime &amp; Async I/O</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-rust.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+    <script>
+        const toggle = document.querySelector('.nav-toggle');
+        const navLinks = document.querySelector('.nav-links');
+        toggle.addEventListener('click', () => {
+            navLinks.classList.toggle('active');
+            toggle.classList.toggle('active');
+        });
+    </script>
+</body>
+</html>

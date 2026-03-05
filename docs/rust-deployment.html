@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deploying Rust in Production &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="rust-tech-insights.html">Rust</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+            <button class="nav-toggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+            <header class="article-header">
+                        <a href="rust-tech-insights.html" class="back-link">&larr; Back to Rust Tech Insights</a>
+                <div class="post-meta">
+                    <span class="post-date">Mar 2026</span>
+                    <span class="post-reading">18 min read</span>
+                </div>
+                <h1>Deploying Rust in Production</h1>
+                <div class="post-tags">
+                    <span>Rust</span>
+                    <span>Docker</span>
+                    <span>Production</span>
+                </div>
+            </header>
+
+                    <div class="article-body">
+
+            <section>
+                <h2>1. Docker Multi-Stage Builds</h2>
+                <p>Multi-stage builds separate compilation from the final runtime image, producing minimal containers with no Rust toolchain overhead.</p>
+                <pre><code class="language-dockerfile"># Dockerfile — multi-stage Rust build
+
+# ── Stage 1: dependency cache ─────────────────────────────────────────
+# Caching dependencies separately avoids rebuilding on every source change
+FROM rust:1.77-slim AS chef
+WORKDIR /app
+RUN cargo install cargo-chef
+
+FROM chef AS planner
+COPY . .
+RUN cargo chef prepare --recipe-path recipe.json
+
+FROM chef AS builder
+COPY --from=planner /app/recipe.json recipe.json
+# Build only dependencies (cached unless Cargo.toml changes)
+RUN cargo chef cook --release --recipe-path recipe.json
+
+# ── Stage 2: compile the application ──────────────────────────────────
+COPY . .
+RUN cargo build --release --bin myapp
+
+# ── Stage 3: minimal runtime image ────────────────────────────────────
+# distroless/cc-debian12 has glibc + libssl but no shell
+FROM gcr.io/distroless/cc-debian12 AS runtime
+WORKDIR /app
+
+# Copy the compiled binary
+COPY --from=builder /app/target/release/myapp /app/myapp
+
+# Non-root user for security (distroless provides 'nonroot')
+USER nonroot
+
+EXPOSE 8080
+ENTRYPOINT ["/app/myapp"]
+</code></pre>
+                <pre><code class="language-dockerfile"># Alternative: musl static binary — truly zero-dependency
+FROM rust:1.77 AS builder
+WORKDIR /app
+
+# Add musl target
+RUN rustup target add x86_64-unknown-linux-musl
+RUN apt-get update &amp;&amp; apt-get install -y musl-tools
+
+COPY Cargo.toml Cargo.lock ./
+COPY src ./src
+
+RUN cargo build --release --target x86_64-unknown-linux-musl
+
+# Use scratch (empty image) — possible only with static binaries
+FROM scratch
+COPY --from=builder /app/target/x86_64-unknown-linux-musl/release/myapp /myapp
+EXPOSE 8080
+ENTRYPOINT ["/myapp"]
+</code></pre>
+                <pre><code class="language-bash"># Build and size comparison
+docker build -t myapp:latest .
+docker images myapp
+
+# REPOSITORY   TAG      IMAGE ID       SIZE
+# myapp        latest   abc123def456   12.4MB   ← vs ~1.5GB for rust:latest
+
+# Multi-platform build for ARM64 (Apple Silicon / AWS Graviton)
+docker buildx build --platform linux/amd64,linux/arm64 -t myapp:latest --push .
+</code></pre>
+            </section>
+
+            <section>
+                <h2>2. Graceful Shutdown</h2>
+                <p>Production services must drain in-flight requests before exiting on SIGTERM. Kubernetes sends SIGTERM before SIGKILL with a default 30-second grace period.</p>
+                <pre><code class="language-rust">// src/main.rs — graceful shutdown with tokio
+use axum::{routing::get, Router};
+use tokio::net::TcpListener;
+use tokio::signal;
+use std::net::SocketAddr;
+
+#[tokio::main]
+async fn main() -&gt; anyhow::Result&lt;()&gt; {
+    let app = Router::new()
+        .route("/", get(|| async { "Hello" }))
+        .route("/health", get(health_handler));
+
+    let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
+    let listener = TcpListener::bind(addr).await?;
+
+    tracing::info!("listening on {addr}");
+
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await?;
+
+    tracing::info!("server shut down cleanly");
+    Ok(())
+}
+
+// Waits for either Ctrl-C or SIGTERM
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        signal::ctrl_c().await.expect("failed to install Ctrl-C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("failed to install SIGTERM handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::&lt;()&gt;();
+
+    tokio::select! {
+        _ = ctrl_c   =&gt; tracing::info!("received Ctrl-C"),
+        _ = terminate =&gt; tracing::info!("received SIGTERM"),
+    }
+
+    tracing::info!("initiating graceful shutdown…");
+    // Axum will stop accepting new connections and wait for existing ones to finish
+}
+
+async fn health_handler() -&gt; &amp;'static str { "OK" }
+</code></pre>
+                <pre><code class="language-rust">// More complete shutdown: notify background tasks via CancellationToken
+use tokio_util::sync::CancellationToken;
+use tokio::sync::mpsc;
+
+#[tokio::main]
+async fn main() -&gt; anyhow::Result&lt;()&gt; {
+    let token = CancellationToken::new();
+
+    // Spawn background tasks that respect cancellation
+    let bg_token = token.clone();
+    let bg = tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
+        loop {
+            tokio::select! {
+                _ = interval.tick() =&gt; {
+                    tracing::info!("background tick");
+                    // e.g. flush metrics, evict cache entries
+                }
+                _ = bg_token.cancelled() =&gt; {
+                    tracing::info!("background task shutting down");
+                    break;
+                }
+            }
+        }
+    });
+
+    // HTTP server shuts down on signal
+    let server_token = token.clone();
+    let server = tokio::spawn(async move {
+        let app = Router::new().route("/health", get(health_handler));
+        let listener = TcpListener::bind("0.0.0.0:8080").await.unwrap();
+        axum::serve(listener, app)
+            .with_graceful_shutdown(async move { server_token.cancelled().await })
+            .await
+            .unwrap();
+    });
+
+    // Wait for OS signal, then cancel everything
+    shutdown_signal().await;
+    token.cancel();
+
+    // Wait for all tasks to finish
+    let _ = tokio::join!(server, bg);
+    tracing::info!("all tasks finished, exiting");
+    Ok(())
+}
+</code></pre>
+            </section>
+
+            <section>
+                <h2>3. Health Checks and Readiness Probes</h2>
+                <p>Kubernetes uses liveness and readiness probes to manage traffic routing and pod restarts:</p>
+                <pre><code class="language-rust">use axum::{routing::get, Router, Json, extract::State, http::StatusCode};
+use serde::Serialize;
+use std::sync::Arc;
+use tokio::sync::RwLock;
+
+#[derive(Debug, Clone)]
+struct AppState {
+    db_pool: sqlx::PgPool,
+    ready: Arc&lt;RwLock&lt;bool&gt;&gt;,
+}
+
+#[derive(Serialize)]
+struct HealthResponse {
+    status: &amp;'static str,
+    version: &amp;'static str,
+    checks: std::collections::HashMap&lt;String, CheckResult&gt;,
+}
+
+#[derive(Serialize)]
+struct CheckResult {
+    ok: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option&lt;String&gt;,
+}
+
+// /health/live — is the process alive? (never depends on external systems)
+async fn liveness() -&gt; StatusCode {
+    StatusCode::OK
+}
+
+// /health/ready — can we serve traffic? (checks DB, cache, etc.)
+async fn readiness(State(state): State&lt;AppState&gt;) -&gt; (StatusCode, Json&lt;HealthResponse&gt;) {
+    let mut checks = std::collections::HashMap::new();
+    let mut all_ok = true;
+
+    // Check database connectivity
+    let db_ok = sqlx::query("SELECT 1")
+        .execute(&amp;state.db_pool)
+        .await
+        .is_ok();
+    if !db_ok { all_ok = false; }
+    checks.insert("database".into(), CheckResult { ok: db_ok, error: if db_ok { None } else { Some("connection failed".into()) } });
+
+    // Check application readiness flag (set after startup tasks complete)
+    let app_ready = *state.ready.read().await;
+    if !app_ready { all_ok = false; }
+    checks.insert("startup".into(), CheckResult { ok: app_ready, error: if app_ready { None } else { Some("migrations not complete".into()) } });
+
+    let status = if all_ok { StatusCode::OK } else { StatusCode::SERVICE_UNAVAILABLE };
+    (status, Json(HealthResponse {
+        status: if all_ok { "healthy" } else { "degraded" },
+        version: env!("CARGO_PKG_VERSION"),
+        checks,
+    }))
+}
+
+fn health_router(state: AppState) -&gt; Router {
+    Router::new()
+        .route("/health/live", get(liveness))
+        .route("/health/ready", get(readiness))
+        .with_state(state)
+}
+</code></pre>
+                <pre><code class="language-yaml"># kubernetes/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myapp
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: myapp
+  template:
+    metadata:
+      labels:
+        app: myapp
+    spec:
+      terminationGracePeriodSeconds: 30  # matches server shutdown timeout
+      containers:
+        - name: myapp
+          image: myapp:latest
+          ports:
+            - containerPort: 8080
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3     # restart after 3 failures
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 2     # remove from LB after 2 failures
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "64Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+</code></pre>
+            </section>
+
+            <section>
+                <h2>4. Configuration Management</h2>
+                <p>Use the <code>config</code> crate to layer configuration from files, environment variables, and command-line arguments:</p>
+                <pre><code class="language-toml"># Cargo.toml
+[dependencies]
+config  = "0.14"
+serde   = { version = "1", features = ["derive"] }
+dotenvy = "0.15"      # load .env files in development
+</code></pre>
+                <pre><code class="language-rust">use config::{Config, ConfigError, Environment, File};
+use serde::Deserialize;
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct Settings {
+    pub server: ServerSettings,
+    pub database: DatabaseSettings,
+    pub redis: RedisSettings,
+    pub jwt: JwtSettings,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct ServerSettings {
+    pub host: String,
+    pub port: u16,
+    pub workers: usize,
+    pub timeout_secs: u64,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct DatabaseSettings {
+    pub url: String,         // can be set via DATABASE_URL env var
+    pub max_connections: u32,
+    pub min_connections: u32,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct RedisSettings {
+    pub url: String,
+    pub pool_size: u32,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct JwtSettings {
+    pub secret: String,     // loaded from secret mount or env
+    pub expiry_secs: u64,
+}
+
+impl Settings {
+    pub fn load() -&gt; Result&lt;Self, ConfigError&gt; {
+        let env = std::env::var("APP_ENV").unwrap_or_else(|_| "development".into());
+
+        Config::builder()
+            // 1. Base defaults
+            .add_source(File::with_name("config/default"))
+            // 2. Environment-specific overrides (optional)
+            .add_source(File::with_name(&amp;format!("config/{env}")).required(false))
+            // 3. Local overrides — never committed to git
+            .add_source(File::with_name("config/local").required(false))
+            // 4. Environment variables with APP__ prefix
+            //    e.g. APP__DATABASE__URL overrides settings.database.url
+            .add_source(
+                Environment::with_prefix("APP")
+                    .prefix_separator("__")
+                    .separator("__")
+            )
+            .build()?
+            .try_deserialize()
+    }
+}
+</code></pre>
+                <pre><code class="language-yaml"># config/default.yaml
+server:
+  host: "0.0.0.0"
+  port: 8080
+  workers: 4
+  timeout_secs: 30
+
+database:
+  url: "postgres://localhost/myapp_dev"
+  max_connections: 10
+  min_connections: 1
+
+redis:
+  url: "redis://localhost:6379"
+  pool_size: 10
+
+jwt:
+  secret: "change-me-in-production"
+  expiry_secs: 3600
+</code></pre>
+                <pre><code class="language-yaml"># config/production.yaml — values safe to commit (no secrets)
+server:
+  workers: 16
+  timeout_secs: 60
+
+database:
+  max_connections: 50
+  min_connections: 5
+</code></pre>
+                <pre><code class="language-bash"># In production: override sensitive values via environment
+export APP__DATABASE__URL="postgres://user:pass@db:5432/myapp"
+export APP__JWT__SECRET="$(cat /run/secrets/jwt_secret)"
+
+# Or with Kubernetes ConfigMap + Secret
+# kubectl create secret generic myapp-secrets \
+#   --from-literal=APP__JWT__SECRET=supersecret \
+#   --from-literal=APP__DATABASE__URL=postgres://...
+</code></pre>
+            </section>
+
+            <section>
+                <h2>5. Secrets Management</h2>
+                <pre><code class="language-rust">// Load secrets from environment at startup — fail fast if missing
+use std::env;
+
+pub struct Secrets {
+    pub jwt_secret: String,
+    pub database_url: String,
+    pub api_key: String,
+}
+
+impl Secrets {
+    pub fn from_env() -&gt; anyhow::Result&lt;Self&gt; {
+        Ok(Self {
+            jwt_secret: env::var("JWT_SECRET")
+                .map_err(|_| anyhow::anyhow!("JWT_SECRET is required"))?,
+            database_url: env::var("DATABASE_URL")
+                .map_err(|_| anyhow::anyhow!("DATABASE_URL is required"))?,
+            api_key: env::var("EXTERNAL_API_KEY")
+                .map_err(|_| anyhow::anyhow!("EXTERNAL_API_KEY is required"))?,
+        })
+    }
+}
+
+// Prevent secrets from appearing in Debug output or logs
+use std::fmt;
+
+pub struct Secret(String);
+
+impl Secret {
+    pub fn new(value: String) -&gt; Self { Self(value) }
+    pub fn expose(&amp;self) -&gt; &amp;str { &amp;self.0 }
+}
+
+impl fmt::Debug for Secret {
+    fn fmt(&amp;self, f: &amp;mut fmt::Formatter&lt;'_&gt;) -&gt; fmt::Result {
+        f.write_str("[REDACTED]")
+    }
+}
+
+impl fmt::Display for Secret {
+    fn fmt(&amp;self, f: &amp;mut fmt::Formatter&lt;'_&gt;) -&gt; fmt::Result {
+        f.write_str("[REDACTED]")
+    }
+}
+
+// Usage
+#[derive(Debug)]
+struct AppConfig {
+    host: String,
+    jwt_secret: Secret,  // won't appear in logs
+}
+</code></pre>
+                <pre><code class="language-rust">// AWS Secrets Manager integration (aws-sdk-secretsmanager)
+use aws_config::BehaviorVersion;
+use aws_sdk_secretsmanager::Client;
+
+async fn load_from_aws_secrets(secret_name: &amp;str) -&gt; anyhow::Result&lt;String&gt; {
+    let config = aws_config::load_defaults(BehaviorVersion::latest()).await;
+    let client = Client::new(&amp;config);
+
+    let response = client
+        .get_secret_value()
+        .secret_id(secret_name)
+        .send()
+        .await?;
+
+    response.secret_string()
+        .map(|s| s.to_string())
+        .ok_or_else(|| anyhow::anyhow!("secret has no string value"))
+}
+
+// Cache secrets with a TTL to avoid hitting the API on every request
+use std::sync::Arc;
+use tokio::sync::RwLock;
+use std::time::{Duration, Instant};
+
+struct CachedSecret {
+    value: String,
+    fetched_at: Instant,
+    ttl: Duration,
+}
+
+impl CachedSecret {
+    fn is_fresh(&amp;self) -&gt; bool { self.fetched_at.elapsed() &lt; self.ttl }
+}
+</code></pre>
+            </section>
+
+            <section>
+                <h2>6. Environment-Aware Logging</h2>
+                <pre><code class="language-rust">use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+
+pub fn init_tracing(env: &amp;str) {
+    let filter = EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| EnvFilter::new(if env == "production" { "info" } else { "debug" }));
+
+    let registry = tracing_subscriber::registry().with(filter);
+
+    if env == "production" {
+        // Machine-readable JSON in production (for log aggregators like Datadog, Loki)
+        let json_layer = tracing_subscriber::fmt::layer()
+            .json()
+            .with_current_span(true)
+            .with_span_list(true)
+            .with_target(true);
+        registry.with(json_layer).init();
+    } else {
+        // Human-readable in development
+        let pretty_layer = tracing_subscriber::fmt::layer()
+            .pretty()
+            .with_file(true)
+            .with_line_number(true);
+        registry.with(pretty_layer).init();
+    }
+}
+
+fn main() {
+    let env = std::env::var("APP_ENV").unwrap_or_else(|_| "development".into());
+    init_tracing(&amp;env);
+
+    tracing::info!(env = %env, version = env!("CARGO_PKG_VERSION"), "starting application");
+}
+</code></pre>
+            </section>
+
+            <section>
+                <h2>7. Release Builds and Binary Optimization</h2>
+                <pre><code class="language-toml"># Cargo.toml — production profile
+[profile.release]
+opt-level     = 3          # maximum optimization
+lto           = "fat"      # link-time optimization across crates
+codegen-units = 1          # single codegen unit (slower compile, faster binary)
+panic         = "abort"    # no stack unwinding on panic (smaller binary)
+strip         = "symbols"  # strip debug symbols from final binary
+debug         = false
+
+# PGO: profile-guided optimization (optional, significant gains for CPU-bound code)
+# 1. Build with instrumentation: RUSTFLAGS="-Cprofile-generate=/tmp/pgo-data" cargo build --release
+# 2. Run representative workload against instrumented binary
+# 3. Merge: llvm-profdata merge -output=/tmp/merged.profdata /tmp/pgo-data
+# 4. Rebuild: RUSTFLAGS="-Cprofile-use=/tmp/merged.profdata" cargo build --release
+</code></pre>
+                <pre><code class="language-bash"># Embed build metadata into the binary at compile time
+# build.rs
+fn main() {
+    // Make GIT_COMMIT available as env!("GIT_COMMIT") at compile time
+    let output = std::process::Command::new("git")
+        .args(["rev-parse", "--short", "HEAD"])
+        .output()
+        .unwrap_or_default();
+    let commit = String::from_utf8(output.stdout).unwrap_or_default();
+    println!("cargo:rustc-env=GIT_COMMIT={}", commit.trim());
+
+    // BUILD_DATE
+    println!("cargo:rustc-env=BUILD_DATE={}", chrono::Utc::now().format("%Y-%m-%d"));
+
+    println!("cargo:rerun-if-changed=.git/HEAD");
+}
+</code></pre>
+                <pre><code class="language-rust">// Expose version info in the health endpoint
+#[derive(serde::Serialize)]
+struct BuildInfo {
+    version:    &amp;'static str,
+    git_commit: &amp;'static str,
+    build_date: &amp;'static str,
+}
+
+async fn version_handler() -&gt; axum::Json&lt;BuildInfo&gt; {
+    axum::Json(BuildInfo {
+        version:    env!("CARGO_PKG_VERSION"),
+        git_commit: env!("GIT_COMMIT"),
+        build_date: env!("BUILD_DATE"),
+    })
+}
+</code></pre>
+            </section>
+
+            <section>
+                <h2>8. CI/CD Pipeline</h2>
+                <pre><code class="language-yaml"># .github/workflows/release.yml
+name: Build & Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # ── Run tests before building the image ─────────────────────────────
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: myapp_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Run tests
+        run: cargo test --all-features
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost/myapp_test
+
+  # ── Build multi-platform Docker image ───────────────────────────────
+  docker:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU (for ARM64 cross-compilation)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=sha-
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ── Build static binaries for multiple platforms ─────────────────────
+  binaries:
+    needs: test
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-latest
+          - target: x86_64-apple-darwin
+            os: macos-latest
+          - target: aarch64-apple-darwin
+            os: macos-latest
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+      - name: Install musl tools
+        if: contains(matrix.target, 'musl')
+        run: sudo apt-get install -y musl-tools
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: myapp-${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/myapp*
+</code></pre>
+            </section>
+
+            <section>
+                <h2>9. Kubernetes Deployment</h2>
+                <pre><code class="language-yaml"># kubernetes/deployment.yaml — full production setup
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myapp
+  labels:
+    app: myapp
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0    # zero-downtime rolling update
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: myapp
+  template:
+    metadata:
+      labels:
+        app: myapp
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: myapp
+          image: ghcr.io/myorg/myapp:1.2.3
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: metrics
+              containerPort: 9090
+          env:
+            - name: APP_ENV
+              value: production
+            - name: APP__SERVER__WORKERS
+              value: "8"
+            - name: APP__DATABASE__URL
+              valueFrom:
+                secretKeyRef:
+                  name: myapp-secrets
+                  key: database-url
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: myapp-secrets
+                  key: jwt-secret
+          envFrom:
+            - configMapRef:
+                name: myapp-config
+          livenessProbe:
+            httpGet: { path: /health/live, port: 8080 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: { path: /health/ready, port: 8080 }
+            initialDelaySeconds: 15
+            periodSeconds: 5
+          resources:
+            requests: { cpu: "100m", memory: "64Mi" }
+            limits:   { cpu: "500m", memory: "256Mi" }
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532         # nobody
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: myapp
+spec:
+  selector:
+    app: myapp
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: myapp
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: myapp
+  minReplicas: 2
+  maxReplicas: 20
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+</code></pre>
+            </section>
+
+            <section>
+                <h2>10. Database Migrations in Production</h2>
+                <pre><code class="language-rust">// Run migrations at startup before accepting traffic
+use sqlx::PgPool;
+use std::sync::Arc;
+use tokio::sync::RwLock;
+
+async fn run_startup(pool: &amp;PgPool, ready: Arc&lt;RwLock&lt;bool&gt;&gt;) -&gt; anyhow::Result&lt;()&gt; {
+    tracing::info!("running database migrations…");
+
+    // sqlx::migrate! embeds migrations from the migrations/ directory at compile time
+    sqlx::migrate!("./migrations")
+        .run(pool)
+        .await
+        .map_err(|e| anyhow::anyhow!("migration failed: {e}"))?;
+
+    tracing::info!("migrations complete");
+
+    // Signal that the application is ready to receive traffic
+    *ready.write().await = true;
+    Ok(())
+}
+
+// Kubernetes init container alternative: run migrations as a separate job
+// This avoids race conditions when multiple replicas start simultaneously
+</code></pre>
+                <pre><code class="language-yaml"># kubernetes/migration-job.yaml — run before the main deployment
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: myapp-migrate
+  annotations:
+    # Helm hook: runs before upgrade
+    "helm.sh/hook": pre-upgrade,pre-install
+    "helm.sh/hook-delete-policy": hook-succeeded
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: migrate
+          image: ghcr.io/myorg/myapp:1.2.3
+          command: ["/app/myapp", "--migrate-only"]
+          env:
+            - name: APP__DATABASE__URL
+              valueFrom:
+                secretKeyRef:
+                  name: myapp-secrets
+                  key: database-url
+</code></pre>
+            </section>
+                    </div><!-- /article-body -->
+                </div><!-- /article-main -->
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+
+                    <div class="sidebar-box">
+                        <h4>Rust Series &mdash; Module 9</h4>
+                        <a href="rust-grpc.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">gRPC with Tonic</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                        <a href="rust-observability.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Observability</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                        <a href="rust-serde-advanced.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Advanced Serde</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                        <a href="rust-deployment.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Deploying Rust in Production</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-rust.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+    <script>
+        const toggle = document.querySelector('.nav-toggle');
+        const navLinks = document.querySelector('.nav-links');
+        toggle.addEventListener('click', () => {
+            navLinks.classList.toggle('active');
+            toggle.classList.toggle('active');
+        });
+    </script>
+
+</body>
+</html>

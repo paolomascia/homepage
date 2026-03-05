@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebAssembly with Rust &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="rust-tech-insights.html">Rust</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+            <button class="nav-toggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+            <header class="article-header">
+                        <a href="rust-tech-insights.html" class="back-link">&larr; Back to Rust Tech Insights</a>
+                <div class="post-meta">
+                    <span class="post-date">Mar 2026</span>
+                    <span class="post-reading">16 min read</span>
+                </div>
+                <h1>WebAssembly with Rust</h1>
+                <div class="post-tags">
+                    <span>Rust</span>
+                    <span>WebAssembly</span>
+                    <span>wasm-bindgen</span>
+                </div>
+            </header>
+
+                    <div class="article-body">
+
+            <!-- 1. Setup -->
+            <section>
+                <h2>1. Toolchain Setup</h2>
+                <pre><code class="language-bash"># Install the wasm32 target
+rustup target add wasm32-unknown-unknown
+
+# Install wasm-pack (builds, tests, and packs Wasm modules)
+cargo install wasm-pack
+
+# Install wasm-bindgen-cli (optional, wasm-pack does it automatically)
+cargo install wasm-bindgen-cli
+
+# Create a new Wasm library
+cargo new --lib my-wasm
+cd my-wasm
+</code></pre>
+
+                <pre><code class="language-toml"># Cargo.toml
+[package]
+name = "my-wasm"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+# cdylib: produces a .wasm file for the browser
+# rlib: allows the crate to be used by other Rust crates
+
+[dependencies]
+wasm-bindgen = "0.2"
+# Optional: access browser APIs
+web-sys = { version = "0.3", features = ["console", "Window", "Document"] }
+js-sys  = "0.3"
+# Optional: better panic messages in the browser
+console_error_panic_hook = "0.1"
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
+
+[profile.release]
+opt-level = "s"   # optimize for size
+lto = true
+</code></pre>
+            </section>
+
+            <!-- 2. wasm-bindgen basics -->
+            <section>
+                <h2>2. wasm-bindgen — Bridging Rust and JavaScript</h2>
+                <p><code>#[wasm_bindgen]</code> generates glue code that translates between Rust and JavaScript types automatically.</p>
+                <pre><code class="language-rust">// src/lib.rs
+use wasm_bindgen::prelude::*;
+
+// Better panic messages in the browser console
+#[wasm_bindgen(start)]
+pub fn init() {
+    console_error_panic_hook::set_once();
+}
+
+// Export a simple function to JavaScript
+#[wasm_bindgen]
+pub fn greet(name: &amp;str) -&gt; String {
+    format!("Hello, {name}! From Rust/Wasm")
+}
+
+// Export a struct with methods
+#[wasm_bindgen]
+pub struct Counter {
+    value: i32,
+    step: i32,
+}
+
+#[wasm_bindgen]
+impl Counter {
+    #[wasm_bindgen(constructor)]
+    pub fn new(step: i32) -&gt; Counter {
+        Counter { value: 0, step }
+    }
+
+    pub fn increment(&amp;mut self) { self.value += self.step; }
+    pub fn decrement(&amp;mut self) { self.value -= self.step; }
+    pub fn reset(&amp;mut self)     { self.value = 0; }
+
+    #[wasm_bindgen(getter)]
+    pub fn value(&amp;self) -&gt; i32 { self.value }
+}
+
+// Export an enum (simple C-like enums only)
+#[wasm_bindgen]
+#[derive(Debug, Clone, Copy)]
+pub enum Direction {
+    North, South, East, West,
+}
+
+#[wasm_bindgen]
+pub fn move_player(dir: Direction, steps: u32) -&gt; String {
+    format!("moving {:?} by {steps} steps", dir)
+}
+</code></pre>
+
+                <pre><code class="language-javascript">// JavaScript usage (after wasm-pack build)
+import init, { greet, Counter, Direction, move_player } from './pkg/my_wasm.js';
+
+async function run() {
+    await init(); // load and initialize the .wasm module
+
+    console.log(greet("World")); // "Hello, World! From Rust/Wasm"
+
+    const counter = new Counter(5);
+    counter.increment();
+    counter.increment();
+    console.log(counter.value); // 10
+
+    console.log(move_player(Direction.North, 3)); // "moving North by 3 steps"
+}
+
+run();
+</code></pre>
+            </section>
+
+            <!-- 3. Build and pack -->
+            <section>
+                <h2>3. Building with wasm-pack</h2>
+                <pre><code class="language-bash"># Build for the browser (ES modules, pkg/ directory)
+wasm-pack build --target web
+
+# Build for Node.js
+wasm-pack build --target nodejs
+
+# Build for bundlers (webpack, rollup, vite)
+wasm-pack build --target bundler
+
+# Release build (smaller .wasm)
+wasm-pack build --release --target web
+
+# The pkg/ directory contains:
+# ├── my_wasm.js       — JavaScript glue code
+# ├── my_wasm.d.ts     — TypeScript type declarations
+# ├── my_wasm_bg.wasm  — the actual WebAssembly binary
+# └── package.json     — npm package metadata
+
+# Run browser tests
+wasm-pack test --headless --firefox
+wasm-pack test --headless --chrome
+</code></pre>
+
+                <h3>3.1 Using in a Vite Project</h3>
+                <pre><code class="language-bash">npm create vite@latest my-app -- --template vanilla
+cd my-app
+npm install
+npm install ../my-wasm/pkg  # or publish to npm first
+</code></pre>
+                <pre><code class="language-javascript">// src/main.js (Vite)
+import init, { greet } from 'my-wasm';
+
+init().then(() =&gt; {
+    document.getElementById('app').textContent = greet("Vite");
+});
+</code></pre>
+            </section>
+
+            <!-- 4. web-sys — browser APIs -->
+            <section>
+                <h2>4. web-sys — Calling Browser APIs from Rust</h2>
+                <p><code>web-sys</code> provides Rust bindings for all Web APIs. Enable only the features you need (each feature adds to compile time).</p>
+                <pre><code class="language-toml"># Cargo.toml
+[dependencies.web-sys]
+version = "0.3"
+features = [
+    "console",
+    "Window",
+    "Document",
+    "Element",
+    "HtmlElement",
+    "HtmlCanvasElement",
+    "CanvasRenderingContext2d",
+    "MouseEvent",
+    "EventTarget",
+]
+</code></pre>
+                <pre><code class="language-rust">use wasm_bindgen::prelude::*;
+use web_sys::{window, Document, HtmlElement, console};
+
+#[wasm_bindgen]
+pub fn update_dom() {
+    let doc: Document = window().unwrap().document().unwrap();
+
+    // Create an element
+    let div = doc.create_element("div").unwrap();
+    div.set_text_content(Some("Hello from Rust!"));
+    div.set_attribute("class", "rust-message").unwrap();
+
+    // Append to body
+    doc.body().unwrap().append_child(&amp;div).unwrap();
+
+    // Log to browser console
+    console::log_1(&amp;JsValue::from_str("DOM updated by Rust!"));
+}
+
+// Canvas drawing
+#[wasm_bindgen]
+pub fn draw_fractal(canvas_id: &amp;str) {
+    let doc = window().unwrap().document().unwrap();
+    let canvas: web_sys::HtmlCanvasElement = doc
+        .get_element_by_id(canvas_id)
+        .unwrap()
+        .dyn_into::&lt;web_sys::HtmlCanvasElement&gt;()
+        .unwrap();
+
+    let ctx: web_sys::CanvasRenderingContext2d = canvas
+        .get_context("2d").unwrap().unwrap()
+        .dyn_into().unwrap();
+
+    let width  = canvas.width()  as f64;
+    let height = canvas.height() as f64;
+
+    // Mandelbrot set — heavy computation in Rust, rendered to canvas
+    for py in 0..canvas.height() {
+        for px in 0..canvas.width() {
+            let x0 = (px as f64 / width)  * 3.5 - 2.5;
+            let y0 = (py as f64 / height) * 2.0 - 1.0;
+
+            let (mut x, mut y) = (0.0f64, 0.0f64);
+            let mut iter = 0u32;
+            while x * x + y * y &lt;= 4.0 &amp;&amp; iter &lt; 100 {
+                (x, y) = (x * x - y * y + x0, 2.0 * x * y + y0);
+                iter += 1;
+            }
+
+            let brightness = (iter as f64 / 100.0 * 255.0) as u8;
+            let color = format!("rgb({brightness},{brightness},{brightness})");
+            ctx.set_fill_style_str(&amp;color);
+            ctx.fill_rect(px as f64, py as f64, 1.0, 1.0);
+        }
+    }
+}
+</code></pre>
+            </section>
+
+            <!-- 5. js-sys — JavaScript types -->
+            <section>
+                <h2>5. js-sys — JavaScript Built-in Types</h2>
+                <pre><code class="language-rust">use wasm_bindgen::prelude::*;
+use js_sys::{Array, Object, Reflect, Date, Math};
+
+#[wasm_bindgen]
+pub fn js_type_examples() {
+    // Create a JS Array from Rust
+    let arr = Array::new();
+    arr.push(&amp;JsValue::from(1));
+    arr.push(&amp;JsValue::from_str("hello"));
+    arr.push(&amp;JsValue::from(true));
+    // arr is now [1, "hello", true] in JS
+
+    // Create a JS Object
+    let obj = Object::new();
+    Reflect::set(&amp;obj, &amp;JsValue::from_str("key"), &amp;JsValue::from_str("value")).unwrap();
+
+    // Use JS Math
+    let random = Math::random(); // f64 in [0, 1)
+    let floor = Math::floor(3.7); // 3.0
+
+    // Use JS Date
+    let now = Date::now(); // milliseconds since epoch as f64
+    let date = Date::new_0();
+    web_sys::console::log_1(&amp;JsValue::from_f64(now));
+}
+
+// Receive a JS callback and call it from Rust
+#[wasm_bindgen]
+pub fn call_js_callback(callback: &amp;js_sys::Function, value: i32) {
+    let this = JsValue::NULL;
+    callback.call1(&amp;this, &amp;JsValue::from(value)).unwrap();
+}
+
+// Return a Promise from Rust
+#[wasm_bindgen]
+pub async fn fetch_data(url: String) -&gt; Result&lt;JsValue, JsValue&gt; {
+    let window = web_sys::window().ok_or(JsValue::from_str("no window"))?;
+    let resp = wasm_bindgen_futures::JsFuture::from(
+        window.fetch_with_str(&amp;url)
+    ).await?;
+
+    let resp: web_sys::Response = resp.dyn_into().unwrap();
+    let json = wasm_bindgen_futures::JsFuture::from(resp.json()?).await?;
+    Ok(json)
+}
+</code></pre>
+            </section>
+
+            <!-- 6. Passing complex data -->
+            <section>
+                <h2>6. Passing Complex Data Across the Boundary</h2>
+                <p>For complex types, use JSON serialization via <code>serde-wasm-bindgen</code> or pass raw bytes via <code>Uint8Array</code>.</p>
+                <pre><code class="language-toml"># Cargo.toml
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde-wasm-bindgen = "0.6"
+</code></pre>
+                <pre><code class="language-rust">use wasm_bindgen::prelude::*;
+use serde::{Serialize, Deserialize};
+
+#[derive(Serialize, Deserialize)]
+pub struct Point { pub x: f64, pub y: f64 }
+
+#[derive(Serialize, Deserialize)]
+pub struct AnalysisResult {
+    pub centroid: Point,
+    pub total_distance: f64,
+    pub count: usize,
+}
+
+#[wasm_bindgen]
+pub fn analyze_points(points_js: JsValue) -&gt; Result&lt;JsValue, JsValue&gt; {
+    // Deserialize from JS object
+    let points: Vec&lt;Point&gt; = serde_wasm_bindgen::from_value(points_js)
+        .map_err(|e| JsValue::from_str(&amp;e.to_string()))?;
+
+    if points.is_empty() {
+        return Err(JsValue::from_str("no points"));
+    }
+
+    let cx = points.iter().map(|p| p.x).sum::&lt;f64&gt;() / points.len() as f64;
+    let cy = points.iter().map(|p| p.y).sum::&lt;f64&gt;() / points.len() as f64;
+
+    let total_distance = points.iter()
+        .map(|p| ((p.x - cx).powi(2) + (p.y - cy).powi(2)).sqrt())
+        .sum();
+
+    let result = AnalysisResult {
+        centroid: Point { x: cx, y: cy },
+        total_distance,
+        count: points.len(),
+    };
+
+    // Serialize to JS object
+    serde_wasm_bindgen::to_value(&amp;result).map_err(|e| JsValue::from_str(&amp;e.to_string()))
+}
+</code></pre>
+                <pre><code class="language-javascript">// JavaScript
+import init, { analyze_points } from './pkg/my_wasm.js';
+
+await init();
+
+const result = analyze_points([
+    { x: 0, y: 0 },
+    { x: 4, y: 0 },
+    { x: 4, y: 3 },
+]);
+
+console.log(result.centroid);       // { x: 2.67, y: 1.0 }
+console.log(result.total_distance); // sum of distances from centroid
+</code></pre>
+
+                <h3>6.1 Shared Memory via Uint8Array</h3>
+                <pre><code class="language-rust">use wasm_bindgen::prelude::*;
+
+// Process raw bytes — no serialization overhead
+#[wasm_bindgen]
+pub fn process_image(data: &amp;[u8], width: u32, height: u32) -&gt; Vec&lt;u8&gt; {
+    // Convert RGBA to greyscale
+    let mut out = Vec::with_capacity(data.len());
+    for chunk in data.chunks(4) {
+        let (r, g, b, a) = (chunk[0], chunk[1], chunk[2], chunk[3]);
+        let grey = (0.299 * r as f32 + 0.587 * g as f32 + 0.114 * b as f32) as u8;
+        out.extend_from_slice(&amp;[grey, grey, grey, a]);
+    }
+    out
+}
+</code></pre>
+            </section>
+
+            <!-- 7. Async and Futures in Wasm -->
+            <section>
+                <h2>7. Async Rust in WebAssembly</h2>
+                <pre><code class="language-toml"># Cargo.toml
+[dependencies]
+wasm-bindgen-futures = "0.4"
+</code></pre>
+                <pre><code class="language-rust">use wasm_bindgen::prelude::*;
+use wasm_bindgen_futures::JsFuture;
+use web_sys::{Request, RequestInit, Response};
+
+// async fn automatically returns a Promise on the JS side
+#[wasm_bindgen]
+pub async fn fetch_json(url: String) -&gt; Result&lt;JsValue, JsValue&gt; {
+    let opts = RequestInit::new();
+    opts.set_method("GET");
+
+    let request = Request::new_with_str_and_init(&amp;url, &amp;opts)?;
+    request.headers().set("Accept", "application/json")?;
+
+    let window = web_sys::window().unwrap();
+    let resp_value = JsFuture::from(window.fetch_with_request(&amp;request)).await?;
+    let resp: Response = resp_value.dyn_into()?;
+
+    let json = JsFuture::from(resp.json()?).await?;
+    Ok(json)
+}
+
+// Spawn a future without returning a Promise
+#[wasm_bindgen]
+pub fn start_background_task() {
+    wasm_bindgen_futures::spawn_local(async {
+        // runs concurrently without blocking JS
+        gloo_timers::future::TimeoutFuture::new(1000).await; // 1 second delay
+        web_sys::console::log_1(&amp;JsValue::from_str("background task done"));
+    });
+}
+</code></pre>
+            </section>
+
+            <!-- 8. Binary size optimization -->
+            <section>
+                <h2>8. Optimizing .wasm Binary Size</h2>
+                <pre><code class="language-toml"># Cargo.toml
+[profile.release]
+opt-level = "s"    # optimize for size (use "z" for even smaller, slightly slower)
+lto = true         # link-time optimization removes dead code
+debug = false
+panic = "abort"    # remove unwind tables
+strip = "symbols"  # strip debug symbols
+
+# Avoid the allocator overhead by using wee_alloc
+# (saves ~10KB in many cases)
+[dependencies]
+wee_alloc = "0.4"
+</code></pre>
+                <pre><code class="language-rust">// Use a smaller allocator (saves ~10KB)
+#[cfg(feature = "wee_alloc")]
+#[global_allocator]
+static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
+</code></pre>
+                <pre><code class="language-bash"># Install wasm-opt (part of binaryen)
+npm install -g binaryen
+# or: brew install binaryen (macOS)
+
+# wasm-pack --release automatically runs wasm-opt
+wasm-pack build --release
+
+# Manual optimization passes
+wasm-opt -Os -o output.wasm input.wasm   # optimize for size
+wasm-opt -O3 -o output.wasm input.wasm  # optimize for speed
+
+# Check the size breakdown
+cargo install twiggy
+twiggy top -n 20 pkg/my_wasm_bg.wasm
+
+# Gzip the .wasm for serving (typically 60-70% reduction)
+gzip -9 -k pkg/my_wasm_bg.wasm
+</code></pre>
+            </section>
+
+            <!-- 9. Testing -->
+            <section>
+                <h2>9. Testing Wasm Code</h2>
+                <pre><code class="language-rust">// Tests that run in a headless browser via wasm-pack test
+use wasm_bindgen_test::*;
+
+// Run in a browser (headless Chrome/Firefox via wasm-pack test --headless)
+wasm_bindgen_test_configure!(run_in_browser);
+
+#[wasm_bindgen_test]
+fn test_greet() {
+    assert_eq!(greet("World"), "Hello, World! From Rust/Wasm");
+}
+
+#[wasm_bindgen_test]
+fn test_counter() {
+    let mut c = Counter::new(5);
+    c.increment();
+    c.increment();
+    assert_eq!(c.value(), 10);
+    c.decrement();
+    assert_eq!(c.value(), 5);
+}
+
+// Async browser test
+#[wasm_bindgen_test]
+async fn test_async() {
+    // Can test async functions that use browser APIs
+    let result = async { 42u32 }.await;
+    assert_eq!(result, 42);
+}
+</code></pre>
+                <pre><code class="language-bash"># Run Wasm tests in headless Chrome
+wasm-pack test --headless --chrome
+
+# Run Wasm tests in headless Firefox
+wasm-pack test --headless --firefox
+
+# Run in Node.js (no browser needed, fewer APIs available)
+wasm-pack test --node
+</code></pre>
+            </section>
+
+            <!-- 10. Ecosystem -->
+            <section>
+                <h2>10. Wasm Ecosystem</h2>
+                <div style="overflow-x: auto; margin: 1.5rem 0;">
+                    <table style="width:100%; border-collapse: collapse; font-size: 14px;">
+                        <thead>
+                            <tr style="background: var(--surface); text-align: left;">
+                                <th style="padding: 10px 14px; border-bottom: 2px solid var(--border);">Crate</th>
+                                <th style="padding: 10px 14px; border-bottom: 2px solid var(--border);">Purpose</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td style="padding:8px 14px;border-bottom:1px solid var(--border)"><code>wasm-bindgen</code></td><td style="padding:8px 14px;border-bottom:1px solid var(--border)">Core bridge between Rust and JS</td></tr>
+                            <tr><td style="padding:8px 14px;border-bottom:1px solid var(--border)"><code>web-sys</code></td><td style="padding:8px 14px;border-bottom:1px solid var(--border)">All browser Web APIs (DOM, Fetch, Canvas, WebGL…)</td></tr>
+                            <tr><td style="padding:8px 14px;border-bottom:1px solid var(--border)"><code>js-sys</code></td><td style="padding:8px 14px;border-bottom:1px solid var(--border)">JavaScript built-in types (Array, Promise, Math…)</td></tr>
+                            <tr><td style="padding:8px 14px;border-bottom:1px solid var(--border)"><code>wasm-bindgen-futures</code></td><td style="padding:8px 14px;border-bottom:1px solid var(--border)">Async/await and Futures in Wasm</td></tr>
+                            <tr><td style="padding:8px 14px;border-bottom:1px solid var(--border)"><code>gloo</code></td><td style="padding:8px 14px;border-bottom:1px solid var(--border)">Ergonomic wrappers for browser APIs (timers, events…)</td></tr>
+                            <tr><td style="padding:8px 14px;border-bottom:1px solid var(--border)"><code>leptos</code></td><td style="padding:8px 14px;border-bottom:1px solid var(--border)">Full-stack web framework (SSR + Wasm)</td></tr>
+                            <tr><td style="padding:8px 14px;border-bottom:1px solid var(--border)"><code>yew</code></td><td style="padding:8px 14px;border-bottom:1px solid var(--border)">React-like frontend framework for Wasm</td></tr>
+                            <tr><td style="padding:8px 14px;border-bottom:1px solid var(--border)"><code>trunk</code></td><td style="padding:8px 14px;border-bottom:1px solid var(--border)">Build tool for Wasm web apps (like create-react-app)</td></tr>
+                            <tr><td style="padding:8px 14px"><code>wasmtime</code></td><td style="padding:8px 14px">Server-side Wasm runtime (WASI)</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+                    </div><!-- /article-body -->
+                </div><!-- /article-main -->
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+
+                    <div class="sidebar-box">
+                        <h4>Rust Series &mdash; Module 7</h4>
+                        <a href="rust-patterns.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Design Patterns in Rust</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                        <a href="rust-performance.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Performance &amp; Optimization</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                        <a href="rust-wasm.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">WebAssembly with Rust</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                        <a href="rust-cli.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">CLI Applications</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-rust.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+    <script>
+        const toggle = document.querySelector('.nav-toggle');
+        const navLinks = document.querySelector('.nav-links');
+        toggle.addEventListener('click', () => {
+            navLinks.classList.toggle('active');
+            toggle.classList.toggle('active');
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Declarative Macros in Rust &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="rust-tech-insights.html">Rust</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+            <button class="nav-toggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+            <header class="article-header">
+                        <a href="rust-tech-insights.html" class="back-link">&larr; Back to Rust Tech Insights</a>
+                <div class="post-meta">
+                    <span class="post-date">Mar 2026</span>
+                    <span class="post-reading">17 min read</span>
+                </div>
+                <h1>Declarative Macros: macro_rules!</h1>
+                <div class="post-tags">
+                    <span>Rust</span>
+                    <span>Macros</span>
+                    <span>Metaprogramming</span>
+                </div>
+            </header>
+
+                    <div class="article-body">
+
+            <!-- 1. What are macros -->
+            <section>
+                <h2>1. What are Macros and Why Use Them?</h2>
+                <p>Rust macros operate at the <em>syntax</em> level — they transform token trees before the compiler type-checks anything. This gives them powers that functions cannot have:</p>
+                <ul>
+                    <li>Variadic arguments (<code>println!("{}", a, b, c)</code>)</li>
+                    <li>Generating repetitive boilerplate (<code>vec![1, 2, 3]</code>)</li>
+                    <li>Domain-specific mini-languages (SQL, HTML templates)</li>
+                    <li>Implementing traits for many types at once</li>
+                </ul>
+                <p>Rust has two kinds of macros: <strong>declarative</strong> (<code>macro_rules!</code>) and <strong>procedural</strong> (proc macros). This article covers declarative macros.</p>
+            </section>
+
+            <!-- 2. Basic macro_rules! -->
+            <section>
+                <h2>2. Basic macro_rules!</h2>
+                <p>A <code>macro_rules!</code> macro is a pattern-matching rule set. Each arm matches a token pattern and expands to code.</p>
+                <pre><code class="language-rust">// Simplest possible macro
+macro_rules! say_hello {
+    () =&gt; {
+        println!("Hello, world!");
+    };
+}
+
+fn main() {
+    say_hello!(); // expands to: println!("Hello, world!");
+}
+</code></pre>
+
+                <h3>2.1 Matching Literal Tokens</h3>
+                <pre><code class="language-rust">macro_rules! greet {
+    (english) =&gt; { println!("Hello!"); };
+    (italian) =&gt; { println!("Ciao!"); };
+    (spanish) =&gt; { println!("¡Hola!"); };
+}
+
+fn main() {
+    greet!(english); // Hello!
+    greet!(italian); // Ciao!
+    greet!(spanish); // ¡Hola!
+}
+</code></pre>
+
+                <h3>2.2 Multiple Patterns per Macro</h3>
+                <pre><code class="language-rust">macro_rules! assert_eq_approx {
+    ($left:expr, $right:expr) =&gt; {
+        assert_eq_approx!($left, $right, 1e-6)
+    };
+    ($left:expr, $right:expr, $eps:expr) =&gt; {
+        let (l, r) = ($left, $right);
+        assert!(
+            (l - r).abs() &lt; $eps,
+            "assertion failed: |{} - {}| = {} &gt;= {}",
+            l, r, (l - r).abs(), $eps
+        );
+    };
+}
+
+fn main() {
+    assert_eq_approx!(1.0_f64, 1.000_000_001); // uses default eps
+    assert_eq_approx!(3.14, 3.15, 0.02);        // custom eps
+    // assert_eq_approx!(1.0, 2.0); // would panic
+}
+</code></pre>
+            </section>
+
+            <!-- 3. Fragment specifiers -->
+            <section>
+                <h2>3. Fragment Specifiers</h2>
+                <p>Each macro variable <code>$name:kind</code> captures a specific syntactic category. The most important ones:</p>
+
+                <div style="overflow-x: auto; margin: 1.5rem 0;">
+                    <table style="width:100%; border-collapse: collapse; font-size: 14px;">
+                        <thead>
+                            <tr style="background: var(--surface); text-align: left;">
+                                <th style="padding: 10px 14px; border-bottom: 2px solid var(--border);">Specifier</th>
+                                <th style="padding: 10px 14px; border-bottom: 2px solid var(--border);">Matches</th>
+                                <th style="padding: 10px 14px; border-bottom: 2px solid var(--border);">Example</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td style="padding:8px 14px;border-bottom:1px solid var(--border)"><code>expr</code></td><td style="padding:8px 14px;border-bottom:1px solid var(--border)">any expression</td><td style="padding:8px 14px;border-bottom:1px solid var(--border)"><code>1 + 2</code>, <code>vec.len()</code></td></tr>
+                            <tr><td style="padding:8px 14px;border-bottom:1px solid var(--border)"><code>ident</code></td><td style="padding:8px 14px;border-bottom:1px solid var(--border)">identifier or keyword</td><td style="padding:8px 14px;border-bottom:1px solid var(--border)"><code>my_var</code>, <code>HashMap</code></td></tr>
+                            <tr><td style="padding:8px 14px;border-bottom:1px solid var(--border)"><code>ty</code></td><td style="padding:8px 14px;border-bottom:1px solid var(--border)">type</td><td style="padding:8px 14px;border-bottom:1px solid var(--border)"><code>Vec&lt;u32&gt;</code>, <code>&amp;str</code></td></tr>
+                            <tr><td style="padding:8px 14px;border-bottom:1px solid var(--border)"><code>pat</code></td><td style="padding:8px 14px;border-bottom:1px solid var(--border)">pattern</td><td style="padding:8px 14px;border-bottom:1px solid var(--border)"><code>Some(x)</code>, <code>(a, b)</code></td></tr>
+                            <tr><td style="padding:8px 14px;border-bottom:1px solid var(--border)"><code>stmt</code></td><td style="padding:8px 14px;border-bottom:1px solid var(--border)">statement</td><td style="padding:8px 14px;border-bottom:1px solid var(--border)"><code>let x = 1;</code></td></tr>
+                            <tr><td style="padding:8px 14px;border-bottom:1px solid var(--border)"><code>block</code></td><td style="padding:8px 14px;border-bottom:1px solid var(--border)">block expression</td><td style="padding:8px 14px;border-bottom:1px solid var(--border)"><code>{ ... }</code></td></tr>
+                            <tr><td style="padding:8px 14px;border-bottom:1px solid var(--border)"><code>path</code></td><td style="padding:8px 14px;border-bottom:1px solid var(--border)">path</td><td style="padding:8px 14px;border-bottom:1px solid var(--border)"><code>std::io::Error</code></td></tr>
+                            <tr><td style="padding:8px 14px;border-bottom:1px solid var(--border)"><code>literal</code></td><td style="padding:8px 14px;border-bottom:1px solid var(--border)">literal value</td><td style="padding:8px 14px;border-bottom:1px solid var(--border)"><code>42</code>, <code>"hello"</code></td></tr>
+                            <tr><td style="padding:8px 14px;border-bottom:1px solid var(--border)"><code>tt</code></td><td style="padding:8px 14px;border-bottom:1px solid var(--border)">any single token tree</td><td style="padding:8px 14px;border-bottom:1px solid var(--border)">catch-all</td></tr>
+                            <tr><td style="padding:8px 14px"><code>meta</code></td><td style="padding:8px 14px">attribute content</td><td style="padding:8px 14px"><code>derive(Debug)</code></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <pre><code class="language-rust">// Using different fragment specifiers
+macro_rules! describe {
+    // expr: capture any expression
+    (expr: $e:expr) =&gt; {
+        println!("expression evaluates to: {}", $e);
+    };
+    // ident: capture an identifier
+    (var: $name:ident = $val:expr) =&gt; {
+        let $name = $val;
+        println!("created variable '{}' = {}", stringify!($name), $name);
+    };
+    // ty: capture a type
+    (type: $t:ty) =&gt; {
+        println!("type size: {} bytes", std::mem::size_of::&lt;$t&gt;());
+    };
+}
+
+fn main() {
+    describe!(expr: 2 + 2 * 3);    // expression evaluates to: 8
+    describe!(var: answer = 42);    // created variable 'answer' = 42
+    describe!(type: (u64, f32));    // type size: 12 bytes
+}
+</code></pre>
+            </section>
+
+            <!-- 4. Repetition -->
+            <section>
+                <h2>4. Repetition — $(…)* and $(…)+</h2>
+                <p>The most powerful feature of <code>macro_rules!</code>: match zero or more (<code>*</code>), one or more (<code>+</code>), or zero or one (<code>?</code>) repetitions.</p>
+                <pre><code class="language-rust">// Reimplementing vec! from scratch
+macro_rules! my_vec {
+    // Empty case
+    () =&gt; { Vec::new() };
+    // One or more elements separated by commas
+    // $( ... ),+ means: one or more repetitions, separated by commas
+    ( $( $elem:expr ),+ $(,)? ) =&gt; {{
+        // The outer block is needed to allow multiple statements
+        let mut v = Vec::new();
+        $( v.push($elem); )+ // expand one push per element
+        v
+    }};
+}
+
+fn main() {
+    let a: Vec&lt;i32&gt; = my_vec![];
+    let b = my_vec![1, 2, 3];
+    let c = my_vec![10, 20, 30,]; // trailing comma: $(,)? handles it
+    println!("{a:?}"); // []
+    println!("{b:?}"); // [1, 2, 3]
+    println!("{c:?}"); // [10, 20, 30]
+}
+</code></pre>
+
+                <h3>4.1 HashMap Literal</h3>
+                <pre><code class="language-rust">use std::collections::HashMap;
+
+macro_rules! hashmap {
+    // key => value pairs separated by commas
+    ( $( $key:expr =&gt; $val:expr ),* $(,)? ) =&gt; {{
+        let mut m = HashMap::new();
+        $( m.insert($key, $val); )*
+        m
+    }};
+}
+
+fn main() {
+    let scores: HashMap&lt;&amp;str, u32&gt; = hashmap! {
+        "Alice" =&gt; 95,
+        "Bob"   =&gt; 87,
+        "Carol" =&gt; 92,
+    };
+    println!("{scores:?}");
+}
+</code></pre>
+
+                <h3>4.2 Counting with Repetition</h3>
+                <pre><code class="language-rust">// Count the number of arguments at compile time
+macro_rules! count {
+    () =&gt; { 0usize };
+    ($head:tt $($tail:tt)*) =&gt; { 1usize + count!($($tail)*) };
+}
+
+// Fixed-size array initializer
+macro_rules! array {
+    ( $( $elem:expr ),* $(,)? ) =&gt; {
+        {
+            const N: usize = count!($($elem)*);
+            let arr: [_; N] = [$($elem),*];
+            arr
+        }
+    };
+}
+
+fn main() {
+    println!("count = {}", count!(a b c d)); // 4
+
+    let arr = array![10, 20, 30, 40];
+    println!("{arr:?}"); // [10, 20, 30, 40]
+    // type is [i32; 4] — known at compile time
+}
+</code></pre>
+            </section>
+
+            <!-- 5. Recursive macros -->
+            <section>
+                <h2>5. Recursive Macros</h2>
+                <p>Macros can call themselves, enabling recursive patterns like building expression trees or nested data structures.</p>
+                <pre><code class="language-rust">// Build nested Option types: some!(some!(none!())) = Some(Some(None))
+macro_rules! none {
+    () =&gt; { None };
+}
+macro_rules! some {
+    ($e:expr) =&gt; { Some($e) };
+}
+
+// Recursive JSON-like value builder
+macro_rules! json {
+    // null
+    (null) =&gt; { serde_like::Value::Null };
+    // boolean
+    (true)  =&gt; { serde_like::Value::Bool(true) };
+    (false) =&gt; { serde_like::Value::Bool(false) };
+    // number
+    ($n:literal) =&gt; { serde_like::Value::Number($n as f64) };
+    // string
+    ($s:expr) =&gt; { serde_like::Value::String($s.to_string()) };
+}
+
+// Simpler example: a recursive sum macro
+macro_rules! sum {
+    ($x:expr) =&gt; { $x };
+    ($x:expr, $($rest:expr),+) =&gt; { $x + sum!($($rest),+) };
+}
+
+fn main() {
+    println!("{}", sum!(1));           // 1
+    println!("{}", sum!(1, 2));        // 3
+    println!("{}", sum!(1, 2, 3, 4)); // 10
+}
+</code></pre>
+
+                <h3>5.1 TT Muncher Pattern</h3>
+                <p>A TT muncher processes a token sequence one token at a time using recursion — the standard technique for arbitrary token parsing.</p>
+                <pre><code class="language-rust">// Print each argument on its own line with its index
+macro_rules! indexed_print {
+    // Base case: nothing left
+    (@inner $idx:expr ;) =&gt; {};
+    // Recursive case: process one item then recurse
+    (@inner $idx:expr ; $head:expr $(, $tail:expr)*) =&gt; {
+        println!("[{}] = {}", $idx, $head);
+        indexed_print!(@inner $idx + 1 ; $($tail),*);
+    };
+    // Entry point
+    ($($items:expr),+ $(,)?) =&gt; {
+        indexed_print!(@inner 0usize ; $($items),+);
+    };
+}
+
+fn main() {
+    indexed_print!("alpha", "beta", "gamma");
+    // [0] = alpha
+    // [1] = beta
+    // [2] = gamma
+}
+</code></pre>
+                <p>The <code>@inner</code> prefix is a convention to mark internal "helper arms" that callers should not use directly.</p>
+            </section>
+
+            <!-- 6. Hygiene -->
+            <section>
+                <h2>6. Macro Hygiene</h2>
+                <p>Rust macros are <em>hygienic</em>: identifiers introduced inside a macro expansion do not accidentally clash with identifiers in the caller's scope. This prevents subtle bugs common in C macros.</p>
+                <pre><code class="language-rust">macro_rules! swap {
+    ($a:expr, $b:expr) =&gt; {{
+        // `tmp` is hygienically scoped — it cannot conflict
+        // with any `tmp` variable the caller might have
+        let tmp = $a;
+        $a = $b;
+        $b = tmp;
+    }};
+}
+
+fn main() {
+    let tmp = "I am the caller's tmp"; // same name, different variable
+    let mut x = 1;
+    let mut y = 2;
+    swap!(x, y);
+    println!("x={x}, y={y}"); // x=2, y=1
+    println!("{tmp}"); // still "I am the caller's tmp" — no clash!
+}
+</code></pre>
+
+                <h3>6.1 Breaking Hygiene on Purpose</h3>
+                <p>Sometimes you want a macro to <em>introduce</em> an identifier into the caller's scope (e.g., a macro that declares a variable the caller can use). Pass the identifier as an argument:</p>
+                <pre><code class="language-rust">macro_rules! let_timer {
+    ($name:ident) =&gt; {
+        // The ident comes FROM the caller, so it lives in caller's scope
+        let $name = std::time::Instant::now();
+    };
+}
+
+macro_rules! elapsed {
+    ($name:ident) =&gt; {
+        println!("{} elapsed: {:?}", stringify!($name), $name.elapsed());
+    };
+}
+
+fn main() {
+    let_timer!(t);
+    // ... do work ...
+    std::thread::sleep(std::time::Duration::from_millis(10));
+    elapsed!(t); // t is visible here because it was introduced with the caller's ident
+}
+</code></pre>
+            </section>
+
+            <!-- 7. Exporting macros -->
+            <section>
+                <h2>7. Exporting Macros</h2>
+
+                <h3>7.1 #[macro_export]</h3>
+                <p>To make a macro available to users of your crate, annotate it with <code>#[macro_export]</code>. This places it at the crate root regardless of where it is defined.</p>
+                <pre><code class="language-rust">// In src/lib.rs of crate `mylib`
+
+#[macro_export]
+macro_rules! my_assert {
+    ($cond:expr) =&gt; {
+        if !$cond {
+            panic!("assertion failed: {}", stringify!($cond));
+        }
+    };
+    ($cond:expr, $msg:literal) =&gt; {
+        if !$cond {
+            panic!("{}", $msg);
+        }
+    };
+}
+
+// Users can import it with:
+// use mylib::my_assert;
+// OR with the 2018 macro import: #[macro_use] extern crate mylib;
+</code></pre>
+
+                <h3>7.2 Macros in Modules</h3>
+                <pre><code class="language-rust">// Macros are not automatically in scope from sub-modules.
+// Use #[macro_use] on the module to hoist them:
+#[macro_use]
+mod macros {
+    macro_rules! log_debug {
+        ($($arg:tt)*) =&gt; {
+            #[cfg(debug_assertions)]
+            println!("[DEBUG] {}", format!($($arg)*));
+        };
+    }
+}
+
+fn main() {
+    log_debug!("x = {}, y = {}", 1, 2); // only in debug builds
+}
+</code></pre>
+            </section>
+
+            <!-- 8. Practical patterns -->
+            <section>
+                <h2>8. Practical Patterns</h2>
+
+                <h3>8.1 Implementing a Trait for Multiple Types</h3>
+                <pre><code class="language-rust">trait Describable {
+    fn describe(&amp;self) -&gt; String;
+}
+
+// Without macro: must write impl for each type separately
+// With macro: one call covers many types
+macro_rules! impl_describable {
+    ($($t:ty),+) =&gt; {
+        $(
+            impl Describable for $t {
+                fn describe(&amp;self) -&gt; String {
+                    format!("{} ({})", self, std::any::type_name::&lt;$t&gt;())
+                }
+            }
+        )+
+    };
+}
+
+impl_describable!(u8, u16, u32, u64, i32, f64);
+
+fn print_desc(d: &amp;dyn Describable) { println!("{}", d.describe()); }
+
+fn main() {
+    print_desc(&amp;42u32);  // 42 (u32)
+    print_desc(&amp;3.14f64); // 3.14 (f64)
+}
+</code></pre>
+
+                <h3>8.2 Builder Pattern with Macros</h3>
+                <pre><code class="language-rust">macro_rules! make_builder {
+    (
+        struct $name:ident {
+            $( $field:ident : $ty:ty ),* $(,)?
+        }
+    ) =&gt; {
+        struct $name {
+            $( $field: $ty, )*
+        }
+
+        paste::paste! {
+            struct [&lt;$name Builder&gt;] {
+                $( $field: Option&lt;$ty&gt;, )*
+            }
+
+            impl [&lt;$name Builder&gt;] {
+                fn new() -&gt; Self {
+                    Self { $( $field: None, )* }
+                }
+
+                $(
+                    fn $field(mut self, v: $ty) -&gt; Self {
+                        self.$field = Some(v);
+                        self
+                    }
+                )*
+
+                fn build(self) -&gt; Result&lt;$name, String&gt; {
+                    Ok($name {
+                        $(
+                            $field: self.$field.ok_or_else(||
+                                format!("missing field: {}", stringify!($field))
+                            )?,
+                        )*
+                    })
+                }
+            }
+        }
+    };
+}
+
+// Simpler version without paste crate:
+macro_rules! field_method {
+    ($field:ident : $ty:ty) =&gt; {
+        pub fn $field(mut self, v: $ty) -&gt; Self {
+            self.$field = Some(v);
+            self
+        }
+    };
+}
+</code></pre>
+
+                <h3>8.3 Error Enum Generator</h3>
+                <pre><code class="language-rust">macro_rules! define_errors {
+    ( $( $variant:ident ($msg:literal) ),* $(,)? ) =&gt; {
+        #[derive(Debug)]
+        enum AppError {
+            $( $variant(String), )*
+        }
+
+        impl std::fmt::Display for AppError {
+            fn fmt(&amp;self, f: &amp;mut std::fmt::Formatter&lt;'_&gt;) -&gt; std::fmt::Result {
+                match self {
+                    $( AppError::$variant(detail) =&gt;
+                        write!(f, concat!($msg, ": {}"), detail), )*
+                }
+            }
+        }
+
+        impl std::error::Error for AppError {}
+
+        // Constructor functions
+        impl AppError {
+            $(
+                #[allow(non_snake_case)]
+                fn $variant(detail: impl Into&lt;String&gt;) -&gt; Self {
+                    AppError::$variant(detail.into())
+                }
+            )*
+        }
+    };
+}
+
+define_errors! {
+    NotFound("resource not found"),
+    Unauthorized("authentication required"),
+    ParseError("failed to parse input"),
+}
+
+fn find_user(id: u32) -&gt; Result&lt;String, AppError&gt; {
+    if id == 0 {
+        Err(AppError::NotFound(format!("user id {id}")))
+    } else {
+        Ok(format!("user-{id}"))
+    }
+}
+
+fn main() {
+    match find_user(0) {
+        Ok(u)  =&gt; println!("found: {u}"),
+        Err(e) =&gt; println!("error: {e}"), // error: resource not found: user id 0
+    }
+}
+</code></pre>
+            </section>
+
+            <!-- 9. Debugging macros -->
+            <section>
+                <h2>9. Debugging Macros</h2>
+                <pre><code class="language-rust">// stringify!: turns tokens into a string literal (useful for debugging)
+macro_rules! dbg_expr {
+    ($e:expr) =&gt; {{
+        let val = $e;
+        println!("{} = {:?}", stringify!($e), val);
+        val
+    }};
+}
+
+fn main() {
+    let x = dbg_expr!(2 + 2 * 3); // 2 + 2 * 3 = 8
+    let v = dbg_expr!(vec![1, 2, 3].iter().sum::&lt;i32&gt;()); // vec![...] = 6
+    println!("{x}, {v}");
+}
+
+// Trace macro expansion: cargo rustc -- -Z macro-backtrace
+// Or use: cargo expand (install: cargo install cargo-expand)
+// cargo expand will show the fully expanded code
+</code></pre>
+                <p>The <code>cargo expand</code> subcommand (from <code>cargo-expand</code>) shows the exact code a macro produces — invaluable for debugging complex macros.</p>
+            </section>
+
+            <!-- 10. Limitations -->
+            <section>
+                <h2>10. Limitations of macro_rules!</h2>
+                <ul>
+                    <li><strong>No type inspection</strong> — macros work on tokens, not types. Use proc macros if you need type information.</li>
+                    <li><strong>Error messages</strong> can be cryptic. Prefer small, focused macros and test them independently.</li>
+                    <li><strong>Ordering</strong> — a <code>macro_rules!</code> macro must be defined before its first use in the same file (unlike functions or types).</li>
+                    <li><strong>No first-class values</strong> — macros cannot be passed as arguments or stored in variables.</li>
+                    <li><strong>Ambiguity restrictions</strong> — certain fragment specifiers impose restrictions on what can follow them to prevent ambiguity.</li>
+                </ul>
+                <p>When <code>macro_rules!</code> is not expressive enough, reach for <strong>procedural macros</strong> — covered in the next article.</p>
+            </section>
+                    </div><!-- /article-body -->
+                </div><!-- /article-main -->
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+
+                    <div class="sidebar-box">
+                        <h4>Rust Series &mdash; Module 6</h4>
+                        <a href="rust-macros-declarative.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Declarative Macros</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                        <a href="rust-macros-procedural.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Procedural Macros</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                        <a href="rust-testing.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Testing &amp; Benchmarking</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                        <a href="rust-cargo-workspaces.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Cargo Workspaces &amp; Build Scripts</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-rust.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+    <script>
+        const toggle = document.querySelector('.nav-toggle');
+        const navLinks = document.querySelector('.nav-links');
+        toggle.addEventListener('click', () => {
+            navLinks.classList.toggle('active');
+            toggle.classList.toggle('active');
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Async/Await &amp; Futures in Rust &mdash; Paolo Mascia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="article.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+
+    <nav class="navbar scrolled">
+        <div class="container">
+            <a href="index.html" class="nav-logo">
+                <span class="logo-accent">&gt;</span> paolo.mascia
+            </a>
+            <div class="nav-links">
+                <a href="index.html#about">About</a>
+                <a href="index.html#projects">Projects</a>
+                <a href="ai-tech-insights.html">AI Tech Insights</a>
+                <a href="cybersecurity-tech-insights.html">Cybersecurity</a>
+                <a href="golang-tech-insights.html">Go</a>
+                <a href="rust-tech-insights.html">Rust</a>
+                <a href="index.html#contact">Contact</a>
+            </div>
+            <button class="nav-toggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <article class="article">
+        <div class="container">
+            <div class="article-layout">
+                <div class="article-main">
+            <header class="article-header">
+                        <a href="rust-tech-insights.html" class="back-link">&larr; Back to Rust Tech Insights</a>
+                <div class="post-meta">
+                    <span class="post-date">Feb 2026</span>
+                    <span class="post-reading">18 min read</span>
+                </div>
+                <h1>Async/Await &amp; Futures in Rust</h1>
+                <div class="post-tags">
+                    <span>Rust</span>
+                    <span>Async</span>
+                    <span>Futures</span>
+                </div>
+            </header>
+
+                    <div class="article-body">
+
+            <!-- 1. The Future trait -->
+            <section>
+                <h2>1. The Future Trait</h2>
+                <p>A <code>Future</code> represents a value that may not be available yet. It is a state machine that the executor drives by calling <code>poll()</code> repeatedly.</p>
+                <pre><code class="language-rust">use std::task::{Context, Poll};
+use std::pin::Pin;
+
+// The core trait from std::future
+pub trait Future {
+    type Output;
+
+    fn poll(self: Pin&lt;&amp;mut Self&gt;, cx: &amp;mut Context&lt;'_&gt;) -&gt; Poll&lt;Self::Output&gt;;
+}
+
+// Poll is a simple enum:
+// enum Poll&lt;T&gt; {
+//     Ready(T),   — computation complete, here's the value
+//     Pending,    — not ready yet; will call cx.waker().wake() when ready
+// }
+</code></pre>
+                <p>Key facts about futures in Rust:</p>
+                <ul>
+                    <li>Futures are <strong>lazy</strong> — nothing happens until an executor calls <code>poll()</code>.</li>
+                    <li>When a future returns <code>Pending</code>, it must arrange to call <code>cx.waker().wake()</code> when it may be ready, so the executor knows to poll again.</li>
+                    <li>The <code>.await</code> keyword desugars into repeated <code>poll()</code> calls.</li>
+                </ul>
+
+                <h3>1.1 Implementing a Simple Future Manually</h3>
+                <pre><code class="language-rust">use std::future::Future;
+use std::pin::Pin;
+use std::task::{Context, Poll};
+use std::time::{Duration, Instant};
+
+// A future that resolves after a certain duration (busy-waits for illustration)
+struct Delay {
+    deadline: Instant,
+}
+
+impl Delay {
+    fn new(duration: Duration) -&gt; Self {
+        Delay { deadline: Instant::now() + duration }
+    }
+}
+
+impl Future for Delay {
+    type Output = ();
+
+    fn poll(self: Pin&lt;&amp;mut Self&gt;, cx: &amp;mut Context&lt;'_&gt;) -&gt; Poll&lt;()&gt; {
+        if Instant::now() &gt;= self.deadline {
+            Poll::Ready(())
+        } else {
+            // In real code: register with the I/O driver and call wake() later.
+            // Here we busy-wake (not production-quality).
+            cx.waker().wake_by_ref();
+            Poll::Pending
+        }
+    }
+}
+
+// Usage: requires an async runtime to drive the future
+// #[tokio::main]
+// async fn main() {
+//     Delay::new(Duration::from_millis(100)).await;
+//     println!("done");
+// }
+</code></pre>
+            </section>
+
+            <!-- 2. async fn and .await -->
+            <section>
+                <h2>2. async fn and .await</h2>
+                <p>An <code>async fn</code> is sugar for a function that returns <code>impl Future&lt;Output = T&gt;</code>. The compiler transforms the body into a state machine automatically.</p>
+                <pre><code class="language-rust">// Cargo.toml: tokio = { version = "1", features = ["full"] }
+use tokio::time::{sleep, Duration};
+
+// `async fn` returns an impl Future — calling it does NOT start execution
+async fn fetch_data(id: u32) -&gt; String {
+    sleep(Duration::from_millis(10)).await; // suspend here, yield to executor
+    format!("data-{id}")
+}
+
+// The #[tokio::main] macro starts the Tokio runtime and drives the top-level future
+#[tokio::main]
+async fn main() {
+    // .await drives the future to completion, suspending the async task if needed
+    let result = fetch_data(42).await;
+    println!("{result}"); // data-42
+}
+</code></pre>
+
+                <h3>2.1 Desugared View</h3>
+                <pre><code class="language-rust">// This async fn:
+async fn add(a: i32, b: i32) -&gt; i32 {
+    a + b
+}
+
+// Is roughly equivalent to:
+fn add_desugared(a: i32, b: i32) -&gt; impl std::future::Future&lt;Output = i32&gt; {
+    async move { a + b }
+}
+
+// The compiler generates an anonymous state-machine struct that implements Future.
+// Each .await point becomes a state transition in that machine.
+</code></pre>
+
+                <h3>2.2 Sequential vs Concurrent .await</h3>
+                <pre><code class="language-rust">use tokio::time::{sleep, Duration, Instant};
+
+async fn work(label: &amp;str, ms: u64) -&gt; String {
+    sleep(Duration::from_millis(ms)).await;
+    label.to_string()
+}
+
+#[tokio::main]
+async fn main() {
+    // Sequential: total time = 100 + 200 + 300 = 600ms
+    let start = Instant::now();
+    let a = work("a", 100).await;
+    let b = work("b", 200).await;
+    let c = work("c", 300).await;
+    println!("sequential: {}ms — {a}, {b}, {c}", start.elapsed().as_millis());
+
+    // Concurrent: total time = max(100, 200, 300) = 300ms
+    let start = Instant::now();
+    let (a, b, c) = tokio::join!(work("a", 100), work("b", 200), work("c", 300));
+    println!("concurrent: {}ms — {a}, {b}, {c}", start.elapsed().as_millis());
+}
+// sequential: ~600ms — a, b, c
+// concurrent: ~300ms — a, b, c
+</code></pre>
+            </section>
+
+            <!-- 3. tokio::join! and try_join! -->
+            <section>
+                <h2>3. Concurrency Combinators</h2>
+
+                <h3>3.1 join! — Wait for All</h3>
+                <pre><code class="language-rust">use tokio::time::{sleep, Duration};
+
+async fn fetch(url: &amp;str) -&gt; String {
+    sleep(Duration::from_millis(50)).await;
+    format!("response from {url}")
+}
+
+#[tokio::main]
+async fn main() {
+    // join! polls all futures concurrently on the same task
+    let (r1, r2, r3) = tokio::join!(
+        fetch("api.example.com/users"),
+        fetch("api.example.com/posts"),
+        fetch("api.example.com/comments"),
+    );
+    println!("{r1}");
+    println!("{r2}");
+    println!("{r3}");
+}
+</code></pre>
+
+                <h3>3.2 try_join! — Short-circuit on Error</h3>
+                <pre><code class="language-rust">use tokio::time::{sleep, Duration};
+
+async fn fetch_json(id: u32) -&gt; Result&lt;String, String&gt; {
+    sleep(Duration::from_millis(20)).await;
+    if id == 0 {
+        Err(format!("invalid id: {id}"))
+    } else {
+        Ok(format!("{{\"id\": {id}}}}"))
+    }
+}
+
+#[tokio::main]
+async fn main() {
+    // try_join! returns Err immediately if any future fails
+    match tokio::try_join!(fetch_json(1), fetch_json(0), fetch_json(3)) {
+        Ok((a, b, c)) =&gt; println!("ok: {a}, {b}, {c}"),
+        Err(e)         =&gt; println!("error: {e}"), // "invalid id: 0"
+    }
+
+    // All success
+    match tokio::try_join!(fetch_json(1), fetch_json(2)) {
+        Ok((a, b)) =&gt; println!("ok: {a}, {b}"),
+        Err(e)     =&gt; println!("error: {e}"),
+    }
+}
+</code></pre>
+
+                <h3>3.3 select! — First One Wins</h3>
+                <pre><code class="language-rust">use tokio::time::{sleep, Duration};
+
+async fn slow_task() -&gt; &amp;'static str { sleep(Duration::from_millis(500)).await; "slow" }
+async fn fast_task() -&gt; &amp;'static str { sleep(Duration::from_millis(50)).await;  "fast" }
+
+#[tokio::main]
+async fn main() {
+    // select! takes the first future to complete and cancels the rest
+    let winner = tokio::select! {
+        v = slow_task() =&gt; v,
+        v = fast_task() =&gt; v,
+    };
+    println!("winner: {winner}"); // "fast"
+
+    // Common pattern: cancellation via select! with a shutdown signal
+    let (shutdown_tx, mut shutdown_rx) = tokio::sync::oneshot::channel::&lt;()&gt;();
+
+    tokio::spawn(async move {
+        sleep(Duration::from_millis(100)).await;
+        let _ = shutdown_tx.send(());
+    });
+
+    tokio::select! {
+        _ = &amp;mut shutdown_rx =&gt; println!("shutdown received"),
+        _ = slow_task() =&gt; println!("task completed"),
+    }
+}
+</code></pre>
+            </section>
+
+            <!-- 4. tokio::spawn -->
+            <section>
+                <h2>4. Spawning Tasks</h2>
+                <p><code>tokio::spawn</code> creates an independent async task (green thread). Unlike <code>.await</code>, spawned tasks run concurrently with the current task without blocking it.</p>
+                <pre><code class="language-rust">use tokio::time::{sleep, Duration};
+
+#[tokio::main]
+async fn main() {
+    // spawn returns a JoinHandle — you can await it to get the result
+    let handle = tokio::spawn(async {
+        sleep(Duration::from_millis(50)).await;
+        println!("spawned task done");
+        42u32
+    });
+
+    println!("main task continues immediately");
+
+    // await the handle to get the result
+    let value = handle.await.unwrap(); // unwrap the Result (Err if the task panicked)
+    println!("spawned returned: {value}");
+
+    // Spawning many tasks concurrently
+    let handles: Vec&lt;_&gt; = (0..10)
+        .map(|i| {
+            tokio::spawn(async move {
+                sleep(Duration::from_millis(i * 10)).await;
+                i * i
+            })
+        })
+        .collect();
+
+    let results: Vec&lt;u64&gt; = futures::future::join_all(handles)
+        .await
+        .into_iter()
+        .map(|r| r.unwrap())
+        .collect();
+
+    println!("{results:?}"); // [0, 1, 4, 9, 16, 25, 36, 49, 64, 81]
+}
+</code></pre>
+                <p><strong>Note:</strong> spawned tasks must be <code>'static</code> and <code>Send</code> (because Tokio may move them between threads in a multi-threaded runtime).</p>
+            </section>
+
+            <!-- 5. Pin and Unpin -->
+            <section>
+                <h2>5. Pin and Unpin</h2>
+                <p>Async state machines can contain self-referential pointers (e.g., a reference into a local buffer). Moving such a struct would invalidate the pointer. <code>Pin&lt;P&gt;</code> prevents the value from being moved after it has been pinned.</p>
+                <pre><code class="language-rust">use std::pin::Pin;
+use std::future::Future;
+
+// Most types implement Unpin — pinning them is a no-op
+// Types with self-references do NOT implement Unpin by default
+
+// Stack-pinning with pin! macro (tokio re-exports it)
+async fn stack_pin_example() {
+    let mut future = std::pin::pin!(async {
+        // This future may be self-referential internally
+        let x = 42;
+        std::future::ready(()).await;
+        x // x referenced after an await point
+    });
+
+    // future is now pinned on the stack and can be polled
+    let result = future.await;
+    println!("{result}");
+}
+
+// Heap-pinning with Box::pin
+fn heap_pin_example() -&gt; Pin&lt;Box&lt;dyn Future&lt;Output = i32&gt; + Send&gt;&gt; {
+    Box::pin(async { 100 })
+}
+
+// When you need to store a future in a struct field
+struct TaskRunner {
+    // Without Pin: cannot store a &mut reference to the future safely
+    // With Pin: the future cannot be moved after polling starts
+    future: Pin&lt;Box&lt;dyn Future&lt;Output = ()&gt; + Send&gt;&gt;,
+}
+
+impl TaskRunner {
+    fn new(f: impl Future&lt;Output = ()&gt; + Send + 'static) -&gt; Self {
+        TaskRunner { future: Box::pin(f) }
+    }
+}
+</code></pre>
+
+                <h3>5.1 Practical Rules</h3>
+                <ul>
+                    <li>If you just <code>.await</code> futures — you never need to think about <code>Pin</code>.</li>
+                    <li>If you store futures in structs or implement <code>Future</code> manually — use <code>Box::pin()</code>.</li>
+                    <li>If you use <code>tokio::select!</code> with futures by reference — use <code>tokio::pin!()</code> or <code>std::pin::pin!()</code>.</li>
+                </ul>
+            </section>
+
+            <!-- 6. Async traits -->
+            <section>
+                <h2>6. Async Traits</h2>
+                <p>As of Rust 1.75, <code>async fn</code> in traits is stable. Earlier code used the <code>async-trait</code> crate.</p>
+                <pre><code class="language-rust">// Stable async fn in traits (Rust 1.75+)
+trait DataStore {
+    async fn fetch(&amp;self, key: &amp;str) -&gt; Option&lt;String&gt;;
+    async fn store(&amp;mut self, key: &amp;str, value: String);
+}
+
+struct MemStore(std::collections::HashMap&lt;String, String&gt;);
+
+impl DataStore for MemStore {
+    async fn fetch(&amp;self, key: &amp;str) -&gt; Option&lt;String&gt; {
+        // async fn in impl can use .await
+        self.0.get(key).cloned()
+    }
+
+    async fn store(&amp;mut self, key: &amp;str, value: String) {
+        self.0.insert(key.to_string(), value);
+    }
+}
+
+// For trait objects (dyn DataStore), use async-trait crate or return-position
+// impl Trait (RPIT) workarounds — async fn in trait objects is still limited.
+</code></pre>
+
+                <h3>6.1 async-trait for Older Code / dyn Dispatch</h3>
+                <pre><code class="language-rust">// Cargo.toml: async-trait = "0.1"
+use async_trait::async_trait;
+
+#[async_trait]
+trait Fetcher: Send + Sync {
+    async fn fetch(&amp;self, url: &amp;str) -&gt; Result&lt;String, String&gt;;
+}
+
+struct HttpFetcher;
+
+#[async_trait]
+impl Fetcher for HttpFetcher {
+    async fn fetch(&amp;self, url: &amp;str) -&gt; Result&lt;String, String&gt; {
+        // In real code: reqwest::get(url).await...
+        Ok(format!("response from {url}"))
+    }
+}
+
+// Now usable as a trait object — async-trait boxes the returned future
+async fn run(fetcher: &amp;dyn Fetcher) {
+    let resp = fetcher.fetch("https://example.com").await.unwrap();
+    println!("{resp}");
+}
+</code></pre>
+            </section>
+
+            <!-- 7. Async streams -->
+            <section>
+                <h2>7. Async Streams</h2>
+                <p>An async stream is like an iterator that yields values asynchronously. The <code>futures</code> crate provides <code>StreamExt</code> with familiar combinators.</p>
+                <pre><code class="language-rust">// Cargo.toml: futures = "0.3", tokio = { version = "1", features = ["full"] }
+use futures::stream::{self, StreamExt};
+use tokio::time::{sleep, Duration};
+
+#[tokio::main]
+async fn main() {
+    // Create a stream from an iterator
+    let stream = stream::iter(0u32..10);
+
+    // StreamExt provides async versions of iterator combinators
+    let result: Vec&lt;u32&gt; = stream
+        .filter(|&amp;n| async move { n % 2 == 0 })
+        .map(|n| async move { n * n })
+        .buffered(4)          // drive up to 4 futures concurrently
+        .collect()
+        .await;
+
+    println!("{result:?}"); // [0, 4, 16, 36, 64]
+
+    // Async generator — emit values over time
+    let ticks = stream::unfold(0u32, |i| async move {
+        if i &gt;= 5 { return None; }
+        sleep(Duration::from_millis(20)).await;
+        Some((i, i + 1))
+    });
+
+    tokio::pin!(ticks);
+    while let Some(v) = ticks.next().await {
+        print!("{v} ");
+    }
+    println!();
+}
+</code></pre>
+
+                <h3>7.1 tokio_stream and ReceiverStream</h3>
+                <pre><code class="language-rust">// Cargo.toml: tokio-stream = "0.1"
+use tokio::sync::mpsc;
+use tokio_stream::{wrappers::ReceiverStream, StreamExt};
+
+#[tokio::main]
+async fn main() {
+    let (tx, rx) = mpsc::channel::&lt;i32&gt;(16);
+
+    tokio::spawn(async move {
+        for i in 0..5 {
+            tx.send(i).await.unwrap();
+        }
+    });
+
+    // Wrap a tokio mpsc receiver into a Stream
+    let mut stream = ReceiverStream::new(rx);
+
+    while let Some(item) = stream.next().await {
+        println!("received: {item}");
+    }
+}
+</code></pre>
+            </section>
+
+            <!-- 8. Error handling in async -->
+            <section>
+                <h2>8. Error Handling in Async Code</h2>
+                <pre><code class="language-rust">use tokio::time::{sleep, Duration};
+use std::io;
+
+// async functions return Result like regular functions
+async fn read_file(path: &amp;str) -&gt; Result&lt;String, io::Error&gt; {
+    // tokio::fs is the async equivalent of std::fs
+    tokio::fs::read_to_string(path).await
+}
+
+async fn fetch_with_retry(url: &amp;str, retries: u32) -&gt; Result&lt;String, String&gt; {
+    let mut last_err = String::new();
+    for attempt in 0..=retries {
+        if attempt &gt; 0 {
+            sleep(Duration::from_millis(100 * 2u64.pow(attempt))).await; // backoff
+        }
+        match simulate_fetch(url).await {
+            Ok(resp) =&gt; return Ok(resp),
+            Err(e)   =&gt; last_err = e,
+        }
+    }
+    Err(format!("all retries failed: {last_err}"))
+}
+
+async fn simulate_fetch(url: &amp;str) -&gt; Result&lt;String, String&gt; {
+    sleep(Duration::from_millis(10)).await;
+    if url.contains("bad") {
+        Err("connection refused".to_string())
+    } else {
+        Ok(format!("200 OK from {url}"))
+    }
+}
+
+#[tokio::main]
+async fn main() {
+    match fetch_with_retry("https://good.example.com", 3).await {
+        Ok(r)  =&gt; println!("{r}"),
+        Err(e) =&gt; eprintln!("error: {e}"),
+    }
+
+    match fetch_with_retry("https://bad.example.com", 2).await {
+        Ok(r)  =&gt; println!("{r}"),
+        Err(e) =&gt; eprintln!("error: {e}"),
+    }
+}
+</code></pre>
+            </section>
+
+            <!-- 9. Common async pitfalls -->
+            <section>
+                <h2>9. Common Async Pitfalls</h2>
+
+                <h3>9.1 Blocking Inside async — Don't!</h3>
+                <pre><code class="language-rust">use tokio::time::{sleep, Duration};
+use std::thread;
+
+// BAD: std::thread::sleep blocks the entire executor thread
+async fn bad_delay(ms: u64) {
+    thread::sleep(Duration::from_millis(ms)); // blocks all async tasks on this thread!
+}
+
+// GOOD: use the async equivalent
+async fn good_delay(ms: u64) {
+    sleep(Duration::from_millis(ms)).await; // yields to executor
+}
+
+// For CPU-bound work, use spawn_blocking to offload to a thread pool
+async fn cpu_intensive(data: Vec&lt;u32&gt;) -&gt; Vec&lt;u32&gt; {
+    tokio::task::spawn_blocking(move || {
+        // runs on a dedicated blocking thread, does not block the async executor
+        let mut d = data;
+        d.sort();
+        d
+    })
+    .await
+    .unwrap()
+}
+</code></pre>
+
+                <h3>9.2 Holding a Mutex Guard Across .await</h3>
+                <pre><code class="language-rust">use std::sync::Mutex;
+use tokio::time::{sleep, Duration};
+
+// BAD: std::sync::MutexGuard held across .await — may cause deadlock
+// and won't even compile with Tokio's multi-thread runtime
+async fn bad_lock(m: &amp;Mutex&lt;i32&gt;) {
+    let _guard = m.lock().unwrap(); // std::sync::MutexGuard is not Send
+    // sleep(Duration::from_millis(10)).await; // compile error in multi-thread mode
+}
+
+// GOOD 1: drop the guard before .await
+async fn good_lock_v1(m: &amp;Mutex&lt;i32&gt;) -&gt; i32 {
+    let value = {
+        let guard = m.lock().unwrap();
+        *guard // copy the value, guard dropped at end of block
+    };
+    sleep(Duration::from_millis(10)).await; // no lock held
+    value
+}
+
+// GOOD 2: use tokio::sync::Mutex which IS Send
+async fn good_lock_v2(m: &amp;tokio::sync::Mutex&lt;i32&gt;) -&gt; i32 {
+    let mut guard = m.lock().await; // async lock — yields instead of blocking
+    *guard += 1;
+    sleep(Duration::from_millis(10)).await; // OK: tokio::MutexGuard is Send
+    *guard
+}
+</code></pre>
+
+                <h3>9.3 Async is Concurrent, Not Parallel by Default</h3>
+                <pre><code class="language-rust">use tokio::time::{sleep, Duration, Instant};
+
+#[tokio::main(flavor = "current_thread")] // single-threaded runtime
+async fn main() {
+    let start = Instant::now();
+
+    // join! runs futures concurrently (interleaved) on ONE thread
+    // For true parallelism use tokio::spawn (multi-thread runtime)
+    let (a, b) = tokio::join!(
+        async { sleep(Duration::from_millis(100)).await; "a" },
+        async { sleep(Duration::from_millis(100)).await; "b" },
+    );
+
+    // ~100ms total (concurrent), not 200ms (sequential), even on 1 thread
+    println!("done in {}ms: {a}, {b}", start.elapsed().as_millis());
+}
+</code></pre>
+            </section>
+
+            <!-- 10. Executors overview -->
+            <section>
+                <h2>10. Executors — The Runtime</h2>
+                <p>A Rust future does nothing on its own. An <em>executor</em> drives it by polling. The most popular executor is <a href="https://tokio.rs" target="_blank">Tokio</a>; alternatives include <code>async-std</code>, <code>smol</code>, and <code>embassy</code> (for embedded).</p>
+                <pre><code class="language-rust">// Minimal executor from scratch (educational, not production)
+use std::future::Future;
+use std::task::{Context, Poll, RawWaker, RawWakerVTable, Waker};
+use std::pin::pin;
+
+fn noop_waker() -&gt; Waker {
+    // A waker that does nothing (fine for busy-polling)
+    const VTABLE: RawWakerVTable = RawWakerVTable::new(
+        |_| RawWaker::new(std::ptr::null(), &amp;VTABLE), // clone
+        |_| {},  // wake
+        |_| {},  // wake_by_ref
+        |_| {},  // drop
+    );
+    unsafe { Waker::from_raw(RawWaker::new(std::ptr::null(), &amp;VTABLE)) }
+}
+
+fn block_on&lt;F: Future&gt;(mut future: F) -&gt; F::Output {
+    let waker = noop_waker();
+    let mut cx = Context::from_waker(&amp;waker);
+    let mut future = pin!(future);
+
+    loop {
+        match future.as_mut().poll(&amp;mut cx) {
+            Poll::Ready(v) =&gt; return v,
+            Poll::Pending  =&gt; { /* spin — real executors sleep here */ }
+        }
+    }
+}
+
+fn main() {
+    let result = block_on(async {
+        // no .await across OS yields needed here for this simple executor
+        1 + 1
+    });
+    println!("result: {result}"); // 2
+}
+</code></pre>
+                <p>In practice, always use <code>#[tokio::main]</code> or <code>tokio::runtime::Runtime::new()</code> — never write your own executor for production code.</p>
+            </section>
+                    </div><!-- /article-body -->
+                </div><!-- /article-main -->
+                <aside class="article-sidebar">
+                    <div class="sidebar-author">
+                        <img src="images/pm.png" alt="Paolo Mascia" class="sidebar-author-photo">
+                        <div class="sidebar-author-name">Paolo Mascia</div>
+                        <div class="sidebar-author-role">AI &amp; Cloud Architect</div>
+                        <p class="sidebar-author-bio">25+ years designing distributed systems. Specialized in Generative AI, LLM orchestration, and cloud-native architectures.</p>
+                    </div>
+
+                    <div class="sidebar-box">
+                        <h4>Rust Series &mdash; Module 5</h4>
+                        <a href="rust-threads.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">OS Threads &amp; Scoped Threads</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-channels.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Channels &amp; Message Passing</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-async-await.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Async/Await &amp; Futures</div>
+                            <span class="sidebar-link-meta">Feb 2026</span>
+                        </a>
+                        <a href="rust-tokio.html" class="sidebar-link">
+                            <span class="sidebar-link-tag">Rust</span>
+                            <div class="sidebar-link-title">Tokio Runtime &amp; Async I/O</div>
+                            <span class="sidebar-link-meta">Mar 2026</span>
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Paolo Mascia. Built with curiosity and too much coffee.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-rust.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+    <script>
+        const toggle = document.querySelector('.nav-toggle');
+        const navLinks = document.querySelector('.nav-links');
+        toggle.addEventListener('click', () => {
+            navLinks.classList.toggle('active');
+            toggle.classList.toggle('active');
+        });
+    </script>
+</body>
+</html>
